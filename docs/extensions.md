@@ -1,0 +1,223 @@
+# Extension Author Guide (Wave 6)
+
+This guide describes the post-v1 community extensions for the Home Assistant Kiosk. Extensions add **data widgets** -- for example bus departures -- without shipping a new kiosk binary.
+
+Extensions are untrusted third-party code. The signed catalog proves who published a package; it does not prove that the package is safe. Read the security rules before publishing.
+
+## What an extension can and cannot do
+
+An extension can:
+
+- Fetch JSON from declared HTTPS hosts.
+- Read declared Home Assistant entities (read-only snapshot).
+- Return one of three view models: `departures`, `list`, or `key_value`.
+- Read its own non-secret settings and secret values.
+
+An extension cannot:
+
+- Ship native code, a shared library, an executable, WASM, or arbitrary Slint files.
+- access the filesystem, processes, environment variables, or arbitrary network hosts.
+- Call Home Assistant services or receive the Home Assistant token.
+- Draw arbitrary UI or open windows.
+- Read the kiosk configuration or another extension's settings.
+
+## Package layout
+
+An extension package is a gzipped tar archive with the suffix `.hkext`:
+
+```text
+org.example.bus-departures/
+├── manifest.toml
+├── main.rhai
+├── README.md
+└── LICENSE
+```
+
+The package root is the extension directory. Paths must be relative; absolute paths, `..`, symlinks, hardlinks, and device files are rejected.
+
+## Manifest
+
+```toml
+id = "org.example.bus-departures"
+name = "Bus Departures"
+version = "1.0.0"
+api_version = 1
+min_app_version = "0.6.0"
+entry = "main.rhai"
+provides = "departures" # departures | list | key_value
+author = "Example Author"
+license = "MIT"
+homepage = "https://example.com/bus-departures"
+description = "Shows upcoming bus departures for a configured stop."
+
+[permissions]
+http_hosts = ["api.example.com"]
+ha_entities = []
+
+[[config_schema]]
+key = "stop_id"
+label = "Stop ID"
+type = "string"
+required = true
+help = "The stop identifier used by the transit API."
+
+[[config_schema]]
+key = "limit"
+label = "Maximum departures"
+type = "integer"
+required = false
+default = 6
+min = 1
+max = 20
+```
+
+Rules:
+
+- `id` is immutable and reverse-DNS. Use a domain you control.
+- `version` is semver. Never reuse a version.
+- `api_version` is `1` for this API. A newer kiosk may reject older extensions only if the API changes.
+- `min_app_version` is the lowest kiosk version that can run the extension.
+- `provides` must match the object returned by `refresh`.
+- `http_hosts` lists exact hosts, optionally with a port. No wildcards; HTTPS only.
+- `ha_entities` lists exact entity IDs the script may read.
+- `license` is an SPDX identifier. The package must include the license text.
+- Do not put secrets in the manifest. Secret fields use a separate file.
+
+Config field types: `string`, `integer`, `boolean`, `url`, `secret`, `entity_id`, and `select` (with `options`). The shop displays the required keys and the file path; it does not provide an on-screen keyboard.
+
+## Script API
+
+`main.rhai` must define:
+
+```rhai
+fn refresh(config) {
+    // Return a map matching the manifest's `provides` value.
+}
+```
+
+The host registers only these functions:
+
+| Function | Behaviour |
+| --- | --- |
+| `http_get_json(url)` | GET only, HTTPS, host allowlist, no credentials, 10 s timeout, 1 MB cap, no cross-host redirects. Returns a Rhai value. |
+| `ha_state(entity_id)` | Read-only map with `state` and `attributes`, allowlisted entity IDs only. Returns `()` if unavailable. |
+| `now()` | RFC 3339 timestamp in the Home Assistant timezone. |
+| `log(message)` | Debug log. Do not log secrets or full API responses. |
+
+No other host functions are registered. Rhai's own language has no filesystem, process, environment, or network access.
+
+Limits: 1,000,000 operations, 64 KB strings, 1,000 array/map entries, max call depth, no modules/imports, 10 s wall clock. Scripts run off the UI thread.
+
+### Bus departures example
+
+The example is provider-neutral. Replace the API URL and field names with the ones your provider documents; keep the host in `http_hosts`.
+
+```rhai
+fn refresh(config) {
+    let url = "https://api.example.com/departures?stop=" + config.stop_id;
+    let data = http_get_json(url);
+    let items = [];
+
+    for d in data.departures {
+        items.push(#{
+            line: d.line,
+            destination: d.destination,
+            departure: d.time,          // RFC 3339 with offset preferred
+            delay_minutes: d.delay_minutes ?? 0,
+            platform: d.platform ?? (),
+            cancelled: d.cancelled ?? false,
+            remarks: d.remarks ?? ()
+        });
+    }
+
+    #{ kind: "departures", title: "Bus", items: items }
+}
+```
+
+`??` is Rhai's null-coalescing operator; use the syntax supported by the pinned Rhai version. The host validates and caps the result.
+
+### Other output kinds
+
+`list`:
+
+```json
+{"kind": "list", "title": "Trams", "columns": ["Line", "Destination", "Time"],
+ "rows": [["1", "Central Station", "21:55"]]}
+```
+
+`key_value`:
+
+```json
+{"kind": "key_value", "title": "Stop status",
+ "items": [{"label": "Stop", "value": "Central"}, {"label": "Updated", "value": "21:50"}]}
+```
+
+Output is data only. The built-in widgets decide fonts, colors, layout, and touch targets.
+
+## Configuration and secrets
+
+Non-secret settings:
+
+```toml
+[extensions.settings."org.example.bus-departures"]
+stop_id = "REPLACE_ME"
+limit = 6
+```
+
+Secret settings:
+
+```text
+/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml
+```
+
+The secret file is mode `0600` and owned by the service user. The host injects only the declared secret keys into `config`; it never logs them.
+
+## Packaging
+
+From the extension directory:
+
+```bash
+tar -czf org.example.bus-departures-1.0.0.hkext \
+  manifest.toml main.rhai README.md LICENSE
+sha256sum org.example.bus-departures-1.0.0.hkext
+```
+
+The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub release asset or another stable HTTPS URL. Do not change a published package; publish a new version.
+
+## Local testing
+
+1. Start a local catalog (plain HTTP is allowed only with `allow_unsigned = true` and `extensions.dev_mode`).
+2. Install the package in a scratch directory.
+3. Check that the script cannot reach a host or entity outside its manifest.
+4. Check that an invalid output shape shows an error and keeps the last good data.
+5. Check the operation/time limits with a deliberately slow or looping script.
+6. Test the shop at 800 x 480 with touch emulation.
+
+## Publishing
+
+1. Open a pull request in the catalog repository.
+2. Include `manifest.toml`, `main.rhai`, `README.md`, `LICENSE`, and tests or a test plan.
+3. Keep permissions minimal. A bus widget should not request Home Assistant entities it does not display.
+4. Do not include secrets, personal stop IDs, home addresses, or real API keys.
+5. Wait for CI validation and review.
+6. A maintainer publishes the release asset and signs the catalog index offline.
+7. Never sign a package whose contents you have not reviewed.
+
+## Versioning and deprecation
+
+- Patch: bug fix with the same behaviour and permissions.
+- Minor: new optional config fields or output fields; keep old configs working.
+- Major: breaking config or output changes; update `min_app_version` if the kiosk API changed.
+- Removing a package from the catalog does not uninstall it from existing kiosks; the shop marks it unavailable.
+
+## Security checklist
+
+- [ ] No native code, WASM, or arbitrary Slint files.
+- [ ] No filesystem, process, environment, or module access.
+- [ ] Only declared HTTPS hosts; no credentials in URLs.
+- [ ] Only declared HA entities, read-only; no service calls.
+- [ ] No secrets in the manifest, README, logs, or examples.
+- [ ] Output matches the declared kind and is capped at 100 items.
+- [ ] Script respects the operation and time limits.
+- [ ] License is present and compatible with redistribution.
+- [ ] The package checksum matches the catalog entry.

@@ -152,3 +152,30 @@ path = "/var/lib/ha-kiosk/state.json"
 write_debounce_seconds = 10
 # Upper bound for the cache file. Older/incompatible caches are discarded.
 max_bytes = 262144
+
+# ---------------------------------------------------------------------------
+# Community extension shop (Wave 6; disabled in v1)
+# ---------------------------------------------------------------------------
+
+[extensions]
+enabled = false
+# HTTPS URL of the signed catalog index in the separate catalog repository.
+catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
+# Minisign public keys (base64). The matching private key never enters this repo.
+public_keys = []
+# Development only. A production shop must reject unsigned catalogs.
+allow_unsigned = false
+# Development only: permit HTTP (not HTTPS) catalog/package URLs for a local catalog.
+dev_mode = false
+refresh_hours = 24
+max_catalog_bytes = 2097152
+max_package_bytes = 5242880
+max_script_operations = 1000000
+
+# Per-extension settings go here. The shop shows the required keys.
+# [extensions.settings."org.example.bus-departures"]
+# stop_id = "REPLACE_ME"
+# limit = 6
+
+# Secret fields for an extension live in a separate file with mode 0600:
+# /etc/ha-kiosk/extensions/<extension-id>.secret.toml

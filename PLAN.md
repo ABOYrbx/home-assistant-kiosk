@@ -4,7 +4,7 @@
 
 **Goal:** A small, native kiosk dashboard written in Rust and Slint. It runs on a Raspberry Pi 3, a Pi Zero 2 W, and ordinary Linux systems (x86_64/ARM), talks to Home Assistant over its WebSocket API, and shows clock, weather, Home Assistant tiles, media, departures, and calendar events. It is touch-first, works as a full-screen kiosk, and keeps the last known state when Home Assistant is offline.
 
-**Architecture:** One native Rust binary with a Slint UI. The Slint event loop and the application state live on the main thread. A Tokio runtime runs in the background for the Home Assistant WebSocket connection, service calls, HTTP image fetches, and cache writes. Background tasks send typed events to the UI thread; the UI thread applies them to Slint models and properties. All data is Home Assistant-first and configuration-driven: no provider-specific URLs, stop IDs, entity IDs, or personal data are compiled into the program.
+**Architecture:** One native Rust binary with a Slint UI. The Slint event loop and the application state live on the main thread. A Tokio runtime runs in the background for the Home Assistant WebSocket connection, service calls, HTTP image fetches, and cache writes. Background tasks send typed events to the UI thread; the UI thread applies them to Slint models and properties. All v1 data is Home Assistant-first and configuration-driven: no provider-specific URLs, stop IDs, entity IDs, or personal data are compiled into the program. Wave 6 adds sandboxed, permissioned data extensions as the only sanctioned exception.
 
 **Tech stack:** Rust 1.95+ (edition 2024), Slint 1.19 (software renderer; winit for desktop development, LinuxKMS for the kiosk), tokio 1.54, tokio-tungstenite 0.30, serde/serde_json, toml 1.2, reqwest 0.13 with rustls, chrono/chrono-tz, tracing, thiserror/anyhow, secrecy.
 
@@ -33,10 +33,14 @@
 
 - Editing Home Assistant configuration or dashboards.
 - An on-screen keyboard or in-app configuration editor.
-- Direct weather, transit, or calendar provider APIs. Providers stay behind Home Assistant integrations in v1.
+- Direct weather, transit, or calendar provider APIs in v1. Providers stay behind Home Assistant integrations; Wave 6 may add sandboxed provider data sources through the extension shop.
 - User accounts, multi-user profiles, or cloud services.
 - Video playback, camera streams, or audio output on the kiosk itself.
 - Localization. The UI is English in v1; all user-facing strings live in one place so a later translation is possible.
+
+### Post-v1 roadmap
+
+- **Wave 6 — Community extension shop:** a separate, signed GitHub catalog of sandboxed data extensions (for example bus departures). It adds a fifth Shop page and does not change the v1 gate. Design in section 4.6.
 
 ### Supported hardware and operating systems
 
@@ -74,6 +78,9 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
 | 16 | State ownership | The UI thread owns `AppState`; background tasks only send events | Avoids shared mutable state and cross-thread Slint access. |
 | 17 | Seat access | `seatd` + system service with the service user in the `seat` group; alternatives documented | Non-root DRM/input access without an autologin session. |
 | 18 | Timezone | Use `get_config.time_zone`; `ha.time_zone` is a fallback | Calendar times stay correct when the kiosk and Home Assistant differ. |
+| 19 | Extensions | Signed catalog + sandboxed Rhai data scripts + declarative widgets | Bus departures and custom lists without native code or arbitrary UI on a 512 MB device. |
+| 20 | Catalog trust | Separate public GitHub repository; Minisign-signed index; SHA-256 packages | Provenance without a private signing key in CI or the kiosk repo. |
+| 21 | Shop page | Wave 6 adds a fifth page only when extensions are enabled; v1 remains four pages | Keeps the v1 release gate unchanged. |
 
 ---
 
@@ -190,6 +197,58 @@ Calendar calls use `calendar.get_events` with `start_date_time` and `end_date_ti
 - Text in tiles, media, departures, and calendar rows is elided or wrapped to a fixed number of lines; long titles must not push the layout off-screen.
 - Test at 800 × 480 and 1024 × 600 logical pixels, with touch emulation in the Slint testing backend.
 
+### 4.6 Extension host (Wave 6, post-v1)
+
+The community extension shop is a post-v1 feature. It must not change the v1 release gate.
+
+**Purpose:** a separate, public GitHub repository acts as a catalog. It lists community extensions that add data widgets, such as bus departures, without shipping a new kiosk binary.
+
+**Chosen model:** signed catalog + sandboxed Rhai data scripts + a small declarative output schema. Extensions do **not** ship native code, Slint files, or arbitrary UI. They return one of three view models: `departures`, `list`, or `key_value`. The existing built-in widgets render those models. This covers bus departures and custom lists while keeping the trust boundary small on a 512 MB device.
+
+Alternatives considered:
+
+| Model | Trade-off | Decision |
+| --- | --- | --- |
+| Declarative JSON mapping only | Safest, but cannot express the parsing quirks of community transit APIs | Not enough for the stated use case |
+| WASM plugins | Strong sandbox, but a large runtime and compile cost on a Pi Zero 2 W | Too heavy for v1 |
+| Rhai scripts with declarative widgets | Small pure-Rust runtime, no default I/O, host-controlled permissions and resource limits | **Chosen** |
+
+**Catalog trust:**
+
+- The catalog is a separate repository with `index.json` and `index.json.minisig`. The index is signed offline with Minisign; the 0600 private key never enters the kiosk repo or CI.
+- Configured Minisign public keys are the trust anchor. `allow_unsigned` exists only for local development and is off by default.
+- Every package has a SHA-256 checksum and a size in the signed index. Download over HTTPS only.
+- Package extraction rejects absolute paths, `..`, symlinks, hardlinks, device files, and decompressed-size bombs.
+- The app caches the last verified index; an offline shop can still show and run installed extensions.
+
+**Script sandbox:**
+
+- Rhai has no built-in filesystem, process, environment, or network access. The host registers only:
+  - `http_get_json(url)`: GET only, HTTPS, allowlisted host, no credentials, 10 s timeout, 1 MB response cap, no cross-host redirects.
+  - `ha_state(entity_id)`: read-only, allowlisted entity IDs, snapshot only; **no service calls**.
+  - `now()` and `log(message)`.
+- Engine limits: 1,000,000 operations, max string 64 KB, max array/map 1,000 entries, max call depth, no modules/imports, 10 s wall-clock cap.
+- Output is validated against the declared `provides` kind and capped at 100 items; unknown or malformed fields are rejected.
+- A failing extension keeps its last good data and shows an error; repeated failures mark it degraded, never crash the app.
+
+**Permissions and configuration:**
+
+- The manifest declares `http_hosts` and `ha_entities`; the shop shows them before installation and the host enforces them.
+- Configuration lives in `config.toml` under `[extensions.settings."<id>"]`; secret fields live in a per-extension file with mode `0600`. No on-screen keyboard is required: the shop shows the required keys and the file path.
+- Extensions never receive the Home Assistant token.
+
+**Lifecycle:**
+
+- Installed extensions live under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; installation is atomic, the previous version is kept for rollback, and removal keeps settings unless explicitly purged.
+- Catalog refresh runs daily and on manual request; installed extensions continue to work offline.
+- `api_version = 1`; `min_app_version` and semver guard compatibility. A downgrade requires an explicit action.
+
+**Shop UI:** a fifth page, added only when `extensions.enabled = true` in Wave 6. It lists installed and available extensions, version, author, license, permissions, configuration status, and install/update/remove/enable actions. A first-install confirmation explains that community extensions are third-party code.
+
+**Out of scope for extensions:** native code, arbitrary Slint UI, Home Assistant service calls, filesystem/process/env access, arbitrary secrets, and access to the kiosk's config or token.
+
+**Companion repository:** `home-assistant-kiosk-extensions` (name provisional, separate from this repo). It contains the catalog schema, extension sources, release packaging, validation CI, and the offline signing instructions. It must be public for community use; the visibility decision is recorded in section 12.
+
 ---
 
 ## 5. Configuration
@@ -210,6 +269,7 @@ Design rules:
 - `display.rotation` accepts `0`, `90`, `180`, `270`. On LinuxKMS it maps to `SLINT_KMS_ROTATION`; touch calibration is a deployment concern, documented in the README.
 - `display.width`/`height` size the desktop window and drive layout tests. On LinuxKMS the DRM mode wins; use `SLINT_DRM_MODE` to select a mode. Layouts must be responsive rather than assuming one exact resolution.
 - No default entity IDs are shipped. A widget whose required entity is absent is hidden or shows a configuration hint.
+- `[extensions]` is disabled in v1. Wave 6 enables it only when a signed catalog and public keys are configured; `allow_unsigned`/`dev_mode` are development-only.
 
 ---
 
@@ -232,8 +292,10 @@ home-assistant-kiosk/
 ├── docs/
 │   ├── plan-review.md
 │   ├── departures-entity-contract.md
+│   ├── extensions.md      # Wave 6 author guide
+│   ├── extension-catalog.md # Wave 6 catalog/signing spec
 │   └── issues/
-│       ├── wave-0.md … wave-5.md
+│       ├── wave-0.md … wave-6.md
 ├── src/
 │   ├── main.rs            # entry point, CLI, runtime, Slint bootstrap
 │   ├── lib.rs             # public modules for tests
@@ -254,6 +316,14 @@ home-assistant-kiosk/
 │   │   ├── calendar.rs    # calendar.get_events
 │   │   ├── media.rs       # media_player view model, entity_picture
 │   │   └── departures.rs  # generic departures attribute parser
+│   ├── extensions/        # Wave 6 only
+│   │   ├── mod.rs
+│   │   ├── catalog.rs     # index fetch + cache
+│   │   ├── manifest.rs    # manifest/config schemas
+│   │   ├── signature.rs   # Minisign verification
+│   │   ├── store.rs       # atomic install/update/remove
+│   │   ├── host.rs        # Rhai sandbox + permissions
+│   │   └── install.rs     # package download/extraction
 │   └── ui/
 │       ├── mod.rs
 │       ├── bridge.rs      # AppState -> Slint properties/models
@@ -265,6 +335,7 @@ home-assistant-kiosk/
 │   │   ├── overview.slint
 │   │   ├── media.slint
 │   │   ├── agenda.slint
+│   │   ├── shop.slint     # Wave 6 only
 │   │   └── status.slint
 │   └── widgets/
 │       ├── clock.slint
@@ -285,7 +356,8 @@ home-assistant-kiosk/
     ├── config_test.rs
     ├── ha_client_test.rs
     ├── cache_test.rs
-    └── ui_smoke_test.rs
+    ├── ui_smoke_test.rs
+    └── extensions_test.rs # Wave 6 only
 ```
 
 `build.rs` calls `slint_build::compile("ui/main.slint")`. Slint files are compiled at build time; there is no runtime `.slint` loading.
@@ -343,6 +415,89 @@ kiosk = [
 ```
 
 `Cargo.lock` is committed. Update patch versions with `cargo update` only as part of a reviewed change. Do not use `--all-features` on macOS; the LinuxKMS backend is Linux-only.
+
+### 7.2 Extension interfaces (Wave 6)
+
+Wave 6 adds these dependencies; they are not part of the v1 build:
+
+```toml
+rhai = { version = "1.27", features = ["serde"] }
+minisign-verify = "0.3"
+sha2 = "0.11"
+hex = "0.4"
+tar = "0.4"
+flate2 = "1.1"          # default rust_backend; no C zlib
+semver = "1.0"
+tempfile = "3"          # promoted from dev-dependencies
+# Also enable the existing reqwest "blocking" feature for the synchronous Rhai host,
+# or bridge through a blocking runtime handle. Do not call block_on on the UI thread.
+```
+
+```rust
+pub struct ExtensionManifest {
+    pub id: String,                    // reverse-DNS, immutable
+    pub name: String,
+    pub version: semver::Version,
+    pub api_version: u32,              // must be 1
+    pub min_app_version: semver::Version,
+    pub entry: String,                 // "main.rhai"
+    pub provides: ExtensionKind,
+    pub permissions: Permissions,
+    pub config_schema: Vec<ConfigField>,
+    pub author: String,
+    pub license: String,
+    pub homepage: Option<url::Url>,
+    pub description: String,
+}
+
+pub enum ExtensionKind {
+    Departures,
+    List,
+    KeyValue,
+}
+
+pub struct Permissions {
+    pub http_hosts: Vec<String>,       // exact host[:port], HTTPS only
+    pub ha_entities: Vec<EntityId>,    // read-only
+}
+
+pub struct CatalogIndex {
+    pub schema_version: u32,
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+    pub extensions: Vec<CatalogEntry>,
+}
+
+pub struct CatalogEntry {
+    pub manifest: ExtensionManifest,
+    pub package_url: url::Url,
+    pub sha256: String,
+    pub size_bytes: u64,
+}
+
+pub struct ExtensionHost {
+    // catalog, verified index, installed store, script runner
+}
+impl ExtensionHost {
+    pub async fn refresh_catalog(&mut self) -> Result<(), ExtensionError>;
+    pub async fn install(&mut self, id: &str, version: &semver::Version) -> Result<(), ExtensionError>;
+    pub async fn update(&mut self, id: &str) -> Result<(), ExtensionError>;
+    pub async fn remove(&mut self, id: &str, purge_settings: bool) -> Result<(), ExtensionError>;
+    pub fn set_enabled(&mut self, id: &str, enabled: bool) -> Result<(), ExtensionError>;
+    pub async fn refresh_due(&mut self, ha: &HaSnapshot) -> Vec<ExtensionResult>;
+}
+```
+
+Script output contract:
+
+```json
+{"kind": "departures", "title": "Bus", "items": [
+  {"line": "42", "destination": "Central Station", "departure": "2026-11-22T21:55:00+01:00",
+   "delay_minutes": 2, "platform": "2", "cancelled": false, "remarks": null}
+]}
+```
+
+`list` uses `columns` and `rows`; `key_value` uses `items` of `{label, value}`. The host validates the shape and limits items to 100.
+
 
 ```rust
 // config.rs
@@ -692,6 +847,59 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 
 ---
 
+### Wave 6 — Community extension shop (post-v1)
+
+**Dependencies:** Waves 1–3 for the HA client, UI shell, and widget rendering; start after Wave 5. **Agents:** 4, parallel after the extension interface is frozen. **This wave does not change the v1 release gate.**
+
+#### 6.1 Catalog, signature, and store
+
+- [ ] Define the signed catalog format (`index.json` + `index.json.minisig`) and JSON schemas for catalog entries and manifests.
+- [ ] Fetch the catalog over HTTPS, verify Minisign signatures against configured public keys, cache the last verified index, and enforce a catalog size cap.
+- [ ] Enforce HTTPS, size caps, SHA-256 checksums, and `min_app_version`/`api_version` compatibility. Unsigned catalogs and HTTP URLs are accepted only when `allow_unsigned` and `dev_mode` are both explicitly enabled.
+- [ ] Download `.hkext` packages (gzipped tar) to a temp directory; verify size and checksum before extraction.
+- [ ] Reject absolute paths, `..`, symlinks, hardlinks, device files, and decompressed-size bombs during extraction.
+- [ ] Install atomically under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; keep one previous version for rollback.
+- [ ] Maintain `installed.json` (id, version, enabled, manifest hash, source catalog) and enforce `0600`/`0700` permissions.
+- [ ] Tests: valid/invalid/tampered signature, key rotation, checksum mismatch, oversized package, path traversal, install/update/rollback/remove, offline cache.
+- [ ] Commit: `feat: signed extension catalog and store`.
+
+#### 6.2 Sandboxed extension host
+
+- [ ] Add a Rhai engine with no filesystem, process, environment, or module access.
+- [ ] Register only `http_get_json`, `ha_state`, `now`, and `log`; enforce the manifest's host and entity allowlists.
+- [ ] `http_get_json`: GET only, HTTPS, 10 s timeout, 1 MB cap, no credentials, no cross-host redirects.
+- [ ] `ha_state`: read-only snapshot, allowlisted entity IDs, no service calls, no HA token exposure.
+- [ ] Set operation, string, array, map, call-depth, and wall-clock limits; run the script off the UI thread.
+- [ ] Validate the `departures`, `list`, or `key_value` output shape; cap at 100 items; reject malformed output.
+- [ ] Keep last good data on failure; mark repeated failures degraded; show the error in the shop/status page.
+- [ ] Tests: forbidden host/entity, redirect escape, HTTP rejection, infinite loop/operation limit, oversized allocation, malformed output, timeout.
+- [ ] Commit: `feat: sandboxed extension host`.
+
+#### 6.3 Shop UI and configuration
+
+- [ ] Add a Shop page (fifth page, only when `extensions.enabled = true`) with installed/available lists.
+- [ ] Show name, version, author, license, description, permissions, configuration status, and errors.
+- [ ] Implement install, update, remove, enable/disable with a first-install trust confirmation.
+- [ ] Show configuration keys and the exact TOML/secret file paths; no on-screen keyboard in Wave 6.
+- [ ] Add extension errors to the Status page; keep the page usable while the catalog is offline.
+- [ ] Tests with the Slint testing backend: install/update/remove flows, permission display, offline state, error state.
+- [ ] Commit: `feat: extension shop page`.
+
+#### 6.4 Companion catalog repository and documentation
+
+- [ ] Create the separate `home-assistant-kiosk-extensions` repository (visibility decided in section 12) with `index.json`, `index.json.minisig`, schemas, and extension sources.
+- [ ] Add a validated example extension, `org.example.bus-departures`, using a configurable stop ID and placeholder API host; no real provider URL or personal ID.
+- [ ] Document the author API, manifest, permissions, config schema, output schema, packaging, versioning, and security rules.
+- [ ] Document the release/signing flow: CI validates; a maintainer signs the index offline with Minisign; the private key never enters CI or either repository.
+- [ ] Document community review: license, permissions, no secrets, no service calls, no arbitrary UI, tests, removal process.
+- [ ] Commit: `docs: extension authoring and catalog guide`.
+
+**Wave 6 gate:** A signed catalog installs, updates, rolls back, and removes the example bus-departures extension; a tampered index/package and a sandbox violation are rejected; the extension works offline after install; RSS stays within the Pi budget; the shop UI is usable at 800 × 480; the catalog repository and signing documentation are complete.
+
+**Security note:** Community extensions are untrusted third-party code. The signed catalog establishes provenance, not trustworthiness. The shop must show a clear warning and permissions before installation. Any extension that needs native code, arbitrary UI, service calls, or filesystem access is out of scope and must be rejected.
+
+---
+
 ## 9. Verification matrix
 
 | Requirement | Verified by | Wave |
@@ -710,6 +918,9 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 | RSS, startup, idle CPU, 24 h soak | Pi test record | 5 |
 | Cross-build artifacts | `scripts/build-all.sh`, CI | 4 |
 | systemd install and reboot | Pi manual test record | 4 |
+| Catalog signature, checksum, package extraction | extension store tests | 6 |
+| Sandbox permissions, limits, output validation | extension host tests | 6 |
+| Shop install/update/remove, offline, errors | UI tests + Pi test record | 6 |
 
 ---
 
@@ -724,8 +935,9 @@ These are the failure modes most likely to hurt a real user and are not fully co
 5. **Honest stale data.** Cached values must never look live. The badge and timestamp are part of the feature, not decoration.
 6. **Secret handling.** Token in logs, token in a crash message, world-readable config, token sent to a third-party image host, or token in a screenshot are all release blockers.
 7. **Timezone correctness.** A kiosk in a different timezone from Home Assistant must still show calendar and departure times correctly; naive timestamps use the `get_config` timezone.
+8. **Extension trust boundary.** A signed catalog proves provenance, not safety. A community script must not reach a host or entity outside its declared permissions, must not call HA services, and must not exhaust memory or CPU on a Pi.
 
-Each focus item has an owning task above; the end-to-end tests in Wave 5 pin items 1, 2, and 5, and the Pi test record pins items 3 and 4. Timezone and image-token tests live with the widget and WebSocket tasks.
+Each focus item has an owning task above; the end-to-end tests in Wave 5 pin items 1, 2, and 5, and the Pi test record pins items 3 and 4. Timezone and image-token tests live with the widget and WebSocket tasks; the extension tests live in Wave 6.
 
 ---
 
@@ -743,6 +955,10 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 | SD-card wear from cache writes | Card failure | Debounce writes (10 s), write atomically, keep the cache small. |
 | Self-signed TLS on LAN | Connection fails | Document `allow_invalid_certs` as a last resort; prefer installing the CA. |
 | Slint licensing for embedded distribution | Legal exposure | Decide GPL-3.0-only or commercial before distributing binaries. |
+| Malicious or compromised community extension | Data leak, HA control, crash, or memory exhaustion | Signed index, checksum, Rhai sandbox, host/entity allowlists, no service calls, resource limits, permissions shown before install. |
+| Rhai script allocates or loops too much | OOM or UI stall on a Pi | Operation/string/array/map limits, wall-clock timeout, run off the UI thread, one script at a time, measure RSS. |
+| Compromised catalog signing key | Malicious catalog accepted | Offline key, key rotation list, revocation note, review of index changes; no private key in CI. |
+| Extension API drift | Installed extensions break after updates | `api_version` and `min_app_version`; keep v1 API stable; test the example extension in CI. |
 | No physical Pi available for a gate | False “done” claim | Record manual tests; mark unverified items explicitly. |
 
 ---
@@ -755,6 +971,9 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 4. **Kiosk backend support.** LinuxKMS is primary and X11 is the fallback. Wayland is supported by winit but not a release gate.
 5. **UI localization.** English in v1. Keep strings centralized; add a locale file only when there is a second language.
 6. **Hardware verification.** The release gate requires a Pi Zero 2 W and a Pi 3. If they are unavailable, the release is marked “x86_64 verified only”.
+7. **Catalog repository visibility.** The companion catalog must be public for community use. Decide whether to create it private first, then make it public, and who holds the Minisign private key.
+8. **Extension service access.** v1 extensions are read-only for HA entities and cannot call services. Revisit only with a separate permission and review model.
+9. **Extension runtime.** Rhai is chosen for size and simplicity. Revisit WASM only if a real extension cannot be expressed safely; do not add both.
 
 ---
 
@@ -769,7 +988,8 @@ These are deliberately outside the v1 gate. They are recorded so the architectur
 - **Auto page rotation:** cycle pages after a configurable idle interval; useful for a wall display.
 - **Idle screen and burn-in protection:** dim or blank after inactivity, with a tap to wake; optional presence-based wake and scheduled night dimming via Home Assistant.
 - **Local audio and announcements:** text-to-speech or notification sounds; needs an audio stack and is not part of the low-memory target.
-- **Direct provider adapters:** only if a provider cannot be represented by Home Assistant entities; no personal URLs or IDs in the repository.
+- **Direct provider adapters:** delivered through the Wave 6 extension shop where possible; never hardcode personal URLs or IDs in the kiosk.
+- **Extension UI:** arbitrary Slint UI from an extension remains out of scope; new presentation types need a core release.
 - **Localization:** German or other languages via a locale file; English remains the source language.
 - **Multiple dashboards/profiles:** per-room configuration without duplicating the binary.
 - **Signed updates/OTA:** verified artifact download and rollback; not needed for a manually installed kiosk.
@@ -800,5 +1020,6 @@ GitHub issues:
 - [Wave 3 — Feature widgets: clock/weather, tiles, media, departures, calendar](https://github.com/ABOYrbx/home-assistant-kiosk/issues/6)
 - [Wave 4 — Kiosk and deployment: release builds, display, systemd](https://github.com/ABOYrbx/home-assistant-kiosk/issues/1)
 - [Wave 5 — Integration, performance, documentation](https://github.com/ABOYrbx/home-assistant-kiosk/issues/4)
+- [Wave 6 — Community extension shop (post-v1)](https://github.com/ABOYrbx/home-assistant-kiosk/issues/7)
 
 **Next step:** Review this plan, resolve the license decision, then start Wave 0.

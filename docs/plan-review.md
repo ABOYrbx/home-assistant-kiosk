@@ -35,6 +35,28 @@ The second pass found no reason to change the product direction, but it added se
 | Security checks | No dependency vulnerability check was planned. | Add `cargo audit` (and optionally `cargo deny check licenses`) to CI. |
 | Future scope | Richer controls, auto page rotation, idle screen, and localization were implicit. | Added a “Future extensions (not v1)” section instead of silently expanding the v1 gate. |
 
+## Revision 4 — community extension shop
+
+Wave 6 adds a separate catalog and an extension runtime. The design was checked against the project's Pi Zero 2 W budget and the trust boundary:
+
+| Approach | Trade-off | Decision |
+| --- | --- | --- |
+| Declarative JSON mapping | Safest, but too limited for community transit APIs with different shapes | Rejected |
+| WASM plugins | Strong sandbox, but a large runtime and compile cost on a Pi Zero 2 W | Rejected for Wave 6 |
+| Rhai scripts + declarative widgets | Small pure-Rust runtime, no default I/O, host-controlled permissions and limits | **Chosen** |
+
+Key decisions:
+
+- **Signed catalog, not GitHub trust alone.** The catalog is a separate repository; `index.json` is Minisign-signed with an offline key. The kiosk verifies the signed index and the package SHA-256.
+- **No native code or arbitrary UI.** Extensions return `departures`, `list`, or `key_value`; the built-in widgets render them.
+- **No Home Assistant service calls.** `ha_state` is read-only and entity-allowlisted. The token never reaches an extension.
+- **No ambient network.** `http_get_json` is GET-only, HTTPS-only, host-allowlisted, credential-free, timeout-bound, size-capped, and does not follow cross-host redirects.
+- **Hard limits.** Rhai operations/strings/arrays/maps/call depth, wall clock, package and decompressed size, and item count.
+- **Lifecycle.** Atomic install, one-version rollback, offline installed extensions, no unsigned production catalog.
+- **Separate repository.** `home-assistant-kiosk-extensions` is a companion project; its visibility and signing-key custody are open decisions.
+
+New risks accepted by this wave: a malicious extension that stays inside its declared permissions can still show misleading data; a compromised signing key can publish a malicious package; Rhai is a smaller sandbox than WASM. Mitigations are permissions review, signed index, limits, rollback, and the ability to remove a catalog entry; they do not make community code trustworthy.
+
 ## Blocking corrections
 
 | # | Original claim or implication | Finding | Correction in revision 2 |
@@ -112,6 +134,9 @@ These points from the original plan were checked and kept:
 4. **Departures contract:** Is a Home Assistant sensor attribute acceptable for v1, or is a configurable generic HTTP JSON adapter required? The plan recommends the sensor contract for v1.
 5. **UI design:** The plan intentionally uses functional placeholders. A visual design pass is a separate effort after the widgets work.
 6. **Localization:** English is the project and UI language in v1. A second language is future work.
+7. **Companion catalog:** Should `home-assistant-kiosk-extensions` be public from the start, and who holds the Minisign private key? A community shop needs a public catalog.
+8. **Wave 6 scope:** The shop is planned as post-v1. If it must ship in v1, the release gate and hardware budget need to be revisited.
+9. **Extension service access:** v1 extensions are read-only for Home Assistant. Service calls require a separate permission and review model.
 
 ## Sources
 
@@ -125,4 +150,7 @@ These points from the original plan were checked and kept:
 - Home Assistant WebSocket API: <https://developers.home-assistant.io/docs/api/websocket/>
 - Home Assistant `calendar.get_events`: <https://www.home-assistant.io/actions/calendar.get_events/>
 - Home Assistant `weather.get_forecasts`: <https://www.home-assistant.io/actions/weather.get_forecasts/>
+- Rhai safety limits: <https://rhai.rs/book/safety/limits.html>
+- Minisign: <https://jedisct1.github.io/minisign/>
+- `minisign-verify`: <https://docs.rs/minisign-verify/latest/minisign_verify/>
 - Debian Bookworm glibc 2.36: <https://launchpad.net/debian/bookworm/+source/glibc>

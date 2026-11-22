@@ -23,6 +23,12 @@ A browser-based dashboard is convenient but expensive on a Pi Zero 2 W: a browse
 
 Home Assistant 2023.9 or newer is required (`subscribe_entities` and `weather.get_forecasts`). The kiosk can run in a different timezone from Home Assistant; calendar times are converted using the instance timezone.
 
+## Post-v1: community extension shop
+
+Wave 6 adds a Shop page backed by a separate, public GitHub catalog. Community extensions can add data widgets such as bus departures without shipping a new kiosk binary.
+
+Security model in one paragraph: the catalog index is Minisign-signed, packages are SHA-256-checked, and extensions are sandboxed Rhai scripts with declared network/HA permissions and hard resource limits. Extensions cannot ship native code, arbitrary Slint UI, filesystem access, or Home Assistant service calls. See `PLAN.md` sections 4.6 and 8 (Wave 6), plus `docs/extensions.md` and `docs/extension-catalog.md`.
+
 ## Future extensions
 
 Richer light/climate controls, cameras, auto page rotation, idle screen/burn-in protection, localization, and OTA updates are recorded in `PLAN.md` section 13. They are not part of the v1 gate.
@@ -50,7 +56,9 @@ PLAN.md                         implementation plan and source of truth
 AGENTS.md                       rules for agents and contributors
 docs/plan-review.md             fact-check findings and corrections
 docs/departures-entity-contract.md
-docs/issues/                    issue drafts for the six implementation waves
+docs/extensions.md              Wave 6 author guide (post-v1)
+docs/extension-catalog.md       Wave 6 catalog and signing spec
+docs/issues/                    issue drafts for the seven waves
 config.example.toml             safe, provider-neutral example configuration
 src/                            Rust application (once Wave 0 starts)
 ui/                             Slint UI files (once Wave 0 starts)
@@ -60,7 +68,7 @@ tests/                          integration and UI tests
 
 ## Implementation waves
 
-The plan is split into six waves, each tracked by a GitHub issue:
+The plan is split into seven waves. Waves 0–5 are the v1 release; Wave 6 is post-v1:
 
 0. [Scaffold, interfaces, and cross-compile spike](https://github.com/ABOYrbx/home-assistant-kiosk/issues/5)
 1. [Core: config, Home Assistant client, state and cache](https://github.com/ABOYrbx/home-assistant-kiosk/issues/3)
@@ -68,6 +76,7 @@ The plan is split into six waves, each tracked by a GitHub issue:
 3. [Feature widgets: clock/weather, tiles, media, departures, calendar](https://github.com/ABOYrbx/home-assistant-kiosk/issues/6)
 4. [Kiosk and deployment: release builds, display, systemd](https://github.com/ABOYrbx/home-assistant-kiosk/issues/1)
 5. [Integration, performance, and release](https://github.com/ABOYrbx/home-assistant-kiosk/issues/4)
+6. [Community extension shop (post-v1)](https://github.com/ABOYrbx/home-assistant-kiosk/issues/7)
 
 ## Development
 
@@ -120,6 +129,7 @@ The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs 
 - Pushes are made only with the `ABOYrbx` GitHub account. Verify `gh auth status` before pushing.
 - Do not add personal entity IDs, stop IDs, URLs, tokens, or addresses to the repository.
 - Work by wave; each wave has a GitHub issue and a gate in `PLAN.md`.
+- Wave 6 extensions are untrusted community code: follow the extension rules in `AGENTS.md` and never bypass the sandbox or signature checks.
 
 ## License
 

@@ -47,6 +47,7 @@ A native Home Assistant kiosk dashboard:
 - TOML configuration; no provider-specific code.
 - Targets: Raspberry Pi Zero 2 W, Raspberry Pi 3, generic Linux x86_64/ARM.
 - Touch-first, full-screen, offline-tolerant, low memory.
+- Post-v1 (Wave 6): a community extension shop fed by a separate, signed catalog repository. Extensions are sandboxed data scripts, not native code.
 
 Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short operating manual; `PLAN.md` wins if the two disagree.
 
@@ -65,7 +66,9 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 ├── docs/
 │   ├── plan-review.md           # fact-check findings and corrections
 │   ├── departures-entity-contract.md
-│   └── issues/                  # issue drafts for the six waves
+│   ├── extensions.md            # Wave 6 author guide
+│   ├── extension-catalog.md     # Wave 6 catalog/signing spec
+│   └── issues/                  # issue drafts for the seven waves
 ├── src/
 │   ├── main.rs                  # CLI, runtime, Slint bootstrap
 │   ├── lib.rs                   # public modules for tests
@@ -77,15 +80,16 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── kiosk.rs                 # fullscreen, display, platform handling
 │   ├── ha/                      # WebSocket client, models, reconnect
 │   ├── sources/                 # weather, calendar, media, departures
+│   ├── extensions/              # Wave 6: catalog, store, Rhai host
 │   └── ui/                      # bridge, view models, image decoding
 ├── ui/
 │   ├── main.slint
 │   ├── theme.slint
-│   ├── pages/                   # overview, media, agenda, status
+│   ├── pages/                   # overview, media, agenda, shop (Wave 6), status
 │   └── widgets/                 # clock, weather, tile, media, departures, calendar
 ├── deploy/                       # systemd unit and install scripts
 ├── scripts/                      # build-all.sh, run-dev.sh
-└── tests/                        # integration and UI smoke tests
+└── tests/                        # integration and UI smoke tests (extensions_test.rs in Wave 6)
 ```
 
 There is no nested `kiosk-dashboard/` directory and no multi-crate workspace in v1. The repository root is the Cargo package.
@@ -203,6 +207,25 @@ A task is done when:
 - [ ] The commit messages and issue/PR text are in English.
 - [ ] The push used the `ABOYrbx` account.
 
-## 12. License note
+## 12. Extension rules (Wave 6, post-v1)
+
+The community extension shop is a post-v1 feature. Until Wave 6 starts, keep the v1 core free of extension code and do not enable a shop.
+
+- **Trust:** extensions are untrusted third-party code. A signed catalog proves provenance, not safety. Show a warning and the declared permissions before installation.
+- **Provider neutrality:** provider URLs, stop IDs, and API hosts live only in extension manifests and settings in the separate catalog/configuration, never in the kiosk source or examples.
+- **No native code:** extensions are Rhai scripts plus a manifest and optional assets. No shared libraries, executables, WASM, or arbitrary Slint files.
+- **No arbitrary UI:** an extension returns only `departures`, `list`, or `key_value` data. The built-in widgets render it.
+- **No host escape:** do not register filesystem, process, environment, module, or unrestricted network functions in Rhai.
+- **Read-only HA access:** `ha_state` accepts only the entity IDs declared in the manifest, returns a snapshot, and never calls a service or exposes the token.
+- **Network allowlist:** `http_get_json` is GET-only, HTTPS-only, host-allowlisted, credential-free, timeout-bound, size-capped, and must not follow cross-host redirects.
+- **Limits:** set operation, string, array, map, call-depth, wall-clock, package-size, decompressed-size, and item-count limits. Run scripts off the UI thread.
+- **Signatures:** the catalog index is Minisign-signed. Verify it against configured public keys; verify the package SHA-256 and size. Unsigned mode and HTTP catalog URLs are development-only and must be visibly disabled in production.
+- **Packages:** reject absolute paths, `..`, symlinks, hardlinks, device files, and decompression bombs during extraction. Install atomically and keep one version for rollback.
+- **Secrets:** per-extension secrets live in a separate `0600` file; never in the manifest, catalog, logs, or screenshots.
+- **Catalog:** the catalog is a separate repository. The signing private key stays offline and never enters CI or either repository. The catalog must be public for community use.
+- **Review:** check license, permissions, no secrets, read-only HA access, no service calls, no arbitrary UI, tests, and removal process.
+- **Tests:** tampered index/package, key rotation, path traversal, forbidden host/entity, redirect escape, operation/memory limits, malformed output, offline install, update/rollback/remove.
+
+## 13. License note
 
 Slint is available under GPL-3.0-only, a royalty-free license that excludes embedded systems, or a commercial license. A single-purpose kiosk device may be classified as an embedded system. Do not add a project license or distribute binaries until the owner records the license decision in `PLAN.md` section 12. This is a legal decision, not an implementation detail.
