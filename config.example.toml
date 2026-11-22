@@ -1,0 +1,145 @@
+# Home Assistant Kiosk — example configuration
+#
+# Copy this file to /etc/ha-kiosk/config.toml, replace the placeholders with
+# your own Home Assistant URL and entity IDs, and keep the file readable only
+# by the service user (mode 0600).
+#
+# Do not commit a filled-in copy of this file. It contains no real values by
+# design; every entity below is a placeholder.
+
+# ---------------------------------------------------------------------------
+# Home Assistant connection
+# ---------------------------------------------------------------------------
+
+[ha]
+# Use http:// for a local instance without TLS, https:// for TLS.
+# The WebSocket URL (ws:// or wss://) is derived automatically.
+url = "http://homeassistant.local:8123"
+
+# Preferred: a file containing only the long-lived access token.
+# The file must be mode 0600 and owned by the service user.
+token_file = "/etc/ha-kiosk/ha_token"
+
+# Development only. Prefer token_file or the HA_TOKEN environment variable.
+# token = "REPLACE_ME"
+
+# Leave false unless you understand the risk. Prefer installing the CA
+# certificate on the device instead of disabling verification.
+allow_invalid_certs = false
+
+# Optional extra entities to subscribe to, in addition to the entities
+# referenced by the widgets and tiles below. Useful for templates or future
+# widgets. Example: ["sensor.example"]
+extra_entity_ids = []
+
+# ---------------------------------------------------------------------------
+# Display
+# ---------------------------------------------------------------------------
+
+[display]
+width = 800
+height = 480
+# 0, 90, 180, or 270. On LinuxKMS this maps to SLINT_KMS_ROTATION.
+rotation = 0
+fullscreen = true
+# "dark" or "light". The dark theme is the default target.
+theme = "dark"
+
+# ---------------------------------------------------------------------------
+# Pages
+#
+# The page set is fixed in v1: overview, media, agenda, status.
+# A page renders the widgets listed for it. Omit a page table to use the
+# default widget list. "tiles" refers to the [tiles] grid below; "status" is a
+# built-in read-only page and has no widget table.
+# ---------------------------------------------------------------------------
+
+[pages.overview]
+widgets = ["clock", "weather", "tiles", "departures"]
+
+[pages.media]
+widgets = ["media"]
+
+[pages.agenda]
+widgets = ["calendar"]
+
+[pages.status]
+widgets = ["status"]
+
+# ---------------------------------------------------------------------------
+# Widgets
+# ---------------------------------------------------------------------------
+
+[widgets.clock]
+enabled = true
+show_seconds = false
+use_24_hour = true
+
+[widgets.weather]
+enabled = true
+entity = "weather.home"
+forecast_type = "daily" # "daily" or "hourly"
+forecast_count = 3
+refresh_seconds = 900
+
+[widgets.media]
+enabled = true
+entity = "media_player.living_room"
+show_album_art = true
+volume_step = 0.05
+
+[widgets.departures]
+enabled = true
+entity = "sensor.departures"
+title = "Departures"
+max_items = 6
+refresh_seconds = 60
+
+[widgets.calendar]
+enabled = true
+entities = ["calendar.family"]
+days = 2
+refresh_seconds = 300
+
+# ---------------------------------------------------------------------------
+# Tiles
+#
+# Supported domains in v1: switch, input_boolean, light, scene, script,
+# cover, climate (read-only), sensor, binary_sensor, weather (read-only).
+# Unsupported domains render read-only. See PLAN.md section 4.3.
+# ---------------------------------------------------------------------------
+
+[tiles]
+columns = 3
+
+[[tiles.items]]
+entity = "light.example"
+label = "Example light"
+icon = "light"
+
+[[tiles.items]]
+entity = "switch.example"
+label = "Example switch"
+icon = "switch"
+
+[[tiles.items]]
+entity = "sensor.example_temperature"
+label = "Temperature"
+icon = "thermometer"
+
+[[tiles.items]]
+entity = "scene.example"
+label = "Example scene"
+icon = "scene"
+
+# ---------------------------------------------------------------------------
+# Cache
+# ---------------------------------------------------------------------------
+
+[cache]
+# The service user must be able to create and replace this file.
+path = "/var/lib/ha-kiosk/state.json"
+# Debounce writes to reduce SD-card wear. Minimum 2 seconds.
+write_debounce_seconds = 10
+# Upper bound for the cache file. Older/incompatible caches are discarded.
+max_bytes = 262144

@@ -1,0 +1,27 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Release artifacts
+/dist/
+
+# Local configuration and secrets
+config.toml
+!config.example.toml
+ha_token
+*.token
+.env
+.env.*
+
+# Logs and local state
+*.log
+/state.json
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Cross / Docker
+.cross/
