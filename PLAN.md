@@ -672,11 +672,11 @@ Workflow:
 
 GitHub issues:
 
-- Wave 0 — Scaffold, interfaces, cross-compile spike
-- Wave 1 — Core: config, Home Assistant client, state/cache
-- Wave 2 — UI shell: navigation, touch, theme
-- Wave 3 — Feature widgets: clock/weather, tiles, media, departures, calendar
-- Wave 4 — Kiosk and deployment: release builds, display, systemd
-- Wave 5 — Integration, performance, documentation
+- [Wave 0 — Scaffold, interfaces, cross-compile spike](https://github.com/ABOYrbx/home-assistant-kiosk/issues/5)
+- [Wave 1 — Core: config, Home Assistant client, state/cache](https://github.com/ABOYrbx/home-assistant-kiosk/issues/3)
+- [Wave 2 — UI shell: navigation, touch, theme](https://github.com/ABOYrbx/home-assistant-kiosk/issues/2)
+- [Wave 3 — Feature widgets: clock/weather, tiles, media, departures, calendar](https://github.com/ABOYrbx/home-assistant-kiosk/issues/6)
+- [Wave 4 — Kiosk and deployment: release builds, display, systemd](https://github.com/ABOYrbx/home-assistant-kiosk/issues/1)
+- [Wave 5 — Integration, performance, documentation](https://github.com/ABOYrbx/home-assistant-kiosk/issues/4)
 
 **Next step:** Review this plan, resolve the license decision, then start Wave 0.

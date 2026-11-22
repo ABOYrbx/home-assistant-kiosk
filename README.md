@@ -51,6 +51,17 @@ deploy/                         systemd unit and install scripts
 tests/                          integration and UI tests
 ```
 
+## Implementation waves
+
+The plan is split into six waves, each tracked by a GitHub issue:
+
+0. [Scaffold, interfaces, and cross-compile spike](https://github.com/ABOYrbx/home-assistant-kiosk/issues/5)
+1. [Core: config, Home Assistant client, state and cache](https://github.com/ABOYrbx/home-assistant-kiosk/issues/3)
+2. [UI shell: navigation, touch, theme](https://github.com/ABOYrbx/home-assistant-kiosk/issues/2)
+3. [Feature widgets: clock/weather, tiles, media, departures, calendar](https://github.com/ABOYrbx/home-assistant-kiosk/issues/6)
+4. [Kiosk and deployment: release builds, display, systemd](https://github.com/ABOYrbx/home-assistant-kiosk/issues/1)
+5. [Integration, performance, and release](https://github.com/ABOYrbx/home-assistant-kiosk/issues/4)
+
 ## Development
 
 Prerequisites: Rust 1.95 or newer, a C toolchain, and the Slint build dependencies. On Debian/Ubuntu:
