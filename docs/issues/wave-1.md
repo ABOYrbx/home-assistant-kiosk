@@ -52,5 +52,5 @@ Build the non-visual core: typed configuration, a resilient Home Assistant WebSo
 
 ## Notes
 
-- Use `subscribe_entities`, not a global `state_changed` subscription, unless the fallback is explicitly enabled.
+- Use `subscribe_entities`; v1 has no global `state_changed` subscription.
 - The UI thread owns `AppState`; this wave provides the event types that a later UI bridge consumes.
