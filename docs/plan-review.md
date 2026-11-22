@@ -31,7 +31,7 @@ The second pass found no reason to change the product direction, but it added se
 | X11 fallback | Fullscreen without a window manager may not cover the screen. | Require a minimal WM (openbox/matchbox) for the X11 path. |
 | Fonts and icons | A minimal Bookworm image may have no suitable font; icon licenses were unspecified. | Install `fonts-dejavu-core` or bundle a licensed font; use a licensed icon set and record attribution. |
 | Cache drift | A changed widget/entity configuration could load an incompatible cached view. | Add a configuration fingerprint to the cache header; discard mismatches; enforce `0600` on the cache. |
-| Dependency features | Slint 1.19 does not expose `svg` or `image-decoders` as `slint` crate features; feature guessing would fail the build. | Added a checked dependency contract with exact Cargo features. |
+| Dependency features | Slint 1.19 does not expose `svg` or `image-decoders` as `slint` crate features; feature guessing would fail the build. Icons are compiled via `@image-url`; album art uses the `image` crate. | Added a checked dependency contract with exact Cargo features. |
 | Security checks | No dependency vulnerability check was planned. | Add `cargo audit` (and optionally `cargo deny check licenses`) to CI. |
 | Future scope | Richer controls, auto page rotation, idle screen, and localization were implicit. | Added a “Future extensions (not v1)” section instead of silently expanding the v1 gate. |
 

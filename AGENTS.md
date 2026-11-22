@@ -145,7 +145,7 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - Base features: `compat-1-18`, `std`, `renderer-software`.
 - Desktop feature: `backend-winit`.
 - Kiosk feature: `backend-linuxkms`, `backend-linuxkms-libinput`, `backend-linuxkms-libseat`.
-- PNG/JPEG and SVG support come with `std`; add `image-default-formats` only if an extra format is actually needed.
+- PNG/JPEG and SVG icons are compiled at build time via `@image-url`; runtime album art is decoded with the `image` crate. Do not rely on `slint::Image::load_from_path` unless the runtime decoder feature is verified.
 - Do not build with `--all-features` on macOS or in a non-Linux CI job: the LinuxKMS backend is Linux-only.
 - LinuxKMS is primary for the kiosk; X11 + winit is the fallback. `SLINT_BACKEND=linuxkms-software` selects the direct-to-DRM path.
 - Slint 1.19 does not expose a cursor-visibility API. Cursor hiding belongs to deployment: `unclutter` on X11, compositor settings on Wayland, and a touch-only LinuxKMS path with no pointer needed. Verify the panel behaviour on the target device.
