@@ -6,7 +6,7 @@ The project has no release yet. Security fixes apply to `main` until the first r
 
 ## Reporting a vulnerability
 
-Do **not** open a public issue. GitHub's private vulnerability reporting is currently unavailable on GitHub Free for private repositories. If the repository's **Security** tab offers "Report a vulnerability", use it. Otherwise, contact the maintainer `@ABOYrbx` through the private contact method listed on their GitHub profile and ask for a secure channel before sharing details.
+Do **not** open a public issue. GitHub's private vulnerability reporting is currently unavailable on GitHub Free for private repositories. If the repository's **Security** tab offers "Report a vulnerability", use it. Otherwise, contact the maintainer `@ABOYrbx` through the private contact method listed on their GitHub profile and ask for a secure channel before sharing details. If no private channel is available, open a minimal issue titled "Private security contact requested" with no vulnerability details and wait for a response.
 
 Include:
 
