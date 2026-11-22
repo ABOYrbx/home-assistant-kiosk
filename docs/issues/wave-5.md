@@ -18,6 +18,7 @@ Prove the system under realistic failure modes and on the actual target hardware
 - [ ] Invalid token shows an error and does not loop.
 - [ ] Failed service call shows an error and does not fake success.
 - [ ] Malformed messages and unknown domains do not crash the app.
+- [ ] Add `cargo audit` (and optionally `cargo deny check licenses`) to CI; review findings before release.
 
 ### Performance and stability
 

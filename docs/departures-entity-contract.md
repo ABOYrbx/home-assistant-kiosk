@@ -21,7 +21,7 @@ The sensor must expose a `departures` attribute containing a list. Every list en
 | --- | --- | --- | --- |
 | `line` | string | yes | Line or route label, for example `"42"` or `"S1"`. |
 | `destination` | string | yes | Displayed destination, for example `"Central Station"`. |
-| `departure` | string | yes | Planned or expected departure time. RFC 3339 with an offset is preferred; `YYYY-MM-DD HH:MM:SS` is accepted and interpreted as local device time. |
+| `departure` | string | yes | Planned or expected departure time. RFC 3339 with an offset is preferred; `YYYY-MM-DD HH:MM:SS` is accepted and interpreted in the Home Assistant timezone (from `get_config`). |
 | `delay_minutes` | integer | no | Expected delay in minutes. Default `0`. Negative values are accepted and displayed as “early”. |
 | `platform` | string | no | Platform, stop, or bay label. |
 | `cancelled` | boolean | no | `true` renders the entry as cancelled. Default `false`. |
@@ -57,7 +57,7 @@ Unknown fields are ignored. The kiosk does not depend on the sensor’s state, o
 - Entries are sorted by `departure` ascending.
 - Entries whose departure is more than 60 seconds in the past are not shown.
 - At most `max_items` entries are rendered. The default is 6; the allowed range is 1–20.
-- A cancelled entry stays in the list, is visibly marked, and does not count as a valid upcoming departure for sorting purposes beyond its timestamp.
+- A cancelled entry stays in the list and is visibly marked; its timestamp still determines its position.
 - If the attribute is missing, empty, or every entry is invalid, the widget shows “No departures” (empty list) or “Data unavailable” (missing/invalid attribute) — not a blank area.
 - An invalid entry is skipped and logged at debug level. It never crashes the widget or hides valid entries.
 - The list is re-read whenever the sensor’s state or attributes change. `refresh_seconds` is a safety refresh, not the only update path.

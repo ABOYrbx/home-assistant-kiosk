@@ -98,6 +98,9 @@ cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 
+# Dependency vulnerability check (Wave 5 and before release)
+cargo audit
+
 # Desktop development (winit + software renderer)
 cargo run --features desktop -- --config config.example.toml
 
@@ -131,10 +134,14 @@ cross build --release --target x86_64-unknown-linux-gnu \
 8. **Honest state.** Show unknown, unavailable, stale, and offline states explicitly. Never render cached values as live, and never optimistically show a service call as successful before the server confirms it.
 9. **Bounded memory.** Cache only the configured views and entities. Cap album-art and icon caches. Measure RSS on the Pi Zero 2 W.
 10. **Graceful degradation.** A missing entity, unsupported domain, failed forecast, or failed calendar must not crash the app or blank the whole page.
+11. **Timezone correctness.** Call `get_config` after authentication and use its `time_zone` for timestamps without an offset. Never assume the kiosk and Home Assistant share a timezone.
+12. **Interaction arbitration.** Page swipe starts only from non-interactive background/edge zones. Sliders and vertical lists own their gestures. Debounce volume changes and ignore taps while an action is pending.
+13. **Cache identity.** The cache header carries a schema version and a configuration fingerprint; a mismatch discards the cache. The cache is `0600` and its directory `0700`.
 
 ## 7. Slint rules
 
 - Pin Slint to `1.19.x`; do not mix versions of `slint`, `slint-build`, and `i-slint-backend-testing`.
+- Use the exact dependency/feature contract in `PLAN.md` section 7.1. Do not guess Slint feature names; `svg` and `image-decoders` are not `slint` crate features in 1.19.
 - Base features: `compat-1-18`, `std`, `renderer-software`.
 - Desktop feature: `backend-winit`.
 - Kiosk feature: `backend-linuxkms`, `backend-linuxkms-libinput`, `backend-linuxkms-libseat`.
@@ -164,9 +171,12 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - Token sources, in order: `HA_TOKEN` environment variable, `ha.token_file`, `ha.token` (development only).
 - The token file must be owned by the service user and mode `0600`. Startup rejects a world-readable token file.
 - TLS certificate validation is on by default. `allow_invalid_certs = true` is a documented last resort for a self-signed LAN certificate; prefer installing the CA on the device.
+- Send the token only to the Home Assistant origin. Never send it to a third-party image host. Do not log image query strings.
 - The config file is mode `0600` and owned by the service user. The systemd unit must not run as root.
+- The cache is mode `0600`; its directory is `0700`. It may reveal presence, temperatures, and media habits.
 - No secrets in test fixtures, screenshots, issue bodies, commit messages, or logs.
 - Release artifacts never bundle a config file or a token.
+- Fonts and icons need a documented, compatible license; record attribution in `README.md`.
 
 ## 10. Issues, branches, and pull requests
 
@@ -185,9 +195,9 @@ cross build --release --target x86_64-unknown-linux-gnu \
 A task is done when:
 
 - [ ] The code builds with the declared feature set.
-- [ ] `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` pass.
+- [ ] `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` pass; `cargo audit` is clean before a release.
 - [ ] New behavior has tests or a recorded manual test.
-- [ ] Error, offline, empty, and unavailable states are handled.
+- [ ] Timezone, gesture, pending, offline, empty, and unavailable states are handled where relevant.
 - [ ] No secret, personal identifier, or provider-specific URL was added.
 - [ ] Documentation and `config.example.toml` match the behavior.
 - [ ] The commit messages and issue/PR text are in English.

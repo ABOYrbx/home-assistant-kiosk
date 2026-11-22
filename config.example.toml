@@ -13,6 +13,7 @@
 
 [ha]
 # Use http:// for a local instance without TLS, https:// for TLS.
+# A path prefix is preserved, e.g. https://example.test/ha.
 # The WebSocket URL (ws:// or wss://) is derived automatically.
 url = "http://homeassistant.local:8123"
 
@@ -27,6 +28,11 @@ token_file = "/etc/ha-kiosk/ha_token"
 # certificate on the device instead of disabling verification.
 allow_invalid_certs = false
 
+# Optional IANA timezone used only if Home Assistant's get_config response does
+# not provide one. Example: "Europe/Berlin". Leave unset to use get_config,
+# then the device timezone.
+# time_zone = "Europe/Berlin"
+
 # Optional extra entities to subscribe to, in addition to the entities
 # referenced by the widgets and tiles below. Useful for templates or future
 # widgets. Example: ["sensor.example"]
@@ -37,6 +43,8 @@ extra_entity_ids = []
 # ---------------------------------------------------------------------------
 
 [display]
+# Desktop window size and layout-test reference. On LinuxKMS the DRM mode wins;
+# use SLINT_DRM_MODE to select a mode. Keep layouts responsive.
 width = 800
 height = 480
 # 0, 90, 180, or 270. On LinuxKMS this maps to SLINT_KMS_ROTATION.
@@ -138,6 +146,7 @@ icon = "scene"
 
 [cache]
 # The service user must be able to create and replace this file.
+# The directory is mode 0700 and the file 0600.
 path = "/var/lib/ha-kiosk/state.json"
 # Debounce writes to reduce SD-card wear. Minimum 2 seconds.
 write_debounce_seconds = 10

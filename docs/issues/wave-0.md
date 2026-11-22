@@ -12,7 +12,7 @@ Create the package, freeze the interfaces between waves, and prove the riskiest 
 ## Checklist
 
 - [ ] Create the Cargo package `ha-kiosk` at the repository root with `src/lib.rs` and `src/main.rs`.
-- [ ] Add dependencies and pin Slint 1.19; set `edition = "2024"` and `rust-version = "1.95"`.
+- [ ] Add dependencies and pin Slint 1.19; set `edition = "2024"` and `rust-version = "1.95"`. Use the exact dependency/feature contract in `PLAN.md` section 7.1.
 - [ ] Add `build.rs` with `slint_build::compile("ui/main.slint")` and a minimal window that compiles.
 - [ ] Implement the interfaces from `PLAN.md` section 7 as compiling stubs; add `#![deny(unsafe_code)]`.
 - [ ] Add feature flags `desktop` (winit + software renderer) and `kiosk` (LinuxKMS + software renderer); verify both compile.

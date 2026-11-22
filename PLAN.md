@@ -6,11 +6,11 @@
 
 **Architecture:** One native Rust binary with a Slint UI. The Slint event loop and the application state live on the main thread. A Tokio runtime runs in the background for the Home Assistant WebSocket connection, service calls, HTTP image fetches, and cache writes. Background tasks send typed events to the UI thread; the UI thread applies them to Slint models and properties. All data is Home Assistant-first and configuration-driven: no provider-specific URLs, stop IDs, entity IDs, or personal data are compiled into the program.
 
-**Tech stack:** Rust 1.95+ (edition 2024), Slint 1.19 (software renderer; winit for desktop development, LinuxKMS for the kiosk), tokio 1.54, tokio-tungstenite 0.30, serde/serde_json, toml 1.2, reqwest 0.13 with rustls, chrono, tracing, thiserror/anyhow, secrecy.
+**Tech stack:** Rust 1.95+ (edition 2024), Slint 1.19 (software renderer; winit for desktop development, LinuxKMS for the kiosk), tokio 1.54, tokio-tungstenite 0.30, serde/serde_json, toml 1.2, reqwest 0.13 with rustls, chrono/chrono-tz, tracing, thiserror/anyhow, secrecy.
 
 **Spec:** This file is the source of truth. The fact-check and change log is in [`docs/plan-review.md`](docs/plan-review.md). The generic departures entity contract is in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Repository rules for agents are in [`AGENTS.md`](AGENTS.md).
 
-**Status:** Planning complete; no application code yet. Revision 2, 2026-11-22.
+**Status:** Planning complete; no application code yet. Revision 3, 2026-11-22 (second full review).
 
 ---
 
@@ -72,6 +72,8 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
 | 14 | UI scope | Four pages: Overview, Media, Agenda, Status | Status is read-only; configuration is done in the TOML file. |
 | 15 | Language | English for code, comments, docs, commits, issues, and UI strings | One language for contributors and reviewers. |
 | 16 | State ownership | The UI thread owns `AppState`; background tasks only send events | Avoids shared mutable state and cross-thread Slint access. |
+| 17 | Seat access | `seatd` + system service with the service user in the `seat` group; alternatives documented | Non-root DRM/input access without an autologin session. |
+| 18 | Timezone | Use `get_config.time_zone`; `ha.time_zone` is a fallback | Calendar times stay correct when the kiosk and Home Assistant differ. |
 
 ---
 
@@ -84,7 +86,8 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
 - **Rust version:** `rust-version = "1.95"` in `Cargo.toml`. Slint's current build documentation requires at least Rust 1.95.
 - **Slint features:** `default-features = false`; base features `compat-1-18`, `std`, `renderer-software`. Desktop adds `backend-winit`; kiosk adds `backend-linuxkms`, `backend-linuxkms-libinput`, and `backend-linuxkms-libseat`. PNG/JPEG and SVG support come with `std`; `image-default-formats` is optional if more formats are needed. Do not build with `--all-features` on macOS: the LinuxKMS backend is Linux-only.
 - **Home Assistant minimum:** 2023.9, because `subscribe_entities` and `weather.get_forecasts` (introduced in 2023.9) are required. The UI must degrade gracefully if an action is not supported.
-- **Security:** The token is never logged, never included in error messages, and never committed. The config file must be mode `0600` and owned by the service user. TLS certificate validation stays on by default.
+- **Security:** The token is never logged, never included in error messages, and never committed. Use a dedicated Home Assistant user for the kiosk and grant only the entities/actions it needs; some actions may require an admin user. The config file must be mode `0600` and owned by the service user; the cache is `0600`. TLS certificate validation stays on by default. Send the token only to the Home Assistant origin; never to third-party image hosts. Do not log image query strings.
+- **Assets:** Bundle a font or declare the system font package as a runtime dependency (`fonts-dejavu-core` on Debian). Use an icon set with a documented, compatible license and record the attribution in `README.md`. No runtime icon downloads.
 - **No personal data:** Examples use placeholders such as `light.example`, `weather.home`, `calendar.family`, and `sensor.departures`. Do not add a real address, stop ID, token, internal hostname, or person’s name to the repository.
 - **Timeouts:** Every network operation has a timeout. WebSocket reconnect uses exponential backoff with jitter, capped at 60 seconds.
 - **Touch:** Interactive elements are at least 44 × 44 logical pixels. Text must remain readable at 800 × 480 and at 1024 × 600.
@@ -107,11 +110,13 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
          │
 ┌────────┴────────────────────────── Tokio runtime ───────────────────────────┐
 │ HaTask: connect, auth, subscribe_entities, call_service, ping/pong, backoff │
-│ SchedulerTask: clock, weather forecast, calendar, departures refresh        │
+│ SchedulerTask: weather forecast, calendar, departures refresh               │
 │ ImageTask: fetch and decode album art into SharedPixelBuffer                │
 │ CacheTask: debounced atomic snapshot writes                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+The one-second clock runs on the UI thread with a Slint timer; it does not travel through the network scheduler.
 
 Rules:
 
@@ -123,15 +128,16 @@ Rules:
 
 ### 4.2 Home Assistant connection
 
-1. Connect to `ws(s)://<host>:8123/api/websocket`.
+1. Derive the WebSocket URL from `ha.url` by appending `api/websocket` while preserving any path prefix. Examples: `http://host:8123` → `ws://host:8123/api/websocket`; `https://ha.example.com/ha` → `wss://ha.example.com/ha/api/websocket`. Do not assume the instance is at the root of the host or on port 8123.
 2. Wait for `auth_required`, send `auth` with the access token.
 3. Require `auth_ok`. On `auth_invalid`, stop reconnecting and show “Authentication failed”; do not hammer the server with a bad token.
-4. Subscribe with `subscribe_entities` and the explicit list of entity IDs needed by the configured widgets. Do **not** subscribe to every `state_changed` event; that traffic is unnecessary on a Pi.
-5. Apply the initial snapshot from `subscribe_entities`, then apply `a` (added), `c` (changed), and `r` (removed) events. Handle removed attributes as well as changed values.
-6. `get_states` remains available for diagnostics and tests. Do not implement a global `subscribe_events("state_changed")` fallback in v1: Home Assistant 2023.9 and newer support `subscribe_entities`, which is the declared minimum.
-7. Send `ping` every 30 seconds and expect `pong`. A missed heartbeat or a closed socket triggers reconnect with exponential backoff and jitter (1 s, 2 s, 4 s, … 60 s).
-8. After a reconnect, authenticate again, re-subscribe, and replace the local entity map with the fresh snapshot. Never assume subscriptions survive a disconnect.
-9. Service calls use `call_service` with `target` and `service_data`. Calls that return data (weather forecast, calendar events) set `return_response: true`.
+4. After `auth_ok`, take `ha_version` from the auth response and call `get_config` once to read `time_zone` (IANA name). Use the Home Assistant timezone to interpret calendar timestamps that have no offset; fall back to `ha.time_zone` from the config, then the device timezone. Show the Home Assistant version on the Status page.
+5. Subscribe with `subscribe_entities` and the explicit list of entity IDs needed by the configured widgets. Do **not** subscribe to every `state_changed` event; that traffic is unnecessary on a Pi.
+6. Apply the initial snapshot from `subscribe_entities`, then apply `a` (added), `c` (changed), and `r` (removed) events. Handle removed attributes as well as changed values.
+7. `get_states` remains available for diagnostics and tests. Do not implement a global `subscribe_events("state_changed")` fallback in v1: Home Assistant 2023.9 and newer support `subscribe_entities`, which is the declared minimum.
+8. Send `ping` every 30 seconds and expect `pong`. A missed heartbeat or a closed socket triggers reconnect with exponential backoff and jitter (1 s, 2 s, 4 s, … 60 s).
+9. After a reconnect, authenticate again, re-subscribe, and replace the local entity map with the fresh snapshot. Never assume subscriptions survive a disconnect.
+10. Service calls use `call_service` with `target` and `service_data`. Calls that return data (weather forecast, calendar events) set `return_response: true`. Every service call carries a UI-generated `request_id`; the result is matched back to the pending action so the tile or control can leave its pending state honestly.
 
 ### 4.3 Widget data mapping
 
@@ -158,18 +164,31 @@ Supported tile actions in v1:
 
 Unknown or unsupported domains must render as read-only tiles. A failed service call shows a short error on the tile and in the status page; it never leaves the UI in a fake “on” state.
 
-Media controls use `media_player.media_play_pause`, `media_player.media_next_track`, `media_player.media_previous_track`, and `media_player.volume_set` with `volume_level` in the range 0.0–1.0. Check `supported_features` and disable controls the entity does not advertise.
+Media controls use `media_player.media_play_pause`, `media_player.media_next_track`, `media_player.media_previous_track`, and `media_player.volume_set` with `volume_level` in the range 0.0–1.0. Check `supported_features` and disable controls the entity does not advertise. Debounce volume changes as described in section 4.5.
 
-Calendar calls use `calendar.get_events` with `start_date_time` and `end_date_time` (ISO 8601, Home Assistant local timezone) or a `duration`, and `return_response: true`. Weather calls use `weather.get_forecasts` with `type = "daily"` or `"hourly"`, and `return_response: true`.
+Album art: resolve a relative `entity_picture` against `ha.url`; send the access token only to URLs whose scheme, host, and port match the Home Assistant origin. Never send the token to a third-party image host. Log only the image host and path, never the query string, which may contain a signed token.
+
+Calendar calls use `calendar.get_events` with `start_date_time` and `end_date_time` (ISO 8601, Home Assistant local timezone) or a `duration`, and `return_response: true`. Timestamps without an offset are interpreted in the Home Assistant timezone from `get_config`, then converted to the device timezone for display. Weather calls use `weather.get_forecasts` with `type = "daily"` or `"hourly"`, and `return_response: true`.
 
 ### 4.4 Offline and stale data
 
 - On startup, load the cache before opening the window; the first frame shows cached views.
+- With no cache, the first frame shows a labelled “Connecting…” placeholder per widget, not a blank screen.
 - Every view carries `last_success: Option<DateTime<Utc>>` and a `stale: bool`.
 - If Home Assistant is unreachable, keep the last values, set `stale = true`, and show an “Offline — last update HH:MM” badge.
 - Do not show old values as if they were live. Clock and date are always local and always live.
 - On reconnect, replace stale values with the fresh snapshot and clear the badge.
-- The cache stores only the views needed by the configured widgets, not the full Home Assistant state database. Include a schema version and reject incompatible caches.
+- The cache stores only the views needed by the configured widgets, not the full Home Assistant state database. Include a schema version and a configuration fingerprint (widget/tile/entity IDs and refresh settings); discard a cache whose fingerprint or schema does not match.
+- The cache directory is mode `0700` and the cache file `0600`. The cache can reveal presence, temperatures, and media habits even though it contains no token.
+
+### 4.5 Touch interaction
+
+- Page swipe starts only from a non-interactive background area or an edge zone. It must not start from a slider, a scrollable list, a button, or a tile.
+- Long lists (departures, calendar) use a vertical `Flickable` or equivalent; page swipe and list scroll must not fight each other.
+- Gesture rules: horizontal movement beyond the swipe threshold changes page; vertical movement scrolls the list; a tap activates the control. Axis lock prevents accidental page changes during scrolling.
+- Volume sliders and tile taps are debounced: send at most one service call per 100 ms while dragging, and a final value on release. Ignore repeated taps on a tile while its action is pending.
+- Text in tiles, media, departures, and calendar rows is elided or wrapped to a fixed number of lines; long titles must not push the layout off-screen.
+- Test at 800 × 480 and 1024 × 600 logical pixels, with touch emulation in the Slint testing backend.
 
 ---
 
@@ -181,12 +200,15 @@ Design rules:
 
 - `ha.token_file` is the normal source for a service. For development, the `HA_TOKEN` environment variable overrides it. A literal `ha.token` is accepted for development but is discouraged.
 - The token file must be readable only by the service user (`0600`). Startup fails with a clear error if permissions are too open.
-- `ha.url` must be `http://` or `https://`; `ws://`/`wss://` are derived internally.
+- `ha.url` must be `http://` or `https://`; `ws://`/`wss://` are derived internally. Preserve a path prefix for instances behind a reverse proxy.
+- `ha.token_file`, `cache.path`, and any future file paths are absolute; relative paths are rejected at startup.
+- `ha.time_zone` is an optional IANA fallback. The primary source is `get_config.time_zone`; the last fallback is the device timezone.
 - Entity IDs are validated syntactically (`domain.object_id`) but not checked against the server at startup. Missing entities are reported per widget, not as a fatal error.
 - At least one subscribed entity is required after resolving widget, tile, and extra IDs; an empty subscription list is a configuration error.
 - Unknown keys are rejected (serde `deny_unknown_fields`) to catch typos.
 - Durations are in seconds and have documented minimums.
 - `display.rotation` accepts `0`, `90`, `180`, `270`. On LinuxKMS it maps to `SLINT_KMS_ROTATION`; touch calibration is a deployment concern, documented in the README.
+- `display.width`/`height` size the desktop window and drive layout tests. On LinuxKMS the DRM mode wins; use `SLINT_DRM_MODE` to select a mode. Layouts must be responsive rather than assuming one exact resolution.
 - No default entity IDs are shipped. A widget whose required entity is absent is hidden or shows a configuration hint.
 
 ---
@@ -235,7 +257,6 @@ home-assistant-kiosk/
 │   └── ui/
 │       ├── mod.rs
 │       ├── bridge.rs      # AppState -> Slint properties/models
-│       ├── view_models.rs # UI-facing structs, no Slint types
 │       └── images.rs      # background fetch/decode, SharedPixelBuffer
 ├── ui/
 │   ├── main.slint
@@ -275,6 +296,54 @@ home-assistant-kiosk/
 
 These names and shapes are frozen in Wave 0. Later waves may add fields but must not silently rename or change the meaning of these items.
 
+### 7.1 Dependency contract
+
+Use these features. They were checked against the published crate metadata; do not guess feature names.
+
+```toml
+[dependencies]
+slint = { version = "1.19", default-features = false, features = [
+  "compat-1-18", "std", "renderer-software",
+] }
+tokio = { version = "1.54", features = [
+  "rt-multi-thread", "macros", "sync", "time", "fs", "signal",
+] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1.2"
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+thiserror = "2"
+anyhow = "1"
+url = { version = "2.5", features = ["serde"] }
+secrecy = "0.10"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+[build-dependencies]
+slint-build = "1.19"
+
+[dev-dependencies]
+tempfile = "3"
+tokio-test = "0.4"
+i-slint-backend-testing = "1.19"
+
+[features]
+default = ["desktop"]
+desktop = ["slint/backend-winit"]
+kiosk = [
+  "slint/backend-linuxkms",
+  "slint/backend-linuxkms-libinput",
+  "slint/backend-linuxkms-libseat",
+]
+```
+
+`Cargo.lock` is committed. Update patch versions with `cargo update` only as part of a reviewed change. Do not use `--all-features` on macOS; the LinuxKMS backend is Linux-only.
+
 ```rust
 // config.rs
 pub struct Config {
@@ -291,6 +360,7 @@ pub struct HaConfig {
     pub token: SecretString,              // redacted Debug
     pub allow_invalid_certs: bool,        // default false
     pub extra_entity_ids: Vec<EntityId>,  // additional subscriptions
+    pub time_zone: Option<chrono_tz::Tz>, // fallback if get_config omits it
 }
 
 impl Config {
@@ -308,7 +378,7 @@ pub enum HaCommand {
 }
 
 pub enum HaEvent {
-    Connected { ha_version: String },
+    Connected { ha_version: String, time_zone: chrono_tz::Tz },
     AuthFailed { message: String },
     Disconnected { reason: String },
     Snapshot(Vec<HaEntity>),
@@ -318,9 +388,23 @@ pub enum HaEvent {
     ServiceResult { request_id: u64, result: Result<ServiceResponse, HaError> },
 }
 
+pub struct ServiceCall {
+    pub request_id: u64,
+    pub domain: String,
+    pub service: String,
+    pub target: Option<serde_json::Value>,
+    pub data: serde_json::Value,
+    pub return_response: bool,
+}
+
+pub enum PendingAction {
+    ToggleTile { entity_id: EntityId },
+    MediaTransport { entity_id: EntityId },
+    MediaVolume { entity_id: EntityId },
+}
+
 pub enum AppEvent {
     Ha(HaEvent),
-    Tick(chrono::DateTime<chrono::Local>),
     Weather(Result<WeatherView, SourceError>),
     Media(Option<MediaView>),
     Departures(Result<DeparturesView, SourceError>),
@@ -332,6 +416,8 @@ pub enum AppEvent {
 // state.rs
 pub struct AppState {
     pub connection: ConnectionState,
+    pub ha_version: Option<String>,
+    pub time_zone: chrono_tz::Tz,
     pub entities: std::collections::HashMap<EntityId, HaEntity>,
     pub weather: Option<WeatherView>,
     pub media: Option<MediaView>,
@@ -339,6 +425,7 @@ pub struct AppState {
     pub calendar: Vec<CalendarItem>,
     pub stale: bool,
     pub last_success: Option<chrono::DateTime<chrono::Utc>>,
+    pub pending: std::collections::HashMap<u64, PendingAction>,
 }
 
 pub trait CacheStore {
@@ -408,23 +495,26 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 
 #### 1.2 Home Assistant WebSocket client
 
-- [ ] Implement connect, `auth_required` → `auth` → `auth_ok`/`auth_invalid`.
+- [ ] Implement connect, `auth_required` → `auth` → `auth_ok`/`auth_invalid`; derive the WebSocket URL from `ha.url` without dropping a path prefix; honor `allow_invalid_certs` for `wss`.
+- [ ] Call `get_config` after authentication; emit `ha_version` and the IANA `time_zone`.
 - [ ] Implement `subscribe_entities` with the configured entity IDs and decode `a`/`c`/`r` messages, including removed attributes.
 - [ ] Implement `get_states` for diagnostics and tests; do not add a global `subscribe_events("state_changed")` subscription in v1.
-- [ ] Implement `call_service` with `target`, `service_data`, and optional `return_response`.
+- [ ] Implement `call_service` with `target`, `service_data`, optional `return_response`, and a UI-generated `request_id`.
 - [ ] Implement a 30-second ping/pong heartbeat and a read loop that never blocks the command channel.
 - [ ] Implement reconnect with exponential backoff and jitter, capped at 60 seconds; `auth_invalid` stops retries.
-- [ ] Emit `HaEvent` values; never log the token or full WebSocket URL with credentials.
-- [ ] Tests with a mock WebSocket server: auth success/failure, snapshot, add/change/remove, service response, disconnect, reconnect, heartbeat timeout.
+- [ ] Emit `HaEvent` values; never log the token, full credential URL, or image query strings.
+- [ ] Tests with a mock WebSocket server: auth success/failure, `get_config` timezone, path-prefixed URL, snapshot, add/change/remove, service response correlation, disconnect, reconnect, heartbeat timeout.
 - [ ] Commit: `feat: Home Assistant websocket client with reconnect`.
 
 #### 1.3 State and cache
 
-- [ ] Define `AppState`, connection state, stale flag, and view models.
-- [ ] Implement a versioned JSON cache with atomic write (temporary file in the same directory, then rename).
-- [ ] Debounce writes (default 10 s) to limit SD-card wear; cap the cache to the configured views and entity set.
+- [ ] Define `AppState`, connection state, stale flag, pending actions, Home Assistant version, timezone, and view models.
+- [ ] Implement a versioned JSON cache with atomic write: write a temporary file in the same directory, `fsync` the file, rename, then `fsync` the directory.
+- [ ] Store a configuration fingerprint (widget/tile/entity IDs and refresh settings) in the cache header; discard a cache whose schema or fingerprint does not match.
+- [ ] Debounce writes (default 10 s) to limit SD-card wear; cache only the configured views and entity set; cap the cache size.
+- [ ] Enforce cache directory `0700` and file `0600`.
 - [ ] Load the cache before the first frame; reject incompatible schema versions with a warning, not a crash.
-- [ ] Tests: round-trip, missing file, corrupt JSON, schema mismatch, atomic rename on failure, cache size cap.
+- [ ] Tests: round-trip, missing file, corrupt JSON, schema mismatch, fingerprint mismatch, atomic rename on failure, permissions, cache size cap.
 - [ ] Commit: `feat: application state and offline cache`.
 
 **Wave 1 gate:** `cargo test` is green; a mock Home Assistant server can drive a snapshot and a state change into `AppState`; no token appears in logs.
@@ -439,6 +529,8 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 
 - [ ] `ui/main.slint`: window, page host, tab bar for Overview/Media/Agenda/Status.
 - [ ] Horizontal swipe with axis lock and a threshold (at least 20% of width or 60 logical pixels); tab bar remains the reliable fallback.
+- [ ] Page swipe starts only from non-interactive background/edge zones, never from a slider, scrollable list, button, or tile.
+- [ ] Long lists use vertical `Flickable` (or equivalent); page swipe and list scrolling do not conflict.
 - [ ] `AppController` applies `AppEvent` values and updates Slint models/properties on the UI thread.
 - [ ] Coalesce state updates and cap redraws at four per second; the clock is a separate one-second timer.
 - [ ] Set fullscreen through `slint::Window::set_fullscreen(true)`.
@@ -449,7 +541,8 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 - [ ] All interactive elements have a minimum 44 × 44 logical-pixel hit area.
 - [ ] Pressed/active visual state; focus ring for keyboard/mouse development builds.
 - [ ] Tap detection for tiles and long-press reserved for future use (do not ship an undocumented long-press action).
-- [ ] Test with `i-slint-backend-testing`: tap changes page; swipe threshold; a too-small target fails the layout check.
+- [ ] Test with `i-slint-backend-testing`: tap changes page; swipe threshold; gesture from a slider does not change page; vertical scroll does not change page; a too-small target fails the layout check.
+- [ ] Verify 800 × 480 and 1024 × 600 layouts; long text elides or wraps without pushing controls off-screen.
 - [ ] Commit: `feat: touch targets and interaction states`.
 
 #### 2.3 Theme tokens
@@ -485,24 +578,24 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 - [ ] Configurable grid with `columns` and explicit tile entries (entity, label, optional icon).
 - [ ] Bind state and supported attributes; show unavailable/unknown states honestly.
 - [ ] Implement the action table from section 4.3; unsupported domains are read-only.
-- [ ] Show a pending state during a service call and an error if it fails.
-- [ ] Tests: mapping for each supported domain; unknown domain stays read-only; failed call surfaces an error.
+- [ ] Show a pending state during a service call and an error if it fails; ignore repeated taps while pending.
+- [ ] Tests: mapping for each supported domain; unknown domain stays read-only; failed call surfaces an error; rapid taps produce at most one in-flight call.
 - [ ] Commit: `feat: Home Assistant entity tiles`.
 
 #### 3.3 Media player
 
 - [ ] Parse `media_player` state, title, artist, album, `entity_picture`, volume, and supported features.
-- [ ] Play/pause, previous/next, and volume slider; disable controls the entity does not support.
-- [ ] Fetch album art over HTTP(S) with the token only when required; decode off the UI thread into `SharedPixelBuffer`; cache by URL and cap memory.
-- [ ] Handle relative `entity_picture` URLs by resolving them against the Home Assistant base URL.
+- [ ] Play/pause, previous/next, and volume slider; disable controls the entity does not support; debounce volume changes (at most one call per 100 ms, final value on release).
+- [ ] Fetch album art over HTTP(S) only when needed; resolve relative URLs against the HA base URL; send the token only to the Home Assistant origin and never forward it across an origin redirect; honor `allow_invalid_certs`; decode off the UI thread into `SharedPixelBuffer`; reject images above a documented byte/pixel limit; cache by URL with a memory cap.
+- [ ] Log only the image host and path, never the query string.
 - [ ] Tests: parser fixtures, disabled controls, failed image fetch keeps the previous art.
 - [ ] Commit: `feat: media player widget`.
 
 #### 3.4 Departures
 
 - [ ] Implement the provider-neutral contract in `docs/departures-entity-contract.md`: a configured sensor entity with a `departures` attribute.
-- [ ] Parse line, destination, departure time, optional delay, platform, and cancelled flag; sort by departure time; drop past entries.
-- [ ] Refresh every 60 seconds by default, and immediately on reconnect.
+- [ ] Parse line, destination, departure time, optional delay, platform, and cancelled flag; sort by departure time; drop past entries. Interpret a timestamp without an offset in the Home Assistant timezone.
+- [ ] Refresh every 60 seconds by default, and immediately on reconnect; ignore stacked refreshes while one is in flight.
 - [ ] Show “No departures” and “Data unavailable” as distinct states.
 - [ ] Tests with fixtures, including malformed entries, timezone offsets, and a cancelled service.
 - [ ] Commit: `feat: generic departures widget`.
@@ -512,6 +605,7 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 #### 3.5 Calendar
 
 - [ ] Call `calendar.get_events` for each configured calendar with a start/end range and `return_response: true`.
+- [ ] Interpret timestamps without an offset in the Home Assistant timezone from `get_config`; convert to the device timezone for display.
 - [ ] Merge events from multiple calendars, sort by start, and render today/tomorrow sections.
 - [ ] Handle all-day events, overlapping events, and calendars that return errors independently.
 - [ ] Refresh every 5 minutes and on reconnect.
@@ -538,19 +632,21 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 #### 4.2 Kiosk mode
 
 - [ ] `src/kiosk.rs`: fullscreen, display rotation, platform detection, and clear errors when no display backend is available.
-- [ ] LinuxKMS path: `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, input through libinput/libseat.
-- [ ] X11 fallback: winit build, `unclutter` or equivalent for the cursor, `xset s off -dpms` for blanking.
+- [ ] LinuxKMS path: `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, input through libinput/libseat. Document `SLINT_DRM_OUTPUT` and `SLINT_DRM_MODE` for multi-display or explicit resolution selection.
+- [ ] X11 fallback: winit build, a minimal window manager (for example openbox or matchbox), cursor hiding with `unclutter` or equivalent, blanking off (`xset s off -dpms`). Without a window manager, fullscreen may not cover the screen.
+- [ ] Install a font (`fonts-dejavu-core`) or bundle a licensed font; include the icon set’s license and attribution in `README.md`.
+- [ ] Ensure time synchronization (`systemd-timesyncd` or chrony) and the device timezone are set; a Pi without an RTC otherwise shows the wrong clock after boot.
 - [ ] Touch calibration and rotation notes for common 7-inch panels; do not hardcode a calibration matrix.
 - [ ] Disable console blanking for the LinuxKMS path (`consoleblank=0` in the kernel command line) and document it.
 - [ ] Commit: `feat: kiosk display setup`.
 
 #### 4.3 systemd and install
 
-- [ ] `deploy/ha-kiosk.service`: restart on failure, start after the seat/graphical target or after `seatd`, run as the `ha-kiosk` user, never as root. Add baseline hardening (`NoNewPrivileges=yes`, `ProtectSystem=strict`, `ReadWritePaths=/var/lib/ha-kiosk`).
-- [ ] Choose and document the seat model: (a) a systemd user service inside an autologin session, (b) a system service with `PAMName=login` and a TTY, or (c) `seatd` with the service user in the `seat` group. Test the chosen path.
-- [ ] `deploy/kiosk-setup.sh`: console/autologin setup for the chosen model, console blanking off, rotation, and a reboot notice.
-- [ ] Grant only the required groups (`video`, `input`, `render` as needed); prefer libseat/logind or seatd over root.
-- [ ] `deploy/install.sh`: create user, install binary, create `/var/lib/ha-kiosk` owned by the service user, install config with `0600`, install unit, enable and start.
+- [ ] `deploy/ha-kiosk.service`: restart on failure, start after the seat/graphical target or after `seatd`, run as the `ha-kiosk` user, never as root. Use `RestartSec=5` and a sane `StartLimitBurst`/`StartLimitIntervalSec`. Set `Environment=RUST_LOG=info`, `Environment=SLINT_BACKEND=linuxkms-software`, and `Environment=LIBSEAT_BACKEND=seatd` on the default KMS path. Add baseline hardening (`NoNewPrivileges=yes`, `ProtectSystem=strict`, `ReadWritePaths=/var/lib/ha-kiosk`); if seatd/logind socket access is blocked, relax to `ProtectSystem=full` and document why.
+- [ ] Default seat model: **seatd + system service** with the service user in the `seat` group. Document the alternatives (systemd user service inside an autologin session, or a system service with `PAMName=login` and a TTY) and test the chosen default.
+- [ ] `deploy/kiosk-setup.sh`: install/enable seatd, console blanking off, rotation, and a reboot notice for the chosen model.
+- [ ] Grant only the required groups (`video`, `input`, `render` as needed); prefer libseat/seatd over root.
+- [ ] `deploy/install.sh`: create user, install binary, create `/var/lib/ha-kiosk` (`0700`, owned by the service user), install config with `0600`, install the runtime packages (`libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, `fonts-dejavu-core`, `ca-certificates`, `seatd` on the KMS path), install unit, enable and start.
 - [ ] `deploy/uninstall.sh`: stop, disable, remove unit and binary; keep config unless `--purge` is passed.
 - [ ] README: install, upgrade, logs (`journalctl -u ha-kiosk`), display backends, and rollback.
 - [ ] Commit: `chore: systemd service and installer`.
@@ -571,7 +667,8 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 - [ ] Offline scenario: server stops, cached data appears with a stale badge; server returns, state resyncs.
 - [ ] Authentication failure: invalid token shows an error and does not loop.
 - [ ] Service failure: tile shows an error and does not fake success.
-- [ ] Malformed messages and unknown entity domains do not crash the app.
+- [ ] Malformed messages and unknown domains do not crash the app.
+- [ ] Add `cargo audit` (and optionally `cargo deny check licenses`) to CI; review findings before release.
 - [ ] Commit: `test: end-to-end and failure scenarios`.
 
 #### 5.2 Performance and stability
@@ -600,15 +697,16 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 | Requirement | Verified by | Wave |
 | --- | --- | --- |
 | Config parsing, validation, token redaction | `tests/config_test.rs` | 1 |
-| HA auth, subscribe_entities, commands, reconnect | `tests/ha_client_test.rs` with mock WS | 1 |
-| Cache round-trip, corruption, atomic write | `tests/cache_test.rs` | 1 |
-| Page navigation, swipe threshold, touch sizes | `tests/ui_smoke_test.rs`, testing backend | 2 |
-| Weather and forecast parsing | fixture unit tests | 3 |
-| Tile action mapping and errors | fixture/unit tests | 3 |
-| Media parser and disabled controls | fixture/unit tests | 3 |
-| Departures contract and malformed data | fixture/unit tests | 3 |
-| Calendar merge and partial failures | fixture/unit tests | 3 |
+| HA auth, get_config timezone, path-prefixed URL, subscribe_entities, commands, reconnect | `tests/ha_client_test.rs` with mock WS | 1 |
+| Cache round-trip, corruption, fingerprint mismatch, atomic write, permissions | `tests/cache_test.rs` | 1 |
+| Page navigation, swipe threshold, gesture arbitration, touch sizes, responsive layouts | `tests/ui_smoke_test.rs`, testing backend | 2 |
+| Weather and forecast parsing, timezone conversion | fixture unit tests | 3 |
+| Tile action mapping, pending state, rapid taps | fixture/unit tests | 3 |
+| Media parser, disabled controls, volume debounce, same-origin token | fixture/unit tests | 3 |
+| Departures contract, timezone, malformed data | fixture/unit tests | 3 |
+| Calendar merge, timezone, all-day events, partial failures | fixture/unit tests | 3 |
 | Offline and reconnect behaviour | end-to-end mock server | 5 |
+| Dependency vulnerabilities | `cargo audit` in CI | 5 |
 | RSS, startup, idle CPU, 24 h soak | Pi test record | 5 |
 | Cross-build artifacts | `scripts/build-all.sh`, CI | 4 |
 | systemd install and reboot | Pi manual test record | 4 |
@@ -624,9 +722,10 @@ These are the failure modes most likely to hurt a real user and are not fully co
 3. **Pi Zero 2 W resource use.** Album art decoding, JSON parsing of large snapshots, and software rendering can push RSS or CPU over budget. Measure, do not assume.
 4. **Kiosk display access.** LinuxKMS needs DRM/input permissions, a seat manager or group access, and correct rotation; X11 needs DISPLAY/XAUTHORITY and cursor/blanking settings. A service that starts but cannot open the display must fail visibly.
 5. **Honest stale data.** Cached values must never look live. The badge and timestamp are part of the feature, not decoration.
-6. **Secret handling.** Token in logs, token in a crash message, world-readable config, or token in a screenshot are all release blockers.
+6. **Secret handling.** Token in logs, token in a crash message, world-readable config, token sent to a third-party image host, or token in a screenshot are all release blockers.
+7. **Timezone correctness.** A kiosk in a different timezone from Home Assistant must still show calendar and departure times correctly; naive timestamps use the `get_config` timezone.
 
-Each focus item has an owning task above; the end-to-end tests in Wave 5 pin items 1, 2, and 5, and the Pi test record pins items 3 and 4.
+Each focus item has an owning task above; the end-to-end tests in Wave 5 pin items 1, 2, and 5, and the Pi test record pins items 3 and 4. Timezone and image-token tests live with the widget and WebSocket tasks.
 
 ---
 
@@ -639,6 +738,8 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 | Cross images change or disappear | Build breaks | Pin image digests; keep a native-build fallback. |
 | Pi Zero 2 W CPU too slow for smooth swipes | Poor UX | No continuous animations; coalesce redraws; test with a 800×480 panel. |
 | Home Assistant instance has hundreds of entities | Memory and traffic blow up | Subscribe only to configured entity IDs; never cache the full state set. |
+| Home Assistant behind a path-prefixed reverse proxy | WebSocket URL built at the root fails | Derive `<prefix>/api/websocket` from `ha.url`; test a path-prefixed URL. |
+| Kiosk timezone differs from Home Assistant | Calendar/departure times are wrong | Use `get_config.time_zone` for naive timestamps; convert for display. |
 | SD-card wear from cache writes | Card failure | Debounce writes (10 s), write atomically, keep the cache small. |
 | Self-signed TLS on LAN | Connection fails | Document `allow_invalid_certs` as a last resort; prefer installing the CA. |
 | Slint licensing for embedded distribution | Legal exposure | Decide GPL-3.0-only or commercial before distributing binaries. |
@@ -657,7 +758,28 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 
 ---
 
-## 13. Execution
+## 13. Future extensions (not v1)
+
+These are deliberately outside the v1 gate. They are recorded so the architecture keeps a place for them, not as commitments.
+
+- **Richer tile controls:** light brightness/color temperature, cover position, climate setpoint and mode, fan speed.
+- **Protocol optimization:** use Home Assistant's `coalesce_messages` supported feature when available to reduce per-message overhead on a Pi; measure before enabling.
+- **Visual design pass:** final typography, iconography, tile density, and dark/light polish beyond the functional placeholder theme.
+- **Camera and image widgets:** a snapshot or stream tile, with a strict memory and network budget.
+- **Auto page rotation:** cycle pages after a configurable idle interval; useful for a wall display.
+- **Idle screen and burn-in protection:** dim or blank after inactivity, with a tap to wake; optional presence-based wake and scheduled night dimming via Home Assistant.
+- **Local audio and announcements:** text-to-speech or notification sounds; needs an audio stack and is not part of the low-memory target.
+- **Direct provider adapters:** only if a provider cannot be represented by Home Assistant entities; no personal URLs or IDs in the repository.
+- **Localization:** German or other languages via a locale file; English remains the source language.
+- **Multiple dashboards/profiles:** per-room configuration without duplicating the binary.
+- **Signed updates/OTA:** verified artifact download and rollback; not needed for a manually installed kiosk.
+- **Accessibility:** screen-reader support through Slint’s accessibility feature; requires a larger dependency budget.
+
+Each extension needs its own issue, a clear memory/CPU budget, and an update to this plan before implementation.
+
+---
+
+## 14. Execution
 
 **Recommended:** subagent-driven development. Each task is small enough for a fresh implementer, and the interfaces are frozen in Wave 0. A reviewer checks each wave against its gate before the next wave starts.
 

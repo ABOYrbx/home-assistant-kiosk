@@ -10,11 +10,30 @@ The original plan had a sound product direction and a reasonable wave structure.
 
 1. It mixed `std::sync::Mutex` and `tokio::sync::RwLock` for `AppState` without defining which thread owns state, which conflicts with Slint’s single-threaded event loop.
 2. It subscribed to every `state_changed` event even though Home Assistant provides `subscribe_entities` for an explicit entity list, which is the correct choice for a 512 MB device.
-3. It hardcoded a transit provider (EFA/VMV) and a personal stop, which violates the requirement that the project work for every Home Assistant user without personal links or IDs. The revised plan is provider-neutral and Home Assistant-first.
+3. It hardcoded a specific transit provider and stop, which violates the requirement that the project work for every Home Assistant user without personal links or IDs. The revised plan is provider-neutral and Home Assistant-first.
 4. It assumed Slint can hide the cursor through a window API. Slint 1.19 has no such API; cursor hiding is deployment-specific.
 5. It treated cross-compilation as a Wave 4 task, even though it is the largest technical risk and should be proven in Wave 0.
 
 The revised plan fixes these points, narrows v1 to Home Assistant as the single data source, and records the remaining legal and hardware decisions as open items.
+
+## Revision 3 — second full review
+
+The second pass found no reason to change the product direction, but it added several correctness and usability details that would otherwise be discovered during implementation:
+
+| Area | Gap found | Change |
+| --- | --- | --- |
+| Home Assistant timezone | `calendar.get_events` returns timestamps in Home Assistant local time, often without an offset. A kiosk in another timezone would show wrong times. | Call `get_config` after auth, store `time_zone`, interpret naive calendar/departure timestamps in that zone, then convert to device time. Added `chrono-tz`. |
+| Reverse proxy / base path | The plan assumed `host:8123/api/websocket` at the root. A Home Assistant behind a path prefix (`https://host/ha`) would fail. | Derive the WebSocket URL from `ha.url` and preserve the path prefix. |
+| Image token leak | `entity_picture` can be an absolute third-party URL. Sending the Home Assistant token with it would leak the token. | Send `Authorization` only for same-origin URLs; log host/path without query strings. |
+| Gesture conflict | Page swipe and media volume slider / list scrolling can fight each other. | Swipe only from background/edge zones; axis lock; vertical `Flickable` for lists; tests for both 800×480 and 1024×600. |
+| Service-call flooding | A volume drag or repeated tile tap can flood Home Assistant. | Debounce volume to 100 ms, send final value on release, ignore taps while pending. |
+| Seat model | The first revision listed three systemd seat options but did not pick a default. | Default to `seatd` + system service with the service user in the `seat` group; document alternatives. |
+| X11 fallback | Fullscreen without a window manager may not cover the screen. | Require a minimal WM (openbox/matchbox) for the X11 path. |
+| Fonts and icons | A minimal Bookworm image may have no suitable font; icon licenses were unspecified. | Install `fonts-dejavu-core` or bundle a licensed font; use a licensed icon set and record attribution. |
+| Cache drift | A changed widget/entity configuration could load an incompatible cached view. | Add a configuration fingerprint to the cache header; discard mismatches; enforce `0600` on the cache. |
+| Dependency features | Slint 1.19 does not expose `svg` or `image-decoders` as `slint` crate features; feature guessing would fail the build. | Added a checked dependency contract with exact Cargo features. |
+| Security checks | No dependency vulnerability check was planned. | Add `cargo audit` (and optionally `cargo deny check licenses`) to CI. |
+| Future scope | Richer controls, auto page rotation, idle screen, and localization were implicit. | Added a “Future extensions (not v1)” section instead of silently expanding the v1 gate. |
 
 ## Blocking corrections
 
@@ -22,11 +41,11 @@ The revised plan fixes these points, narrows v1 to Home Assistant as the single 
 | --- | --- | --- | --- |
 | 1 | `AppState` uses `Arc<Mutex<...>>` **and** `tokio::sync::RwLock` | Contradictory lock model; Slint’s UI state is not `Send`, and touching Slint from a Tokio task is wrong. | The UI thread owns `AppState`. Background tasks send `AppEvent` values over an `mpsc` channel; the UI thread applies them. No shared state lock. |
 | 2 | `subscribe_events("state_changed")` for live updates | This delivers every state change in the entire Home Assistant instance and wastes CPU, memory, and network on a Pi Zero 2 W. Home Assistant documents `subscribe_entities` with an explicit `entity_ids` list as the efficient path used by the frontend. | Use `subscribe_entities` with the configured entity IDs and decode the compact `a`/`c`/`r` format. Keep `subscribe_events` only as an opt-in fallback. |
-| 3 | EFA/VMV departure API and a specific stop | Provider-specific and personal. It would not work for other users and would put a real stop/link into the repository. | v1 reads departures from a configured Home Assistant sensor following `docs/departures-entity-contract.md`. No provider URL, stop ID, or personal data is compiled in. |
+| 3 | Provider-specific departure API and a specific stop | Provider-specific and personal. It would not work for other users and would put a real stop/link into the repository. | v1 reads departures from a configured Home Assistant sensor following `docs/departures-entity-contract.md`. No provider URL, stop ID, or personal data is compiled in. |
 | 4 | “Weather: Open-Meteo or configurable” | Vague, duplicates a data source that Home Assistant already normalizes, and adds another network client and API surface. | Use a configured `weather.*` entity plus `weather.get_forecasts` with `return_response: true`. No weather API key. |
 | 5 | “Calendar: iCal feed or HA calendar entity” | An iCal parser is extra code, extra dependencies, and another failure mode. Home Assistant already exposes calendar events. | Use `calendar.get_events` for configured `calendar.*` entities. |
 | 6 | “Cursor hide (Slint/Window API)” | Slint 1.19 `Window` exposes fullscreen, size, position, show/hide, and redraw, but no cursor-visibility method. | Cursor hiding is a deployment concern: `unclutter` on X11, compositor configuration on Wayland, and a touch-only LinuxKMS path; verify the panel. |
-| 7 | “`renderer-software` feature” is enough for the Pi | The software renderer still needs a backend. A bare Pi without X/Wayland needs `backend-linuxkms` (plus libinput) and `SLINT_BACKEND=linuxkms-software`. | Defined separate `desktop` (winit) and `kiosk` (LinuxKMS) feature sets with exact Slint features. |
+| 7 | “`renderer-software` feature” is enough for the Pi | The software renderer still needs a backend. A bare Pi without X/Wayland needs `backend-linuxkms` (plus libinput/libseat) and `SLINT_BACKEND=linuxkms-software`. | Defined separate `desktop` (winit) and `kiosk` (LinuxKMS) feature sets with exact Slint features. |
 | 8 | Cross-compile from macOS is a Wave 4 task | It is the highest-risk item; discovering a linker/sysroot problem after five waves is expensive. Slint’s cross images target an Ubuntu 22.04 sysroot with glibc 2.35. | Wave 0 includes a mandatory cross-compile spike. Wave 4 only finalizes artifacts. |
 | 9 | Implied support for any Raspberry Pi OS | Cross-built binaries need glibc 2.35+. Raspberry Pi OS Bullseye has glibc 2.31 and will fail. | Bookworm (glibc 2.36) is required for cross-built binaries; native builds are the documented fallback for older systems. Pi Zero v1/ARMv6 is out of scope. |
 | 10 | Album art via “HTTP → Slint-Image” | `slint::Image` is not `Send`, and `Image::load_from_path` needs a file. Network bytes must be decoded before they can become a Slint image. | Fetch and decode off the UI thread with the `image` crate; send `SharedPixelBuffer` to the UI thread. Cache by URL with a memory cap. |

@@ -15,6 +15,8 @@ Create the Slint application shell: four pages, tab and swipe navigation, touch 
 
 - [ ] `ui/main.slint`: window, page host, tab bar for Overview/Media/Agenda/Status.
 - [ ] Horizontal swipe with axis lock and threshold (at least 20% of width or 60 logical pixels); tab bar remains the fallback.
+- [ ] Page swipe starts only from non-interactive background/edge zones, never from a slider, scrollable list, button, or tile.
+- [ ] Long lists use vertical `Flickable`; page swipe and list scrolling do not conflict.
 - [ ] `AppController` applies `AppEvent` values and updates Slint models/properties on the UI thread.
 - [ ] Coalesce updates and cap redraws at four per second; clock is a separate one-second timer.
 - [ ] Fullscreen through `slint::Window::set_fullscreen(true)`.
@@ -24,7 +26,8 @@ Create the Slint application shell: four pages, tab and swipe navigation, touch 
 - [ ] Interactive elements have a minimum 44 × 44 logical-pixel hit area.
 - [ ] Pressed/active visual state; focus ring for development builds.
 - [ ] Tap detection for tiles; no undocumented long-press action.
-- [ ] Tests with `i-slint-backend-testing`: tap changes page, swipe threshold, too-small targets fail.
+- [ ] Tests with `i-slint-backend-testing`: tap changes page, swipe threshold, gesture from a slider does not change page, vertical scroll does not change page, too-small targets fail.
+- [ ] Verify 800 × 480 and 1024 × 600 layouts; long text elides or wraps without pushing controls off-screen.
 
 ### Theme
 
@@ -36,8 +39,8 @@ Create the Slint application shell: four pages, tab and swipe navigation, touch 
 ## Acceptance gate
 
 - Desktop build starts and shows four pages.
-- Swipe and tab navigation work.
-- Shell tests pass in `i-slint-backend-testing`.
+- Swipe and tab navigation work; swipe does not start from a slider or list.
+- Shell tests pass in `i-slint-backend-testing`, including gesture arbitration and both target layouts.
 - No widget implements real Home Assistant data yet.
 
 ## Out of scope

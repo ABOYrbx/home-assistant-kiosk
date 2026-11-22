@@ -19,6 +19,13 @@ A browser-based dashboard is convenient but expensive on a Pi Zero 2 W: a browse
 - Touch navigation, full-screen kiosk mode, and automatic reconnect.
 - Offline cache with an honest stale/offline badge.
 - TOML configuration and a systemd service.
+- A read-only Status page with connection, version, last update, and errors.
+
+Home Assistant 2023.9 or newer is required (`subscribe_entities` and `weather.get_forecasts`). The kiosk can run in a different timezone from Home Assistant; calendar times are converted using the instance timezone.
+
+## Future extensions
+
+Richer light/climate controls, cameras, auto page rotation, idle screen/burn-in protection, localization, and OTA updates are recorded in `PLAN.md` section 13. They are not part of the v1 gate.
 
 ## Supported hardware
 
@@ -68,7 +75,8 @@ Prerequisites: Rust 1.95 or newer, a C toolchain, and the Slint build dependenci
 
 ```bash
 sudo apt install build-essential pkg-config libfontconfig1-dev \
-  libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+  libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+  libseat-dev libinput-dev libudev-dev
 ```
 
 The application scaffold is created in Wave 0. Once it exists:
@@ -77,6 +85,7 @@ The application scaffold is created in Wave 0. Once it exists:
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+cargo audit
 cargo run --features desktop -- --config config.example.toml
 ```
 
@@ -91,13 +100,18 @@ cross build --release --target aarch64-unknown-linux-gnu \
 
 `config.example.toml` contains placeholders only. Copy it to `/etc/ha-kiosk/config.toml`, set the Home Assistant URL and token file, and choose real entity IDs for your installation. Do not commit the resulting file.
 
-The token file must be readable only by the service user:
+Create the token in Home Assistant under **Profile → Security → Long-lived access tokens**. The token is shown once. Prefer a dedicated Home Assistant user with only the entities and actions the kiosk needs; some actions may require an admin user.
+
+The token file must be readable only by the service user. The cache directory is `0700` and the cache file `0600`:
 
 ```bash
 sudo install -d -m 0750 -o ha-kiosk -g ha-kiosk /etc/ha-kiosk
+sudo install -d -m 0700 -o ha-kiosk -g ha-kiosk /var/lib/ha-kiosk
 sudo install -m 0600 -o ha-kiosk -g ha-kiosk ha_token /etc/ha-kiosk/ha_token
 sudo install -m 0600 -o ha-kiosk -g ha-kiosk config.toml /etc/ha-kiosk/config.toml
 ```
+
+The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs a minimal window manager and `unclutter`. Install `fonts-dejavu-core` (or bundle a licensed font) and the runtime libraries `libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, plus `ca-certificates`. Ensure NTP and the device timezone are configured; a Pi without an RTC otherwise shows the wrong clock after boot. The exact install steps are produced in Wave 4.
 
 ## Contributing
 
