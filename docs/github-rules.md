@@ -65,7 +65,7 @@ To make the rules technically enforceable, the owner chooses one of:
 2. Upgrade to GitHub Pro (or higher) and rerun the settings script.
 3. Keep it private on the current plan and accept process-only enforcement.
 
-The script attempts a repository ruleset first and classic branch protection second, and prints a clear message when neither is available.
+The script attempts a repository ruleset first and classic branch protection second, and prints a clear message when neither is available. The remaining step is tracked in [issue #10](https://github.com/ABOYrbx/home-assistant-kiosk/issues/10).
 
 ## Available repository settings
 

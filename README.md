@@ -156,7 +156,7 @@ The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs 
 - **Extensions are separate.** Extension source and the catalog live in the companion `home-assistant-kiosk-extensions` repository, never in this one.
 - **CODEOWNERS** routes review to `@ABOYrbx`; issue and PR templates describe the required evidence.
 
-GitHub Free does not expose branch protection or rulesets for **private** repositories. The policy above is enforced by process, CODEOWNERS, the `docs` check, and the settings script until the repository is public or on a plan that supports protection. Details and exact commands are in [`docs/github-rules.md`](docs/github-rules.md).
+GitHub Free does not expose branch protection or rulesets for **private** repositories. The policy above is enforced by process, CODEOWNERS, the `docs` check, and the settings script until the repository is public or on a plan that supports protection. Details, exact commands, and the tracking issue are in [`docs/github-rules.md`](docs/github-rules.md).
 
 ## Contributing
 
