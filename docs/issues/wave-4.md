@@ -33,7 +33,7 @@ Turn the working desktop application into a kiosk installation: reproducible rel
 - [ ] Choose and document the seat model: systemd user service in an autologin session, system service with `PAMName=login` and a TTY, or `seatd` with the service user in the `seat` group. Test it.
 - [ ] `deploy/kiosk-setup.sh`: console/autologin setup, console blanking off, rotation, reboot notice.
 - [ ] Grant only the required groups (`video`, `input`, `render` as needed); prefer libseat/logind or seatd over root.
-- [ ] `deploy/install.sh`: create user, install binary, install config with `0600`, install unit, enable and start.
+- [ ] `deploy/install.sh`: create user, install binary, create `/var/lib/ha-kiosk` owned by the service user, install config with `0600`, install unit, enable and start.
 - [ ] `deploy/uninstall.sh`: stop/disable/remove; keep config unless `--purge`.
 - [ ] README: install, upgrade, logs (`journalctl -u ha-kiosk`), display backends, rollback.
 

@@ -83,7 +83,7 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
 - **Slint version:** Pin `slint = "1.19"` and `slint-build = "1.19"`. Do not upgrade a minor version inside a wave without a separate review.
 - **Rust version:** `rust-version = "1.95"` in `Cargo.toml`. Slint's current build documentation requires at least Rust 1.95.
 - **Slint features:** `default-features = false`; base features `compat-1-18`, `std`, `renderer-software`. Desktop adds `backend-winit`; kiosk adds `backend-linuxkms`, `backend-linuxkms-libinput`, and `backend-linuxkms-libseat`. PNG/JPEG and SVG support come with `std`; `image-default-formats` is optional if more formats are needed. Do not build with `--all-features` on macOS: the LinuxKMS backend is Linux-only.
-- **Home Assistant minimum:** 2023.8, because `subscribe_entities` and service calls with `return_response` are required. The UI must degrade gracefully if an action is not supported.
+- **Home Assistant minimum:** 2023.9, because `subscribe_entities` and `weather.get_forecasts` (introduced in 2023.9) are required. The UI must degrade gracefully if an action is not supported.
 - **Security:** The token is never logged, never included in error messages, and never committed. The config file must be mode `0600` and owned by the service user. TLS certificate validation stays on by default.
 - **No personal data:** Examples use placeholders such as `light.example`, `weather.home`, `calendar.family`, and `sensor.departures`. Do not add a real address, stop ID, token, internal hostname, or person’s name to the repository.
 - **Timeouts:** Every network operation has a timeout. WebSocket reconnect uses exponential backoff with jitter, capped at 60 seconds.
@@ -128,7 +128,7 @@ Rules:
 3. Require `auth_ok`. On `auth_invalid`, stop reconnecting and show “Authentication failed”; do not hammer the server with a bad token.
 4. Subscribe with `subscribe_entities` and the explicit list of entity IDs needed by the configured widgets. Do **not** subscribe to every `state_changed` event; that traffic is unnecessary on a Pi.
 5. Apply the initial snapshot from `subscribe_entities`, then apply `a` (added), `c` (changed), and `r` (removed) events. Handle removed attributes as well as changed values.
-6. `get_states` remains available for diagnostics and tests. Do not implement a global `subscribe_events("state_changed")` fallback in v1: Home Assistant 2023.8 and newer support `subscribe_entities`, which is the declared minimum.
+6. `get_states` remains available for diagnostics and tests. Do not implement a global `subscribe_events("state_changed")` fallback in v1: Home Assistant 2023.9 and newer support `subscribe_entities`, which is the declared minimum.
 7. Send `ping` every 30 seconds and expect `pong`. A missed heartbeat or a closed socket triggers reconnect with exponential backoff and jitter (1 s, 2 s, 4 s, … 60 s).
 8. After a reconnect, authenticate again, re-subscribe, and replace the local entity map with the fresh snapshot. Never assume subscriptions survive a disconnect.
 9. Service calls use `call_service` with `target` and `service_data`. Calls that return data (weather forecast, calendar events) set `return_response: true`.
@@ -462,7 +462,7 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 
 **Wave 2 gate:** The desktop build starts, shows four empty pages, swipe and tab navigation work, and the UI testing backend passes the shell tests.
 
-**Notes:** Slint 1.19 has no `Window::set_cursor_visible` API. Cursor hiding is deployment-specific: `unclutter` on X11, compositor configuration on Wayland, and no cursor under LinuxKMS software rendering. Do not put a fake cursor API in `kiosk.rs`.
+**Notes:** Slint 1.19 has no `Window::set_cursor_visible` API. Cursor hiding is deployment-specific: `unclutter` on X11, compositor configuration on Wayland, and a touch-only LinuxKMS path where no pointer is needed. Verify the panel behaviour on the target device. Do not put a fake cursor API in `kiosk.rs`.
 
 ---
 
@@ -550,7 +550,7 @@ Each wave has a GitHub issue with a checklist derived from this section. A wave 
 - [ ] Choose and document the seat model: (a) a systemd user service inside an autologin session, (b) a system service with `PAMName=login` and a TTY, or (c) `seatd` with the service user in the `seat` group. Test the chosen path.
 - [ ] `deploy/kiosk-setup.sh`: console/autologin setup for the chosen model, console blanking off, rotation, and a reboot notice.
 - [ ] Grant only the required groups (`video`, `input`, `render` as needed); prefer libseat/logind or seatd over root.
-- [ ] `deploy/install.sh`: create user, install binary, install config with `0600`, install unit, enable and start.
+- [ ] `deploy/install.sh`: create user, install binary, create `/var/lib/ha-kiosk` owned by the service user, install config with `0600`, install unit, enable and start.
 - [ ] `deploy/uninstall.sh`: stop, disable, remove unit and binary; keep config unless `--purge` is passed.
 - [ ] README: install, upgrade, logs (`journalctl -u ha-kiosk`), display backends, and rollback.
 - [ ] Commit: `chore: systemd service and installer`.

@@ -141,7 +141,7 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - PNG/JPEG and SVG support come with `std`; add `image-default-formats` only if an extra format is actually needed.
 - Do not build with `--all-features` on macOS or in a non-Linux CI job: the LinuxKMS backend is Linux-only.
 - LinuxKMS is primary for the kiosk; X11 + winit is the fallback. `SLINT_BACKEND=linuxkms-software` selects the direct-to-DRM path.
-- Slint 1.19 does not expose a cursor-visibility API. Cursor hiding belongs to deployment: `unclutter` on X11, compositor settings on Wayland, and no cursor under LinuxKMS software rendering.
+- Slint 1.19 does not expose a cursor-visibility API. Cursor hiding belongs to deployment: `unclutter` on X11, compositor settings on Wayland, and a touch-only LinuxKMS path with no pointer needed. Verify the panel behaviour on the target device.
 - Use `slint::Window::set_fullscreen(true)` for fullscreen. Rotation is a deployment/backend concern (`SLINT_KMS_ROTATION`).
 - UI tests use `i-slint-backend-testing`; do not require a real display in CI.
 - Do not add continuous animations. A 1 Hz clock is the expected baseline.
