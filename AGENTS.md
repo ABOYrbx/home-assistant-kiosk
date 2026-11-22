@@ -41,7 +41,7 @@ This file tells every agent and contributor how to work in this repository. Read
 - The repository is private and **`ABOYrbx` is the only collaborator**. Do not invite users, teams, bots, or deploy keys.
 - `main` is the only long-lived branch. Use short-lived `wave-N/...`, `docs/...`, or `fix/...` branches.
 - The policy is pull-request-only, squash-merge-only, linear history, no force-push, no deletion of `main`, and a passing `docs` check. Use the pull request template and CODEOWNERS.
-- GitHub Free does **not** support branch protection or rulesets for private repositories. Until the repository is public or on GitHub Pro, these are process rules, not a technical block. Never treat the missing block as permission to push directly.
+- GitHub Free does **not** support branch protection or rulesets for private repositories. Until the repository is public or on GitHub Pro, these are process rules, not a technical block. Never treat the missing block as permission to push directly. The remaining technical step is tracked in issue #10.
 - Apply the available settings with `scripts/apply-github-settings.sh`; the full policy is in [`docs/github-rules.md`](docs/github-rules.md).
 - Releases and `v*` tags are made by `ABOYrbx` from `main`, with checksums and a changelog.
 - Workflows run with read-only `GITHUB_TOKEN` permissions by default and may not approve pull requests. Prefer GitHub-owned or verified actions.
