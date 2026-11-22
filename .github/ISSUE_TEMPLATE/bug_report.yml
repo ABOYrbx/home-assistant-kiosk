@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a defect in the kiosk, plan, documentation, or deployment.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not include live tokens, private keys, personal entity IDs, addresses, or unredacted logs. For a security issue, use the private advisory instead of this form.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the defect.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Kiosk version / commit
+      placeholder: main@abcdef0
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Hardware, OS, display backend, and Home Assistant version.
+      placeholder: Pi Zero 2 W, Bookworm 64-bit, LinuxKMS, HA 2026.11
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact tokens, entity IDs, addresses, and personal data.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed all secrets and personal data from this report.
+          required: true
+        - label: This is not a security vulnerability; I will use the private advisory for that.
+          required: true

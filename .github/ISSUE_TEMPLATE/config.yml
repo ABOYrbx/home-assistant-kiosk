@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Implementation plan
+    url: https://github.com/ABOYrbx/home-assistant-kiosk/blob/main/PLAN.md
+    about: Read the plan and wave gates before opening an issue.
+  - name: Repository rules
+    url: https://github.com/ABOYrbx/home-assistant-kiosk/blob/main/docs/github-rules.md
+    about: Branch, merge, access, and release policy.
+  - name: Security policy
+    url: https://github.com/ABOYrbx/home-assistant-kiosk/blob/main/SECURITY.md
+    about: Read the reporting rules first. Do not open a public security issue.

@@ -36,6 +36,19 @@ This file tells every agent and contributor how to work in this repository. Read
 - Commits follow Conventional Commits, for example `feat: add websocket heartbeat`, `fix: handle removed attributes`, `docs: document kiosk install`.
 - Issues and pull requests are in English and link to each other. A pull request states which wave and issue it closes and records the gate commands and results.
 
+### 2.1 Repository governance
+
+- The repository is private and **`ABOYrbx` is the only collaborator**. Do not invite users, teams, bots, or deploy keys.
+- `main` is the only long-lived branch. Use short-lived `wave-N/...`, `docs/...`, or `fix/...` branches.
+- The policy is pull-request-only, squash-merge-only, linear history, no force-push, no deletion of `main`, and a passing `docs` check. Use the pull request template and CODEOWNERS.
+- GitHub Free does **not** support branch protection or rulesets for private repositories. Until the repository is public or on GitHub Pro, these are process rules, not a technical block. Never treat the missing block as permission to push directly.
+- Apply the available settings with `scripts/apply-github-settings.sh`; the full policy is in [`docs/github-rules.md`](docs/github-rules.md).
+- Releases and `v*` tags are made by `ABOYrbx` from `main`, with checksums and a changelog.
+- Workflows run with read-only `GITHUB_TOKEN` permissions by default and may not approve pull requests. Prefer GitHub-owned or verified actions.
+- Do not bypass a failing check or a review rule silently. Record an emergency exception in the issue or pull request and restore the rule immediately.
+- Security reports go through [`SECURITY.md`](SECURITY.md), not a public issue. Conduct is covered by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+- Extension source and catalog data never enter this repository; use the separate catalog repository.
+
 ## 3. What this project is
 
 A native Home Assistant kiosk dashboard:
@@ -55,9 +68,13 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 
 ```text
 .
+├── .github/                     # workflows, issue/PR templates, CODEOWNERS
 ├── AGENTS.md                    # this file
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
 ├── PLAN.md                      # implementation plan and source of truth
 ├── README.md                    # operator-facing overview
+├── SECURITY.md
 ├── Cargo.toml                   # package `ha-kiosk`
 ├── Cargo.lock
 ├── Cross.toml                   # `cross` targets and Slint images

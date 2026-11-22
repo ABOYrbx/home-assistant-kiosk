@@ -1,0 +1,53 @@
+name: Feature request
+description: Propose a feature, widget, deployment improvement, or extension-shop change.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem before the implementation. State whether this belongs to v1 or post-v1 (Wave 6). Do not include secrets or personal data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Who needs it, and in which situation?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should the kiosk do? Keep it provider-neutral unless it is a catalog extension.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - v1
+        - Post-v1 (Wave 6)
+        - Documentation / repository
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways to solve it, and why they are worse.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked `PLAN.md` and existing issues first.
+          required: true
+        - label: This does not require a personal URL, stop ID, entity ID, or address in the kiosk source.
+          required: true
+        - label: I removed all secrets and personal data from this request.
+          required: true

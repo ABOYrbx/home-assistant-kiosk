@@ -1,0 +1,14 @@
+# Default owner for the repository.
+* @ABOYrbx
+
+# Repository policy, security, and contribution rules.
+/.github/ @ABOYrbx
+/.editorconfig @ABOYrbx
+/.gitattributes @ABOYrbx
+/AGENTS.md @ABOYrbx
+/CONTRIBUTING.md @ABOYrbx
+/SECURITY.md @ABOYrbx
+/CODE_OF_CONDUCT.md @ABOYrbx
+/docs/github-rules.md @ABOYrbx
+/scripts/apply-github-settings.sh @ABOYrbx
+/scripts/check-docs.py @ABOYrbx
