@@ -53,7 +53,7 @@ Create the package, freeze the interfaces between waves, and prove the riskiest 
 
 ## Subtask issues
 
-The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+The wave issue is the epic. Every checkbox above, including the commit step, is a separate issue:
 
 ### 0.1 Scaffold and interface contract
 
@@ -66,3 +66,4 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #17 — [W0.1.7] Prove the highest-risk path: cross build --release --target aarch64-unknown-linux-gnu -...
 - [ ] #18 — [W0.1.8] Add config.example.toml, .gitignore, scripts/run-dev.sh, and a CI workflow skeleton tha...
 - [ ] #19 — [W0.1.9] Write AGENTS.md with the language, GitHub identity, layout, and build rules.
+- [ ] #145 — [W0.1.10] Commit: chore: scaffold ha-kiosk and prove cross-build.

@@ -64,7 +64,7 @@ Build the non-visual core: typed configuration, a resilient Home Assistant WebSo
 
 ## Subtask issues
 
-The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+The wave issue is the epic. Every checkbox above, including the commit step, is a separate issue:
 
 ### 1.1 Configuration
 
@@ -73,6 +73,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #22 — [W1.1.3] Validate URL scheme, display dimensions/rotation, refresh intervals, entity ID syntax,...
 - [ ] #23 — [W1.1.4] Redact the token in Debug; unit-test that no error or debug output contains it.
 - [ ] #24 — [W1.1.5] Tests: valid config, missing required field, unknown key, bad URL, token file with mode...
+- [ ] #146 — [W1.1.6] Commit: feat: typed TOML configuration.
 
 ### 1.2 Home Assistant WebSocket client
 
@@ -85,6 +86,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #31 — [W1.2.7] Implement reconnect with exponential backoff and jitter, capped at 60 seconds; auth_inv...
 - [ ] #32 — [W1.2.8] Emit HaEvent values; never log the token, full credential URL, or image query strings.
 - [ ] #33 — [W1.2.9] Tests with a mock WebSocket server: auth success/failure, get_config timezone, path-pre...
+- [ ] #147 — [W1.2.10] Commit: feat: Home Assistant websocket client with reconnect.
 
 ### 1.3 State and cache
 
@@ -95,3 +97,4 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #38 — [W1.3.5] Enforce cache directory 0700 and file 0600.
 - [ ] #39 — [W1.3.6] Load the cache before the first frame; reject incompatible schema versions with a warni...
 - [ ] #40 — [W1.3.7] Tests: round-trip, missing file, corrupt JSON, schema mismatch, fingerprint mismatch, a...
+- [ ] #148 — [W1.3.8] Commit: feat: application state and offline cache.

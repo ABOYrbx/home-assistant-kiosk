@@ -57,7 +57,7 @@ Create the Slint application shell: four pages, tab and swipe navigation, touch 
 
 ## Subtask issues
 
-The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+The wave issue is the epic. Every checkbox above, including the commit step, is a separate issue:
 
 ### 2.1 Slint shell and navigation
 
@@ -68,6 +68,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #45 — [W2.1.5] AppController applies AppEvent values and updates Slint models/properties on the UI thr...
 - [ ] #46 — [W2.1.6] Coalesce state updates and cap redraws at four per second; the clock is a separate one-...
 - [ ] #47 — [W2.1.7] Set fullscreen through slint::Window::set_fullscreen(true).
+- [ ] #149 — [W2.1.8] Commit: feat: Slint shell and page navigation.
 
 ### 2.2 Touch and focus states
 
@@ -76,6 +77,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #50 — [W2.2.3] Tap detection for tiles and long-press reserved for future use (do not ship an undocume...
 - [ ] #51 — [W2.2.4] Test with i-slint-backend-testing: tap changes page; swipe threshold; gesture from a sl...
 - [ ] #52 — [W2.2.5] Verify 800 × 480 and 1024 × 600 layouts; long text elides or wraps without pushing cont...
+- [ ] #150 — [W2.2.6] Commit: feat: touch targets and interaction states.
 
 ### 2.3 Theme tokens
 
@@ -83,3 +85,4 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #54 — [W2.3.2] Dark theme first; light theme structure prepared but not required to be polished.
 - [ ] #55 — [W2.3.3] Bundled SVG icons for weather conditions; no runtime icon downloads.
 - [ ] #56 — [W2.3.4] Verify contrast for text on background and on tiles.
+- [ ] #151 — [W2.3.5] Commit: feat: placeholder theme tokens.

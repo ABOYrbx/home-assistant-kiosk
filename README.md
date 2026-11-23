@@ -74,7 +74,7 @@ tests/                          integration and UI tests
 
 ## Roadmap
 
-Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; every implementation checkbox in `PLAN.md` has its own subtask issue. The mapping is in [`docs/issues/index.md`](docs/issues/index.md).
+Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; every checkbox in `PLAN.md`, including commit steps, has its own subtask issue. The mapping is in [`docs/issues/index.md`](docs/issues/index.md).
 
 | Wave | Scope |
 | --- | --- |

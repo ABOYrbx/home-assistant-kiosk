@@ -64,7 +64,7 @@ Turn the working desktop application into a kiosk installation: reproducible rel
 
 ## Subtask issues
 
-The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+The wave issue is the epic. Every checkbox above, including the commit step, is a separate issue:
 
 ### 4.1 Release builds and cross-compilation
 
@@ -73,6 +73,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #86 — [W4.1.3] Name artifacts with version and target; generate SHA-256 checksums; place them in dist/.
 - [ ] #87 — [W4.1.4] Document the glibc 2.35+ requirement and the Bookworm-only support for cross-built bina...
 - [ ] #88 — [W4.1.5] Document the native-build fallback on the Pi.
+- [ ] #157 — [W4.1.6] Commit: chore: reproducible release builds.
 
 ### 4.2 Kiosk mode
 
@@ -83,6 +84,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #93 — [W4.2.5] Ensure time synchronization (systemd-timesyncd or chrony) and the device timezone are s...
 - [ ] #94 — [W4.2.6] Touch calibration and rotation notes for common 7-inch panels; do not hardcode a calibr...
 - [ ] #95 — [W4.2.7] Disable console blanking for the LinuxKMS path (consoleblank=0 in the kernel command li...
+- [ ] #158 — [W4.2.8] Commit: feat: kiosk display setup.
 
 ### 4.3 systemd and install
 
@@ -93,3 +95,4 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #100 — [W4.3.5] deploy/install.sh: create user, install binary, create /var/lib/ha-kiosk (0700, owned b...
 - [ ] #101 — [W4.3.6] deploy/uninstall.sh: stop, disable, remove unit and binary; keep config unless --purge...
 - [ ] #102 — [W4.3.7] README: install, upgrade, logs (journalctl -u ha-kiosk), display backends, and rollback.
+- [ ] #159 — [W4.3.8] Commit: chore: systemd service and installer.

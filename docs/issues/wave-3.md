@@ -75,7 +75,7 @@ Implement the five data widgets. Each widget is independently testable with fixt
 
 ## Subtask issues
 
-The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+The wave issue is the epic. Every checkbox above, including the commit step, is a separate issue:
 
 ### 3.1 Clock and weather
 
@@ -85,6 +85,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #60 — [W3.1.4] Map Home Assistant condition strings to bundled icons; unknown condition gets a neutral...
 - [ ] #61 — [W3.1.5] Refresh forecast every 15 minutes by default; retry with backoff; keep the last forecas...
 - [ ] #62 — [W3.1.6] Unit tests with recorded JSON fixtures; no live network in tests.
+- [ ] #152 — [W3.1.7] Commit: feat: clock and weather widgets.
 
 ### 3.2 Home Assistant tiles
 
@@ -93,6 +94,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #65 — [W3.2.3] Implement the action table from section 4.3; unsupported domains are read-only.
 - [ ] #66 — [W3.2.4] Show a pending state during a service call and an error if it fails; ignore repeated ta...
 - [ ] #67 — [W3.2.5] Tests: mapping for each supported domain; unknown domain stays read-only; failed call s...
+- [ ] #153 — [W3.2.6] Commit: feat: Home Assistant entity tiles.
 
 ### 3.3 Media player
 
@@ -101,6 +103,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #70 — [W3.3.3] Fetch album art over HTTP(S) only when needed; resolve relative URLs against the HA bas...
 - [ ] #71 — [W3.3.4] Log only the image host and path, never the query string.
 - [ ] #72 — [W3.3.5] Tests: parser fixtures, disabled controls, failed image fetch keeps the previous art.
+- [ ] #154 — [W3.3.6] Commit: feat: media player widget.
 
 ### 3.4 Departures
 
@@ -109,6 +112,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #75 — [W3.4.3] Refresh every 60 seconds by default, and immediately on reconnect; ignore stacked refre...
 - [ ] #76 — [W3.4.4] Show “No departures” and “Data unavailable” as distinct states.
 - [ ] #77 — [W3.4.5] Tests with fixtures, including malformed entries, timezone offsets, and a cancelled ser...
+- [ ] #155 — [W3.4.6] Commit: feat: generic departures widget.
 
 ### 3.5 Calendar
 
@@ -118,3 +122,4 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #81 — [W3.5.4] Handle all-day events, overlapping events, and calendars that return errors independently.
 - [ ] #82 — [W3.5.5] Refresh every 5 minutes and on reconnect.
 - [ ] #83 — [W3.5.6] Tests with fixtures for multiple calendars, all-day events, and one failing calendar.
+- [ ] #156 — [W3.5.7] Commit: feat: calendar agenda widget.

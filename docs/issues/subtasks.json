@@ -10,6 +10,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/11",
       "wave": 0
     },
+    "W0.1.10": {
+      "id": "W0.1.10",
+      "is_commit": true,
+      "issue": 145,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Commit: `chore: scaffold ha-kiosk and prove cross-build`.",
+      "title": "[W0.1.10] Commit: chore: scaffold ha-kiosk and prove cross-build.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/145",
+      "wave": 0
+    },
     "W0.1.2": {
       "id": "W0.1.2",
       "issue": 12,
@@ -140,6 +151,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/24",
       "wave": 1
     },
+    "W1.1.6": {
+      "id": "W1.1.6",
+      "is_commit": true,
+      "issue": 146,
+      "task": "1.1",
+      "task_title": "Configuration",
+      "text": "Commit: `feat: typed TOML configuration`.",
+      "title": "[W1.1.6] Commit: feat: typed TOML configuration.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/146",
+      "wave": 1
+    },
     "W1.2.1": {
       "id": "W1.2.1",
       "issue": 25,
@@ -148,6 +170,17 @@
       "text": "Implement connect, `auth_required` \u2192 `auth` \u2192 `auth_ok`/`auth_invalid`; derive the WebSocket URL from `ha.url` without dropping a path prefix; honor `allow_invalid_certs` for `wss`.",
       "title": "[W1.2.1] Implement connect, auth_required \u2192 auth \u2192 auth_ok/auth_invalid; derive the WebSocket UR...",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/25",
+      "wave": 1
+    },
+    "W1.2.10": {
+      "id": "W1.2.10",
+      "is_commit": true,
+      "issue": 147,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Commit: `feat: Home Assistant websocket client with reconnect`.",
+      "title": "[W1.2.10] Commit: feat: Home Assistant websocket client with reconnect.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/147",
       "wave": 1
     },
     "W1.2.2": {
@@ -300,6 +333,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/40",
       "wave": 1
     },
+    "W1.3.8": {
+      "id": "W1.3.8",
+      "is_commit": true,
+      "issue": 148,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Commit: `feat: application state and offline cache`.",
+      "title": "[W1.3.8] Commit: feat: application state and offline cache.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/148",
+      "wave": 1
+    },
     "W2.1.1": {
       "id": "W2.1.1",
       "issue": 41,
@@ -370,6 +414,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/47",
       "wave": 2
     },
+    "W2.1.8": {
+      "id": "W2.1.8",
+      "is_commit": true,
+      "issue": 149,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "Commit: `feat: Slint shell and page navigation`.",
+      "title": "[W2.1.8] Commit: feat: Slint shell and page navigation.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/149",
+      "wave": 2
+    },
     "W2.2.1": {
       "id": "W2.2.1",
       "issue": 48,
@@ -420,6 +475,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/52",
       "wave": 2
     },
+    "W2.2.6": {
+      "id": "W2.2.6",
+      "is_commit": true,
+      "issue": 150,
+      "task": "2.2",
+      "task_title": "Touch and focus states",
+      "text": "Commit: `feat: touch targets and interaction states`.",
+      "title": "[W2.2.6] Commit: feat: touch targets and interaction states.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/150",
+      "wave": 2
+    },
     "W2.3.1": {
       "id": "W2.3.1",
       "issue": 53,
@@ -458,6 +524,17 @@
       "text": "Verify contrast for text on background and on tiles.",
       "title": "[W2.3.4] Verify contrast for text on background and on tiles.",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/56",
+      "wave": 2
+    },
+    "W2.3.5": {
+      "id": "W2.3.5",
+      "is_commit": true,
+      "issue": 151,
+      "task": "2.3",
+      "task_title": "Theme tokens",
+      "text": "Commit: `feat: placeholder theme tokens`.",
+      "title": "[W2.3.5] Commit: feat: placeholder theme tokens.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/151",
       "wave": 2
     },
     "W3.1.1": {
@@ -520,6 +597,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/62",
       "wave": 3
     },
+    "W3.1.7": {
+      "id": "W3.1.7",
+      "is_commit": true,
+      "issue": 152,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Commit: `feat: clock and weather widgets`.",
+      "title": "[W3.1.7] Commit: feat: clock and weather widgets.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/152",
+      "wave": 3
+    },
     "W3.2.1": {
       "id": "W3.2.1",
       "issue": 63,
@@ -568,6 +656,17 @@
       "text": "Tests: mapping for each supported domain; unknown domain stays read-only; failed call surfaces an error; rapid taps produce at most one in-flight call.",
       "title": "[W3.2.5] Tests: mapping for each supported domain; unknown domain stays read-only; failed call s...",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/67",
+      "wave": 3
+    },
+    "W3.2.6": {
+      "id": "W3.2.6",
+      "is_commit": true,
+      "issue": 153,
+      "task": "3.2",
+      "task_title": "Home Assistant tiles",
+      "text": "Commit: `feat: Home Assistant entity tiles`.",
+      "title": "[W3.2.6] Commit: feat: Home Assistant entity tiles.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/153",
       "wave": 3
     },
     "W3.3.1": {
@@ -620,6 +719,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/72",
       "wave": 3
     },
+    "W3.3.6": {
+      "id": "W3.3.6",
+      "is_commit": true,
+      "issue": 154,
+      "task": "3.3",
+      "task_title": "Media player",
+      "text": "Commit: `feat: media player widget`.",
+      "title": "[W3.3.6] Commit: feat: media player widget.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/154",
+      "wave": 3
+    },
     "W3.4.1": {
       "id": "W3.4.1",
       "issue": 73,
@@ -668,6 +778,17 @@
       "text": "Tests with fixtures, including malformed entries, timezone offsets, and a cancelled service.",
       "title": "[W3.4.5] Tests with fixtures, including malformed entries, timezone offsets, and a cancelled ser...",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/77",
+      "wave": 3
+    },
+    "W3.4.6": {
+      "id": "W3.4.6",
+      "is_commit": true,
+      "issue": 155,
+      "task": "3.4",
+      "task_title": "Departures",
+      "text": "Commit: `feat: generic departures widget`.",
+      "title": "[W3.4.6] Commit: feat: generic departures widget.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/155",
       "wave": 3
     },
     "W3.5.1": {
@@ -730,6 +851,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/83",
       "wave": 3
     },
+    "W3.5.7": {
+      "id": "W3.5.7",
+      "is_commit": true,
+      "issue": 156,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Commit: `feat: calendar agenda widget`.",
+      "title": "[W3.5.7] Commit: feat: calendar agenda widget.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/156",
+      "wave": 3
+    },
     "W4.1.1": {
       "id": "W4.1.1",
       "issue": 84,
@@ -778,6 +910,17 @@
       "text": "Document the native-build fallback on the Pi.",
       "title": "[W4.1.5] Document the native-build fallback on the Pi.",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/88",
+      "wave": 4
+    },
+    "W4.1.6": {
+      "id": "W4.1.6",
+      "is_commit": true,
+      "issue": 157,
+      "task": "4.1",
+      "task_title": "Release builds and cross-compilation",
+      "text": "Commit: `chore: reproducible release builds`.",
+      "title": "[W4.1.6] Commit: chore: reproducible release builds.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/157",
       "wave": 4
     },
     "W4.2.1": {
@@ -850,6 +993,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/95",
       "wave": 4
     },
+    "W4.2.8": {
+      "id": "W4.2.8",
+      "is_commit": true,
+      "issue": 158,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "Commit: `feat: kiosk display setup`.",
+      "title": "[W4.2.8] Commit: feat: kiosk display setup.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/158",
+      "wave": 4
+    },
     "W4.3.1": {
       "id": "W4.3.1",
       "issue": 96,
@@ -920,6 +1074,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/102",
       "wave": 4
     },
+    "W4.3.8": {
+      "id": "W4.3.8",
+      "is_commit": true,
+      "issue": 159,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "Commit: `chore: systemd service and installer`.",
+      "title": "[W4.3.8] Commit: chore: systemd service and installer.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/159",
+      "wave": 4
+    },
     "W5.1.1": {
       "id": "W5.1.1",
       "issue": 103,
@@ -980,6 +1145,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/108",
       "wave": 5
     },
+    "W5.1.7": {
+      "id": "W5.1.7",
+      "is_commit": true,
+      "issue": 160,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Commit: `test: end-to-end and failure scenarios`.",
+      "title": "[W5.1.7] Commit: test: end-to-end and failure scenarios.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/160",
+      "wave": 5
+    },
     "W5.2.1": {
       "id": "W5.2.1",
       "issue": 109,
@@ -1030,6 +1206,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/113",
       "wave": 5
     },
+    "W5.2.6": {
+      "id": "W5.2.6",
+      "is_commit": true,
+      "issue": 161,
+      "task": "5.2",
+      "task_title": "Performance and stability",
+      "text": "Commit: `perf: verify Pi Zero 2 W budgets`.",
+      "title": "[W5.2.6] Commit: perf: verify Pi Zero 2 W budgets.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/161",
+      "wave": 5
+    },
     "W5.3.1": {
       "id": "W5.3.1",
       "issue": 114,
@@ -1068,6 +1255,17 @@
       "text": "Release checklist: tests, clippy, fmt, cross artifacts, checksums, changelog, known limitations.",
       "title": "[W5.3.4] Release checklist: tests, clippy, fmt, cross artifacts, checksums, changelog, known lim...",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/117",
+      "wave": 5
+    },
+    "W5.3.5": {
+      "id": "W5.3.5",
+      "is_commit": true,
+      "issue": 162,
+      "task": "5.3",
+      "task_title": "Documentation and release",
+      "text": "Commit: `docs: complete operator documentation`.",
+      "title": "[W5.3.5] Commit: docs: complete operator documentation.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/162",
       "wave": 5
     },
     "W6.1.1": {
@@ -1150,6 +1348,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/125",
       "wave": 6
     },
+    "W6.1.9": {
+      "id": "W6.1.9",
+      "is_commit": true,
+      "issue": 163,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Commit: `feat: signed extension catalog and store`.",
+      "title": "[W6.1.9] Commit: feat: signed extension catalog and store.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/163",
+      "wave": 6
+    },
     "W6.2.1": {
       "id": "W6.2.1",
       "issue": 126,
@@ -1230,6 +1439,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/133",
       "wave": 6
     },
+    "W6.2.9": {
+      "id": "W6.2.9",
+      "is_commit": true,
+      "issue": 164,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Commit: `feat: sandboxed extension host`.",
+      "title": "[W6.2.9] Commit: feat: sandboxed extension host.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/164",
+      "wave": 6
+    },
     "W6.3.1": {
       "id": "W6.3.1",
       "issue": 134,
@@ -1290,6 +1510,17 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/139",
       "wave": 6
     },
+    "W6.3.7": {
+      "id": "W6.3.7",
+      "is_commit": true,
+      "issue": 165,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Commit: `feat: extension shop page`.",
+      "title": "[W6.3.7] Commit: feat: extension shop page.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/165",
+      "wave": 6
+    },
     "W6.4.1": {
       "id": "W6.4.1",
       "issue": 140,
@@ -1339,8 +1570,19 @@
       "title": "[W6.4.5] Document community review: license, permissions, no secrets, no service calls, no arbit...",
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/144",
       "wave": 6
+    },
+    "W6.4.6": {
+      "id": "W6.4.6",
+      "is_commit": true,
+      "issue": 166,
+      "task": "6.4",
+      "task_title": "Companion catalog repository and documentation",
+      "text": "Commit: `docs: extension authoring and catalog guide`.",
+      "title": "[W6.4.6] Commit: docs: extension authoring and catalog guide.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/166",
+      "wave": 6
     }
   },
   "repo": "ABOYrbx/home-assistant-kiosk",
-  "updated_at": "2026-11-23T04:26:19.961466+00:00"
+  "updated_at": "2026-11-23T04:30:19.919653+00:00"
 }

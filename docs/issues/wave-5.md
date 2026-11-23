@@ -57,7 +57,7 @@ Prove the system under realistic failure modes and on the actual target hardware
 
 ## Subtask issues
 
-The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+The wave issue is the epic. Every checkbox above, including the commit step, is a separate issue:
 
 ### 5.1 End-to-end tests
 
@@ -67,6 +67,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #106 — [W5.1.4] Service failure: tile shows an error and does not fake success.
 - [ ] #107 — [W5.1.5] Malformed messages and unknown domains do not crash the app.
 - [ ] #108 — [W5.1.6] Add cargo audit (and optionally cargo deny check licenses) to CI; review findings befor...
+- [ ] #160 — [W5.1.7] Commit: test: end-to-end and failure scenarios.
 
 ### 5.2 Performance and stability
 
@@ -75,6 +76,7 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #111 — [W5.2.3] Verify RSS < 150 MB (target < 100 MB), first frame < 3 s, idle CPU low enough that the...
 - [ ] #112 — [W5.2.4] Run a 24-hour soak with a simulated state-change stream; check for leaks and unbounded...
 - [ ] #113 — [W5.2.5] Tune release profile (opt-level = "s", LTO, strip, panic = "abort") and confirm behavior.
+- [ ] #161 — [W5.2.6] Commit: perf: verify Pi Zero 2 W budgets.
 
 ### 5.3 Documentation and release
 
@@ -82,3 +84,4 @@ The wave issue is the epic. Every checkbox above, except the commit step, is a s
 - [ ] #115 — [W5.3.2] Commented config.example.toml; no real credentials or personal identifiers.
 - [ ] #116 — [W5.3.3] Troubleshooting: cross-compile errors, glibc mismatch, no display backend, touch rotati...
 - [ ] #117 — [W5.3.4] Release checklist: tests, clippy, fmt, cross artifacts, checksums, changelog, known lim...
+- [ ] #162 — [W5.3.5] Commit: docs: complete operator documentation.

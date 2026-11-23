@@ -610,7 +610,7 @@ Slint callbacks are wired in `ui/bridge.rs`; background tasks never touch a Slin
 
 ## 8. Waves
 
-Each wave is an **epic**. Every checkbox below, except the pure `Commit:` steps, is a separate GitHub issue; the generated mapping is [`docs/issues/index.md`](docs/issues/index.md). A wave is accepted only when its gate is demonstrated with commands or a written manual test record.
+Each wave is an **epic**. Every checkbox below is a separate GitHub issue, including the final `Commit:` step; the generated mapping is [`docs/issues/index.md`](docs/issues/index.md). A wave is accepted only when its gate is demonstrated with commands or a written manual test record.
 
 ### Wave 0 — Scaffold, interfaces, and cross-compile spike
 
