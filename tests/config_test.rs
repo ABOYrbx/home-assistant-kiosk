@@ -207,3 +207,83 @@ fn env_token_overrides() {
         std::env::remove_var("HA_TOKEN");
     }
 }
+
+#[test]
+fn extensions_defaults_are_disabled_and_private() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, base_config("token = \"t\"")).unwrap();
+    let cfg = Config::load(&path).unwrap();
+    assert!(!cfg.extensions.enabled);
+    assert_eq!(
+        cfg.extensions.store_path,
+        std::path::PathBuf::from("/var/lib/ha-kiosk/extensions")
+    );
+    assert_eq!(
+        cfg.extensions.catalog_cache_path(),
+        std::path::PathBuf::from("/var/lib/ha-kiosk/extensions/catalog-cache.json")
+    );
+    let policy = cfg
+        .extensions
+        .catalog_policy(semver::Version::parse("0.6.0").unwrap());
+    assert!(!policy.allow_insecure());
+    assert_eq!(policy.max_catalog_bytes, 2 * 1024 * 1024);
+    assert_eq!(policy.max_package_bytes, 5 * 1024 * 1024);
+}
+
+#[test]
+fn enabled_extensions_require_catalog_url_and_trust() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false\n",
+        "[extensions]\nenabled = true\n",
+    );
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_err());
+
+    let content = base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false\n",
+        "[extensions]\nenabled = true\n\
+         catalog_url = \"https://catalog.example.com/index.json\"\n\
+         public_keys = [\"RWQexample\"]\n",
+    );
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_ok());
+}
+
+#[test]
+fn unsigned_extensions_require_dev_mode() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false\n",
+        "[extensions]\nenabled = true\n\
+         catalog_url = \"https://catalog.example.com/index.json\"\n\
+         allow_unsigned = true\n",
+    );
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_err());
+
+    let content = base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false\n",
+        "[extensions]\nenabled = true\n\
+         catalog_url = \"https://catalog.example.com/index.json\"\n\
+         allow_unsigned = true\n\
+         dev_mode = true\n",
+    );
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_ok());
+}
+
+#[test]
+fn relative_extension_store_path_rejected() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false\n",
+        "[extensions]\nenabled = false\nstore_path = \"relative/extensions\"\n",
+    );
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_err());
+}

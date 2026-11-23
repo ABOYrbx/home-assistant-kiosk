@@ -171,6 +171,9 @@ refresh_hours = 24
 max_catalog_bytes = 2097152
 max_package_bytes = 5242880
 max_script_operations = 1000000
+# Installed extensions and the last verified catalog index (absolute path,
+# created with mode 0700; installed.json is mode 0600).
+store_path = "/var/lib/ha-kiosk/extensions"
 
 # Per-extension settings go here. The shop shows the required keys.
 # [extensions.settings."org.example.bus-departures"]

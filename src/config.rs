@@ -313,7 +313,7 @@ fn default_max_bytes() -> u64 {
     262144
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExtensionsConfig {
     #[serde(default)]
@@ -334,8 +334,47 @@ pub struct ExtensionsConfig {
     pub max_package_bytes: u64,
     #[serde(default = "default_max_script_ops")]
     pub max_script_operations: u64,
+    #[serde(default = "default_store_path")]
+    pub store_path: PathBuf,
     #[serde(default)]
     pub settings: BTreeMap<String, toml::Value>,
+}
+
+impl Default for ExtensionsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            catalog_url: None,
+            public_keys: Vec::new(),
+            allow_unsigned: false,
+            dev_mode: false,
+            refresh_hours: default_refresh_hours(),
+            max_catalog_bytes: default_max_catalog_bytes(),
+            max_package_bytes: default_max_package_bytes(),
+            max_script_operations: default_max_script_ops(),
+            store_path: default_store_path(),
+            settings: BTreeMap::new(),
+        }
+    }
+}
+
+impl ExtensionsConfig {
+    /// Build the catalog trust policy for the running kiosk version.
+    pub fn catalog_policy(&self, app_version: semver::Version) -> crate::extensions::CatalogPolicy {
+        crate::extensions::CatalogPolicy {
+            app_version,
+            public_keys: self.public_keys.clone(),
+            allow_unsigned: self.allow_unsigned,
+            dev_mode: self.dev_mode,
+            max_catalog_bytes: self.max_catalog_bytes,
+            max_package_bytes: self.max_package_bytes,
+        }
+    }
+
+    /// Default cache location for the last verified catalog index.
+    pub fn catalog_cache_path(&self) -> PathBuf {
+        self.store_path.join("catalog-cache.json")
+    }
 }
 
 fn default_refresh_hours() -> u64 {
@@ -349,6 +388,9 @@ fn default_max_package_bytes() -> u64 {
 }
 fn default_max_script_ops() -> u64 {
     1_000_000
+}
+fn default_store_path() -> PathBuf {
+    PathBuf::from("/var/lib/ha-kiosk/extensions")
 }
 
 #[derive(Clone, Deserialize)]
@@ -600,6 +642,32 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
     }
     if let Some(tz) = config.ha.time_zone {
         let _ = tz;
+    }
+    // extensions
+    if !config.extensions.store_path.is_absolute() {
+        return Err(ConfigError::Validation(
+            "extensions.store_path must be an absolute path".into(),
+        ));
+    }
+    if config.extensions.max_catalog_bytes == 0 || config.extensions.max_package_bytes == 0 {
+        return Err(ConfigError::Validation(
+            "extensions size limits must be greater than zero".into(),
+        ));
+    }
+    if config.extensions.enabled {
+        if config.extensions.catalog_url.is_none() {
+            return Err(ConfigError::Validation(
+                "extensions.catalog_url is required when extensions are enabled".into(),
+            ));
+        }
+        if config.extensions.public_keys.is_empty()
+            && !(config.extensions.allow_unsigned && config.extensions.dev_mode)
+        {
+            return Err(ConfigError::Validation(
+                "extensions.public_keys is empty; unsigned catalogs require allow_unsigned and dev_mode"
+                    .into(),
+            ));
+        }
     }
     // subscribed entities non-empty
     if config.subscribed_entity_ids().is_empty() {

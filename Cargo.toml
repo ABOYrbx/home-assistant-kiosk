@@ -15,7 +15,9 @@ tokio = { version = "1.54", features = [
 ] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+reqwest = { version = "0.13", default-features = false, features = [
+  "rustls", "json", "blocking",
+] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.2"
@@ -30,11 +32,20 @@ secrecy = { version = "0.10", features = ["serde"] }
 rustls = "0.23"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
+# Wave 6: signed extension catalog, package store, and script host.
+minisign-verify = "0.3"
+sha2 = "0.11"
+hex = "0.4"
+tar = "0.4"
+flate2 = "1.1"
+semver = { version = "1.0", features = ["serde"] }
+tempfile = "3"
+
 [build-dependencies]
 slint-build = "1.19"
 
 [dev-dependencies]
-tempfile = "3"
+minisign = "0.7"
 tokio-test = "0.4"
 i-slint-backend-testing = "1.19"
 

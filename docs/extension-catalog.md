@@ -112,6 +112,61 @@ Key rotation: publish a new public key in the catalog repository and in a kiosk 
 
 `allow_unsigned = true` exists only for local development. A production shop must reject unsigned catalogs and must show a persistent warning if the flag is on.
 
+## Kiosk trust configuration
+
+```toml
+[extensions]
+enabled = true
+catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
+public_keys = ["RWQ..."]
+allow_unsigned = false
+dev_mode = false
+max_catalog_bytes = 2097152
+max_package_bytes = 5242880
+store_path = "/var/lib/ha-kiosk/extensions"
+```
+
+- `catalog_url` must be HTTPS. HTTP is accepted only when `allow_unsigned` and `dev_mode` are both true.
+- `max_catalog_bytes` caps the index download; `max_package_bytes` caps both the signed `size_bytes` and the download.
+- `public_keys` lists Minisign public keys in base64. Verification succeeds when any configured key matches, so key rotation lists the old and the new key during the transition.
+- An unsigned catalog is accepted only when `allow_unsigned` and `dev_mode` are both true. Production configurations leave both false.
+- The last verified index is cached as `catalog-cache.json` (mode `0600`) next to the store and is used when a refresh fails.
+
+## Installed state
+
+The kiosk keeps installed extensions under `store_path`:
+
+```text
+/var/lib/ha-kiosk/extensions/
+├── installed.json                      # mode 0600
+├── catalog-cache.json                  # mode 0600, last verified index
+└── org.example.bus-departures/
+    ├── 1.0.0/                          # mode 0700, files 0600
+    └── 0.9.0/                          # one previous version for rollback
+```
+
+`installed.json`:
+
+```json
+{
+  "schema_version": 1,
+  "extensions": [
+    {
+      "id": "org.example.bus-departures",
+      "version": "1.0.0",
+      "enabled": true,
+      "manifest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "source_catalog": "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json",
+      "installed_at": "2026-11-23T12:00:00Z"
+    }
+  ]
+}
+```
+
+- Installation extracts into a staging directory inside the store and renames it into place, so a failed install never leaves a partial version.
+- Only the active version and one previous version are kept. Rollback switches the record back and removes the newer files.
+- The package manifest must match the signed catalog entry for id, version, provides, permissions, and config schema; a mismatch is rejected before anything is installed.
+
 ## Package format
 
 - Suffix: `.hkext`.

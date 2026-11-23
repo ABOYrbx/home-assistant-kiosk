@@ -7,6 +7,7 @@ pub mod app;
 pub mod cache;
 pub mod config;
 pub mod events;
+pub mod extensions;
 pub mod ha;
 pub mod kiosk;
 pub mod sources;
