@@ -2,9 +2,14 @@ import { Theme } from "../theme.slint";
 import { ClockWidget } from "../widgets/clock.slint";
 import { WeatherWidget } from "../widgets/weather.slint";
 import { HaTile } from "../widgets/ha_tile.slint";
-import { DeparturesWidget } from "../widgets/departures.slint";
+import { DepartureRow, DeparturesState, DeparturesWidget } from "../widgets/departures.slint";
 
 export component OverviewPage inherits Rectangle {
+    in property <bool> departures-visible: true;
+    in property <string> departures-title: "Departures";
+    in property <DeparturesState> departures-state: DeparturesState.loading;
+    in property <[DepartureRow]> departures-rows: [];
+
     background: Theme.bg;
 
     VerticalLayout {
@@ -17,6 +22,10 @@ export component OverviewPage inherits Rectangle {
             WeatherWidget { condition: ""; temperature: ""; }
         }
 
-        DeparturesWidget { title: "Departures"; items: []; }
+        if root.departures-visible : DeparturesWidget {
+            title: root.departures-title;
+            state: root.departures-state;
+            rows: root.departures-rows;
+        }
     }
 }

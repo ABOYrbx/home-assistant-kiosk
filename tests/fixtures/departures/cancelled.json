@@ -1,0 +1,18 @@
+{
+  "departures": [
+    {
+      "line": "S1",
+      "destination": "Airport",
+      "departure": "2026-11-22T21:05:00+01:00",
+      "cancelled": true,
+      "remarks": "Replacement bus",
+      "platform": "1"
+    },
+    {
+      "line": "42",
+      "destination": "Central Station",
+      "departure": "2026-11-22T21:15:00+01:00",
+      "delay_minutes": -4
+    }
+  ]
+}

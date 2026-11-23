@@ -1,0 +1,19 @@
+{
+  "departures": [
+    {
+      "line": "old",
+      "destination": "Gone",
+      "departure": "2026-11-22T20:58:00+01:00"
+    },
+    {
+      "line": "recent",
+      "destination": "Grace",
+      "departure": "2026-11-22T20:59:30+01:00"
+    },
+    {
+      "line": "next",
+      "destination": "Soon",
+      "departure": "2026-11-22T21:30:00+01:00"
+    }
+  ]
+}
