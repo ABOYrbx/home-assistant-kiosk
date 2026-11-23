@@ -1,0 +1,34 @@
+# Cross-compilation configuration for ha-kiosk.
+#
+# Uses the Slint-maintained cross images, which ship the C libraries Slint
+# needs (fontconfig, xkbcommon, ...). `cross` requires Docker; on macOS install
+# Docker Desktop first. See README.md and PLAN.md section 3 / Wave 0.
+#
+# Image digests are intentionally not pinned here; pinning happens in Wave 4
+# (see docs/issues/wave-4.md, task 4.1) after the cross spike is verified.
+
+[target.aarch64-unknown-linux-gnu]
+image = "ghcr.io/slint-ui/slint/aarch64-unknown-linux-gnu"
+pre-build = [
+    "apt-get update",
+    "apt-get install --assume-yes --no-install-recommends libfontconfig1-dev libinput-dev libudev-dev libxkbcommon-dev libseat-dev",
+]
+
+[target.armv7-unknown-linux-gnueabihf]
+image = "ghcr.io/slint-ui/slint/armv7-unknown-linux-gnueabihf"
+pre-build = [
+    "apt-get update",
+    "apt-get install --assume-yes --no-install-recommends libfontconfig1-dev libinput-dev libudev-dev libxkbcommon-dev libseat-dev",
+]
+
+[target.x86_64-unknown-linux-gnu]
+image = "ghcr.io/slint-ui/slint/x86_64-unknown-linux-gnu"
+pre-build = [
+    "apt-get update",
+    "apt-get install --assume-yes --no-install-recommends libfontconfig1-dev libinput-dev libudev-dev libxkbcommon-dev libseat-dev",
+]
+
+[build.env]
+passthrough = [
+    "SLINT_NO_QT",
+]

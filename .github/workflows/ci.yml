@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --assume-yes --no-install-recommends \
+            build-essential pkg-config \
+            libfontconfig1-dev libxkbcommon-dev libxcb-shape0-dev \
+            libxcb-xfixes0-dev libseat-dev libinput-dev libudev-dev
+
+      - name: cargo fmt
+        run: cargo fmt --check
+
+      - name: cargo clippy (desktop)
+        run: cargo clippy --all-targets --features desktop -- -D warnings
+
+      - name: cargo test (desktop)
+        run: cargo test --features desktop
+
+      - name: cargo build (kiosk)
+        run: cargo build --release --no-default-features --features kiosk
