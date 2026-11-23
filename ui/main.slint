@@ -1,16 +1,126 @@
 import { Theme } from "theme.slint";
+import { OverviewPage } from "pages/overview.slint";
+import { MediaPage } from "pages/media.slint";
+import { AgendaPage } from "pages/agenda.slint";
+import { StatusPage } from "pages/status.slint";
+
+export component TabButton inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> active: false;
+    callback clicked();
+
+    min-width: Theme.touch-target;
+    min-height: Theme.touch-target;
+    border-radius: Theme.radius-md;
+    background: active ? Theme.accent : Theme.surface;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    Text {
+        text: label;
+        color: active ? Theme.accent-on : Theme.fg;
+        font-size: Theme.text-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    states [
+        pressed when ta.pressed: {
+            background: Theme.border;
+        }
+    ]
+}
 
 export component MainWindow inherits Window {
     title: "Home Assistant Kiosk";
     min-width: 320px;
     min-height: 240px;
 
-    Rectangle {
-        background: Theme.background;
-        Text {
-            text: "Home Assistant Kiosk";
-            color: Theme.foreground;
-            font-size: Theme.type-scale-md;
+    in-out property <int> current-page: 0;
+    callback page-changed(int);
+    callback swipe-next();
+    callback swipe-prev();
+
+    // Swipe tracking
+    property <length> swipe-start-x: 0px;
+    property <length> swipe-start-y: 0px;
+    property <bool> swipe-tracking: false;
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // Tab bar
+        Rectangle {
+            height: Theme.touch-target + Theme.space-2;
+            background: Theme.surface;
+            border-width: 0px;
+            border-color: Theme.border;
+
+            HorizontalLayout {
+                padding: Theme.space-2;
+                spacing: Theme.space-2;
+                alignment: start;
+
+                tab-overview := TabButton {
+                    label: "Overview";
+                    active: current-page == 0;
+                    clicked => { current-page = 0; page-changed(0); }
+                }
+                tab-media := TabButton {
+                    label: "Media";
+                    active: current-page == 1;
+                    clicked => { current-page = 1; page-changed(1); }
+                }
+                tab-agenda := TabButton {
+                    label: "Agenda";
+                    active: current-page == 2;
+                    clicked => { current-page = 2; page-changed(2); }
+                }
+                tab-status := TabButton {
+                    label: "Status";
+                    active: current-page == 3;
+                    clicked => { current-page = 3; page-changed(3); }
+                }
+            }
+        }
+
+        // Page host with swipe TouchArea behind content
+        Rectangle {
+            background: Theme.bg;
+            vertical-stretch: 1;
+
+            swipe-area := TouchArea {
+                width: 100%;
+                height: 100%;
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down) {
+                        swipe-start-x = self.mouse-x;
+                        swipe-start-y = self.mouse-y;
+                        swipe-tracking = true;
+                    }
+                    if (event.kind == PointerEventKind.up && swipe-tracking) {
+                        let dx = self.mouse-x - swipe-start-x;
+                        let dy = self.mouse-y - swipe-start-y;
+                        swipe-tracking = false;
+                        if ((abs(dx) >= 60px) || (abs(dx) >= self.width / 5)) && abs(dx) > abs(dy) {
+                            if (dx < 0px) { swipe-next(); }
+                            else { swipe-prev(); }
+                        }
+                    }
+                    if (event.kind == PointerEventKind.cancel) {
+                        swipe-tracking = false;
+                    }
+                }
+            }
+
+            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }
         }
     }
 }

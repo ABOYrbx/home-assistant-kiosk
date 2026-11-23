@@ -1,4 +1,7 @@
 #![deny(unsafe_code)]
+#![allow(unused_crate_dependencies, dead_code)]
+
+slint::include_modules!();
 
 pub mod app;
 pub mod cache;
@@ -11,6 +14,7 @@ pub mod state;
 pub mod ui;
 
 // Re-exports for tests and external consumers.
+pub use app::AppController;
 pub use config::{Config, ConfigError, HaConfig};
 pub use events::{AppEvent, EntityId, HaCommand, HaEvent, PendingAction, ServiceCall};
 pub use state::{AppState, CacheStore, ConnectionState};
