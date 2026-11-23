@@ -172,6 +172,15 @@ fn token_redacted_in_debug() {
 }
 
 #[test]
+fn zero_tile_columns_rejected() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace("columns = 2", "columns = 0");
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_err());
+}
+
+#[test]
 fn empty_subscription_list_rejected() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("config.toml");

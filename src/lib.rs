@@ -17,4 +17,5 @@ pub mod ui;
 pub use app::AppController;
 pub use config::{Config, ConfigError, HaConfig};
 pub use events::{AppEvent, EntityId, HaCommand, HaEvent, PendingAction, ServiceCall};
+pub use sources::tiles::{TileBoard, TileView};
 pub use state::{AppState, CacheStore, ConnectionState};

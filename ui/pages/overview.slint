@@ -1,10 +1,13 @@
 import { Theme } from "../theme.slint";
 import { ClockWidget } from "../widgets/clock.slint";
 import { WeatherWidget } from "../widgets/weather.slint";
-import { HaTile } from "../widgets/ha_tile.slint";
+import { TilesGrid, TileItem } from "../widgets/tiles_grid.slint";
 import { DeparturesWidget } from "../widgets/departures.slint";
 
 export component OverviewPage inherits Rectangle {
+    in property <[TileItem]> tiles: [];
+    callback tile-tapped(string);
+
     background: Theme.bg;
 
     VerticalLayout {
@@ -15,6 +18,12 @@ export component OverviewPage inherits Rectangle {
             spacing: Theme.space-3;
             ClockWidget { time: ""; date: ""; }
             WeatherWidget { condition: ""; temperature: ""; }
+        }
+
+        TilesGrid {
+            vertical-stretch: 1;
+            tiles: root.tiles;
+            tapped(entity-id) => { root.tile-tapped(entity-id); }
         }
 
         DeparturesWidget { title: "Departures"; items: []; }

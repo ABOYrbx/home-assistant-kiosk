@@ -2,25 +2,59 @@ import { Theme } from "../theme.slint";
 
 export component HaTile inherits Rectangle {
     in property <string> label: "";
+    in property <string> icon: "";
     in property <string> state: "";
+    in property <string> detail: "";
+    in property <bool> read-only: false;
     in property <bool> pending: false;
+    in property <string> error: "";
+    callback tapped();
 
     min-height: Theme.touch-target;
     background: Theme.surface;
     border-radius: Theme.radius-md;
     border-width: 1px;
-    border-color: Theme.border;
+    border-color: read-only ? Theme.border-soft : Theme.border;
 
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-1;
-        Text { text: label; color: Theme.fg; font-size: Theme.text-sm; font-weight: 500; }
+
+        if icon != "" : Text {
+            text: icon;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+        }
+        Text {
+            text: label;
+            color: Theme.fg;
+            font-size: Theme.text-sm;
+            font-weight: 500;
+            overflow: elide;
+        }
         Text {
             text: pending ? "…" : state;
-            color: Theme.muted;
+            color: read-only ? Theme.muted : Theme.fg-2;
             font-size: Theme.text-sm;
+        }
+        if detail != "" && !pending && error == "" : Text {
+            text: detail;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+        }
+        if error != "" : Text {
+            text: error;
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            overflow: elide;
         }
     }
 
-    ta := TouchArea { }
+    tile-touch := TouchArea {
+        clicked => {
+            if !root.read-only && !root.pending {
+                root.tapped();
+            }
+        }
+    }
 }
