@@ -92,6 +92,8 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── departures-entity-contract.md
 │   ├── extensions.md            # Wave 6 author guide
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
+│   ├── github-rules.md          # repository and branch policy
+│   ├── herdr-agent.md           # Herdr dispatch guide
 │   └── issues/                  # subtask index, mapping, and wave epic drafts
 ├── src/
 │   ├── main.rs                  # CLI, runtime, Slint bootstrap
@@ -229,6 +231,15 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - Close a subtask issue only when its definition of done is met. Close the epic only when every subtask and the wave gate are complete.
 - Do not mark a wave complete while a gate is unverified. If hardware is unavailable, write “not verified on hardware” and list what was tested instead.
 - Reviewers check the gate, not only the diff. A green unit test suite does not prove the Pi memory budget or the display path.
+
+### Herdr dispatch
+
+- Use `scripts/herdr-issue-agent.sh` only from inside a Herdr pane (`HERDR_ENV=1`).
+- One subtask issue per worktree and branch; pass the model explicitly with `--model`.
+- The launcher creates the worktree/tab, starts the agent, runs gates, and opens a PR. The agent must not push or merge.
+- Review the PR before merging; the launcher never merges.
+- If the agent is blocked, answer it in Herdr; do not let the launcher guess.
+- See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 
 ## 11. Definition of done
 

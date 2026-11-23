@@ -76,6 +76,7 @@ docs/
 ├── extensions.md               Wave 6 author guide (post-v1)
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
+├── herdr-agent.md              Herdr agent launcher guide
 └── issues/                     subtask index, mapping, and wave epic drafts
 config.example.toml             safe, provider-neutral example configuration
 src/                            Rust application (once Wave 0 starts)
@@ -98,6 +99,16 @@ Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; e
 | [4](https://github.com/ABOYrbx/home-assistant-kiosk/issues/1) | Kiosk and deployment: release builds, display, systemd |
 | [5](https://github.com/ABOYrbx/home-assistant-kiosk/issues/4) | Integration, performance, and release |
 | [6](https://github.com/ABOYrbx/home-assistant-kiosk/issues/7) | Community extension shop (post-v1) |
+
+## Agent dispatch (Herdr)
+
+If you use Herdr, launch one subtask issue with a specified model:
+
+```bash
+scripts/herdr-issue-agent.sh --issue 11 --model opencode-go/deepseek-v4.1-flash
+```
+
+The script creates a worktree/branch, starts the agent in a Herdr tab, waits for it, runs the gates, and opens a PR. It never merges. See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 
 ## Development
 

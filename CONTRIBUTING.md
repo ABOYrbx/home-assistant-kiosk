@@ -80,6 +80,16 @@ One logical change per commit. Do not commit generated build output, secrets, lo
 - Follow [`docs/extensions.md`](docs/extensions.md) and [`docs/extension-catalog.md`](docs/extension-catalog.md).
 - Extensions are sandboxed Rhai scripts with declared permissions; native code, arbitrary UI, filesystem access, and Home Assistant service calls are not accepted.
 
+## Herdr dispatch
+
+If you use Herdr, launch one subtask issue with a specified model:
+
+```bash
+scripts/herdr-issue-agent.sh --issue 11 --model opencode-go/deepseek-v4.1-flash
+```
+
+The launcher creates the worktree/tab, starts the agent, runs the gates, and opens a PR. It never merges. Read [`docs/herdr-agent.md`](docs/herdr-agent.md) first.
+
 ## Security
 
 Do not open a public issue for a vulnerability. Use GitHub's private security advisory and read [`SECURITY.md`](SECURITY.md). Never include a live token, private key, or personal data in a report.
