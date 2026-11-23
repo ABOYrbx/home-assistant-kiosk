@@ -45,6 +45,7 @@ REQUIRED_FILES = [
     "scripts/create-subtask-issues.py",
     "scripts/herdr-issue-agent.sh",
     "scripts/herdr-issue-agent-interactive.sh",
+    "scripts/herdr-issue-team.sh",
     "scripts/list-open-issues.py",
 ]
 

@@ -236,11 +236,11 @@ cross build --release --target x86_64-unknown-linux-gnu \
 
 ### Herdr dispatch
 
-- Use `scripts/herdr-issue-agent-interactive.sh` (picker) or `scripts/herdr-issue-agent.sh` (flags) only from inside a Herdr pane (`HERDR_ENV=1`).
-- One subtask issue per worktree and branch; pass the model explicitly with `--model`.
-- The launcher creates the worktree/tab, starts the agent, runs gates, and opens a PR. The agent must not push or merge.
-- Review the PR before merging; the launcher never merges.
-- If the agent is blocked, answer it in Herdr; do not let the launcher guess.
+- Use `scripts/herdr-issue-team.sh` for up to four issues in a new Herdr workspace, `scripts/herdr-issue-agent-interactive.sh` for one issue, or `scripts/herdr-issue-agent.sh` for flags.
+- One subtask issue per worktree and branch; each agent gets its own tab titled with the issue and its own PR.
+- The launcher creates the worktrees/tabs, starts the agents, runs gates, and opens PRs. The agents must not push or merge.
+- Review every PR before merging; no script merges.
+- If an agent is blocked, answer it in Herdr; do not let the launcher guess.
 - The implementation prompt lives in [`docs/agent-prompts/implement-issue.md`](docs/agent-prompts/implement-issue.md); update the template, not inline shell text.
 - See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 

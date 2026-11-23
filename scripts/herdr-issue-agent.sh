@@ -40,6 +40,8 @@ OPEN_PR=1
 REUSE=0
 DRY_RUN=0
 AGENT_NAME=""
+WORKSPACE_ID=""
+TAB_LABEL=""
 EXTRA_ARGS=()
 
 usage() {
@@ -57,6 +59,8 @@ Options:
   --worktree <path>      Worktree path (default: ../home-assistant-kiosk-<issue>)
   --branch <name>        Branch name (default: agent/<issue>-<slug>)
   --name <name>          Herdr agent name (default: issue-<issue>)
+  --workspace <id>       Put the new tab in this Herdr workspace
+  --tab-label <text>     Tab label (default: issue-<issue>)
   --wait-timeout <ms>    Agent wait timeout (default: 1800000 = 30 min)
   --no-pr                Do not push or open a pull request
   --reuse                Reuse an existing worktree/branch
@@ -91,6 +95,8 @@ while [ $# -gt 0 ]; do
     --worktree) require_value "$@"; WORKTREE="$2"; shift 2 ;;
     --branch) require_value "$@"; BRANCH="$2"; shift 2 ;;
     --name) require_value "$@"; AGENT_NAME="$2"; shift 2 ;;
+    --workspace) require_value "$@"; WORKSPACE_ID="$2"; shift 2 ;;
+    --tab-label) require_value "$@"; TAB_LABEL="$2"; shift 2 ;;
     --wait-timeout) require_value "$@"; WAIT_MS="$2"; shift 2 ;;
     --agent-arg) require_value "$@"; EXTRA_ARGS+=("$2"); shift 2 ;;
     --no-pr) OPEN_PR=0; shift ;;
@@ -161,6 +167,9 @@ fi
 if [ -z "$AGENT_NAME" ]; then
   AGENT_NAME="issue-$ISSUE"
 fi
+if [ -z "$TAB_LABEL" ]; then
+  TAB_LABEL="issue-$ISSUE"
+fi
 if [ "$OPEN_PR" -eq 1 ]; then
   PR_MODE="push branch and open PR"
 else
@@ -171,6 +180,8 @@ printf 'Issue:     #%s %s\n' "$ISSUE" "$issue_title"
 printf 'Epic:      %s\n' "${parent_epic:-unknown}"
 printf 'Worktree:  %s\n' "$WORKTREE"
 printf 'Branch:    %s\n' "$BRANCH"
+printf 'Workspace: %s\n' "${WORKSPACE_ID:-<current>}"
+printf 'Tab:       %s\n' "$TAB_LABEL"
 printf 'Agent:     %s (%s)\n' "$AGENT_NAME" "$KIND"
 printf 'Model:     %s\n' "$MODEL"
 printf 'Afterwork: %s\n' "$PR_MODE"
@@ -182,7 +193,7 @@ Dry run: no files, worktrees, tabs, agents, commits, or PRs were created.
 Planned commands:
   git fetch origin main
   git worktree add -b "$BRANCH" "$WORKTREE" "$BASE_REF"
-  herdr tab create --cwd "$WORKTREE" --label "issue-$ISSUE" --no-focus
+  herdr tab create --cwd "$WORKTREE" --label "$TAB_LABEL" --no-focus ${WORKSPACE_ID:+--workspace "$WORKSPACE_ID"}
   herdr agent start "$AGENT_NAME" --kind "$KIND" --pane <tab-root-pane> -- <model args>
   herdr agent prompt "$AGENT_NAME" "<implementation prompt>" --wait --timeout "$WAIT_MS"
   python3 scripts/check-docs.py   # inside the worktree
@@ -252,7 +263,10 @@ fi
 
 # --- Herdr tab + agent ----------------------------------------------------
 
-tab_args=(herdr tab create --cwd "$WORKTREE" --label "issue-$ISSUE" --no-focus)
+tab_args=(herdr tab create --cwd "$WORKTREE" --label "$TAB_LABEL" --no-focus)
+if [ -n "$WORKSPACE_ID" ]; then
+  tab_args+=(--workspace "$WORKSPACE_ID")
+fi
 if [ -n "$OPENCODE_CONFIG_FILE" ]; then
   tab_args+=(--env "OPENCODE_CONFIG=$OPENCODE_CONFIG_FILE")
 fi

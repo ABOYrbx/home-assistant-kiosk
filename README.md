@@ -104,7 +104,13 @@ Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; e
 
 ## Agent dispatch (Herdr)
 
-If you use Herdr, launch one subtask issue with a specified model:
+For up to four issues in a new Herdr workspace:
+
+```bash
+scripts/herdr-issue-team.sh
+```
+
+For one subtask issue:
 
 ```bash
 scripts/herdr-issue-agent-interactive.sh
@@ -116,7 +122,7 @@ Or non-interactively:
 scripts/herdr-issue-agent.sh --issue 11 --model opencode-go/deepseek-v4.1-flash
 ```
 
-The launcher creates a worktree/branch, starts the agent in a Herdr tab, waits for it, runs the gates, and opens a PR. It never merges. See [`docs/herdr-agent.md`](docs/herdr-agent.md).
+The launcher creates worktrees/branches, starts the agents in Herdr, waits for them, runs the gates, and opens a PR per issue. It never merges. See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 
 ## Development
 

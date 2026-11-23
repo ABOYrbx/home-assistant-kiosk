@@ -13,6 +13,33 @@
   - `codex`, `claude`, `gemini`, `cursor`, `hermes`, and the other Herdr-supported kinds
 - The model must be valid for that kind. For OpenCode, it must appear in `opencode models`.
 
+## Team mode (up to four agents)
+
+```bash
+scripts/herdr-issue-team.sh
+```
+
+Select up to four open subtask issues. The script:
+
+1. Creates a new Herdr workspace named `agents-<timestamp>`.
+2. Prepares one worktree and branch per issue.
+3. Opens one tab per issue, titled with the issue.
+4. Starts one agent per issue with the chosen kind/model.
+5. Waits for all agents concurrently.
+6. Lets each launcher run its gates, push, and open its own PR.
+7. Prints a per-issue result table.
+
+Non-interactive selection:
+
+```bash
+scripts/herdr-issue-team.sh \
+  --issues 11,12,13,14 \
+  --kind opencode \
+  --model opencode-go/deepseek-v4.1-flash
+```
+
+The team script never merges. Each issue gets its own PR and handoff. The initial workspace tab is renamed `control`; the agent tabs carry the issue titles.
+
 ## Interactive dispatcher
 
 The easiest entry point:
