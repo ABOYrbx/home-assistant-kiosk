@@ -74,6 +74,7 @@ package-lock.json
 docs/
 ├── plan-review.md              fact-check findings and corrections
 ├── departures-entity-contract.md
+├── deployment.md               kiosk install, seat models, upgrade, rollback
 ├── extensions.md               Wave 6 author guide (post-v1)
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
@@ -84,9 +85,9 @@ docs/
 config.example.toml             safe, provider-neutral example configuration
 src/                            Rust application (once Wave 0 starts)
 ui/                             Slint UI files (once Wave 0 starts)
-deploy/                         systemd unit and install scripts
+deploy/                         systemd units, installer, kiosk setup, uninstall
 scripts/                        build, development, docs and repository helpers
-tests/                          integration and UI tests
+tests/                          integration, UI, and deployment script tests
 ```
 
 ## Roadmap
@@ -176,7 +177,70 @@ sudo install -m 0600 -o ha-kiosk -g ha-kiosk ha_token /etc/ha-kiosk/ha_token
 sudo install -m 0600 -o ha-kiosk -g ha-kiosk config.toml /etc/ha-kiosk/config.toml
 ```
 
-The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs a minimal window manager and `unclutter`. Install `fonts-dejavu-core` (or bundle a licensed font) and the runtime libraries `libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, plus `ca-certificates`. Ensure NTP and the device timezone are configured; a Pi without an RTC otherwise shows the wrong clock after boot. The exact install steps are produced in Wave 4.
+The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs a minimal window manager and `unclutter`. Install `fonts-dejavu-core` (or bundle a licensed font) and the runtime libraries `libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, plus `ca-certificates`. Ensure NTP and the device timezone are configured; a Pi without an RTC otherwise shows the wrong clock after boot. The deployment scripts install these packages.
+
+## Kiosk deployment
+
+The default deployment is a systemd system service that runs as the `ha-kiosk` user and owns the display through `seatd` and LinuxKMS. It never runs as root. The scripts live in [`deploy/`](deploy), and the full guide, seat model alternatives, and troubleshooting are in [`docs/deployment.md`](docs/deployment.md). The scripts are ready for the Wave 4 release binary; the repository still contains the plan and documentation only.
+
+### Install
+
+```bash
+sudo deploy/install.sh \
+  --binary dist/ha-kiosk-<version>-aarch64-unknown-linux-gnu \
+  --config config.toml \
+  --token-file ha_token
+
+sudo deploy/kiosk-setup.sh --rotation 0
+sudo reboot
+```
+
+`install.sh` creates the service user, installs the binary and unit, creates `/etc/ha-kiosk` (`0750`) and `/var/lib/ha-kiosk` (`0700`), installs the config and token with mode `0600`, installs the runtime packages, enables `seatd` and `ha-kiosk`, and starts the service. `kiosk-setup.sh` adds the required groups, disables console blanking, writes the rotation drop-in, and prints the reboot notice. Use `--dry-run` to review both scripts without changing the system.
+
+### Upgrade
+
+Install the new binary and restart. The configuration, token, and cache are kept when `--config` and `--token-file` are omitted.
+
+```bash
+sudo cp /usr/local/bin/ha-kiosk /usr/local/bin/ha-kiosk.previous
+sudo deploy/install.sh --binary dist/ha-kiosk-<new-version>-<target> --no-start
+sudo systemctl restart ha-kiosk
+```
+
+### Logs
+
+```bash
+journalctl -u ha-kiosk -f
+journalctl -u ha-kiosk -b --no-pager
+systemctl status ha-kiosk
+```
+
+The token is never logged. Set `RUST_LOG=debug` in a systemd drop-in when more detail is needed.
+
+### Display backends
+
+- **LinuxKMS with `seatd` (default, release gate):** `SLINT_BACKEND=linuxkms-software` and `LIBSEAT_BACKEND=seatd`. Rotation uses `SLINT_KMS_ROTATION`; multi-display and mode selection use `SLINT_DRM_OUTPUT` and `SLINT_DRM_MODE`.
+- **X11 (fallback):** a system service cannot open X11 without a session. Run the kiosk as a systemd user service inside an autologin session with openbox or matchbox, `unclutter`, and `xset s off -dpms`. [`deploy/ha-kiosk-user.service`](deploy/ha-kiosk-user.service) is the example unit; `deploy/kiosk-setup.sh --backend x11` installs the packages and writes the session script.
+
+### Rollback
+
+Restore the previous binary without hitting a running executable:
+
+```bash
+sudo cp /usr/local/bin/ha-kiosk.previous /usr/local/bin/ha-kiosk.new
+sudo mv /usr/local/bin/ha-kiosk.new /usr/local/bin/ha-kiosk
+sudo systemctl restart ha-kiosk
+```
+
+If the release changed the configuration, restore the previous `config.toml` and restart. A changed configuration fingerprint discards the offline cache; the kiosk shows the offline or stale state until the next snapshot.
+
+### Uninstall
+
+```bash
+sudo deploy/uninstall.sh
+```
+
+This stops and disables the service and removes the unit, drop-ins, binary, and installed documentation. The configuration, token, cache, and service user are kept. Add `--purge` to remove them as well.
 
 ## Security
 

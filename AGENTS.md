@@ -91,6 +91,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 ├── docs/
 │   ├── plan-review.md           # fact-check findings and corrections
 │   ├── departures-entity-contract.md
+│   ├── deployment.md            # install, seat models, upgrade, rollback
 │   ├── extensions.md            # Wave 6 author guide
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
 │   ├── github-rules.md          # repository and branch policy
@@ -116,9 +117,9 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── theme.slint
 │   ├── pages/                   # overview, media, agenda, shop (Wave 6), status
 │   └── widgets/                 # clock, weather, tile, media, departures, calendar
-├── deploy/                       # systemd unit and install scripts
+├── deploy/                       # systemd units, installer, kiosk setup, uninstall
 ├── scripts/                      # build-all.sh, run-dev.sh
-└── tests/                        # integration and UI smoke tests (extensions_test.rs in Wave 6)
+└── tests/                        # integration, UI, and deployment script tests
 ```
 
 There is no nested `kiosk-dashboard/` directory and no multi-crate workspace in v1. The repository root is the Cargo package.

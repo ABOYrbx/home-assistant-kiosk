@@ -1,0 +1,60 @@
+[Unit]
+Description=Home Assistant Kiosk
+Documentation=file:///usr/share/doc/ha-kiosk/README.md file:///usr/share/doc/ha-kiosk/deployment.md
+After=network-online.target seatd.service
+Wants=network-online.target seatd.service
+# Keep a crash loop from hammering the display: five starts per five minutes.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ha-kiosk
+Group=ha-kiosk
+# seat is required for the seatd socket. video, render, and input are used only
+# when the kernel or a udev rule grants device access to those groups; seatd
+# passes the DRM and input file descriptors to the process.
+SupplementaryGroups=seat video render input
+WorkingDirectory=/var/lib/ha-kiosk
+ExecStart=/usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+
+# Default LinuxKMS path. Override SLINT_BACKEND for the documented X11
+# fallback; a system unit cannot open X11 without a session, so the X11 model
+# uses deploy/ha-kiosk-user.service inside an autologin session instead.
+Environment=RUST_LOG=info
+Environment=SLINT_BACKEND=linuxkms-software
+Environment=LIBSEAT_BACKEND=seatd
+
+UMask=0077
+NoNewPrivileges=yes
+# /etc stays read-only; the service only reads its configuration and token.
+# If a distribution blocks the seatd or logind socket, relax this to
+# ProtectSystem=full and record the reason in docs/deployment.md.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ha-kiosk
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+StateDirectory=ha-kiosk
+StateDirectoryMode=0700
+# PrivateDevices must stay off: DRM and input devices are opened through the
+# seat granted by seatd. MemoryDenyWriteExecute is not enabled because the
+# graphics and font stacks are not guaranteed to avoid writable-executable
+# mappings on every target.
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ha-kiosk
+
+[Install]
+WantedBy=multi-user.target

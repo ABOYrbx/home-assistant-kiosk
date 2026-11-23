@@ -34,6 +34,7 @@ REQUIRED_FILES = [
     ".github/ISSUE_TEMPLATE/config.yml",
     ".github/workflows/docs.yml",
     "docs/departures-entity-contract.md",
+    "docs/deployment.md",
     "docs/extension-catalog.md",
     "docs/extensions.md",
     "docs/agent-prompts/implement-issue.md",
@@ -41,6 +42,13 @@ REQUIRED_FILES = [
     "docs/herdr-agent.md",
     "docs/issues/index.md",
     "docs/plan-review.md",
+    "deploy/ha-kiosk.service",
+    "deploy/ha-kiosk-user.service",
+    "deploy/install.sh",
+    "deploy/kiosk-setup.sh",
+    "deploy/lib.sh",
+    "deploy/uninstall.sh",
+    "tests/deploy_scripts_test.sh",
     "scripts/apply-github-settings.sh",
     "scripts/create-subtask-issues.py",
     "herdr.sh",
@@ -147,6 +155,31 @@ def check_content() -> None:
             errors.append(f"{wave}: missing Acceptance gate")
 
 
+def check_deploy() -> None:
+    unit = read(ROOT / "deploy/ha-kiosk.service")
+    for needle in (
+        "User=ha-kiosk",
+        "Restart=on-failure",
+        "RestartSec=5",
+        "ProtectSystem=strict",
+        "ReadWritePaths=/var/lib/ha-kiosk",
+        "Environment=SLINT_BACKEND=linuxkms-software",
+    ):
+        if needle not in unit:
+            errors.append(f"deploy/ha-kiosk.service is missing: {needle}")
+    if "User=root" in unit:
+        errors.append("deploy/ha-kiosk.service must not run as root")
+    for rel in (
+        "deploy/install.sh",
+        "deploy/kiosk-setup.sh",
+        "deploy/lib.sh",
+        "deploy/uninstall.sh",
+        "tests/deploy_scripts_test.sh",
+    ):
+        if not os.access(ROOT / rel, os.X_OK):
+            errors.append(f"{rel} is not executable")
+
+
 def check_forbidden() -> None:
     for path in ROOT.rglob("*"):
         if not path.is_file():
@@ -171,6 +204,7 @@ def main() -> int:
     check_toml()
     check_markdown()
     check_content()
+    check_deploy()
     check_forbidden()
 
     for warning in warnings:
