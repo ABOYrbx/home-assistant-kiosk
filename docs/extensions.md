@@ -25,7 +25,7 @@ An extension cannot:
 
 ## Package layout
 
-An extension package is a gzipped tar archive with the suffix `.hkext`:
+An extension source directory contains these files:
 
 ```text
 org.example.bus-departures/
@@ -35,7 +35,7 @@ org.example.bus-departures/
 └── LICENSE
 ```
 
-The archive contains these files at its root; do not wrap them in an extra directory. Paths must be relative; absolute paths, `..`, symlinks, hardlinks, and device files are rejected.
+The `.hkext` archive stores these files at its root; do not wrap them in an extra directory. Paths must be relative; absolute paths, `..`, symlinks, hardlinks, and device files are rejected.
 
 ## Manifest
 
