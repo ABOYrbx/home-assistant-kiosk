@@ -1,0 +1,22 @@
+import { Theme } from "../theme.slint";
+
+export component DeparturesWidget inherits Rectangle {
+    in property <string> title: "Departures";
+    in property <[string]> items: [];
+
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-2;
+        Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
+        for item in items : Text {
+            text: item;
+            color: Theme.fg-2;
+            font-size: Theme.text-sm;
+        }
+    }
+}

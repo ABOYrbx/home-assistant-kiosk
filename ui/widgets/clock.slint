@@ -1,0 +1,27 @@
+import { Theme } from "../theme.slint";
+
+export component ClockWidget inherits Rectangle {
+    in property <string> time: "00:00";
+    in property <string> date: "";
+
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-1;
+        Text {
+            text: time;
+            color: Theme.fg;
+            font-size: Theme.text-2xl;
+            font-weight: 600;
+        }
+        Text {
+            text: date;
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+    }
+}

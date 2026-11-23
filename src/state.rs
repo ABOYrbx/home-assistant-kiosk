@@ -52,6 +52,12 @@ pub struct DeparturesView {
     pub entity_id: EntityId,
     pub title: String,
     pub items: Vec<DepartureItem>,
+    #[serde(default = "default_true_bool")]
+    pub available: bool,
+}
+
+fn default_true_bool() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

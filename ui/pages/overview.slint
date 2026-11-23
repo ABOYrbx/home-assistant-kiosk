@@ -1,10 +1,22 @@
 import { Theme } from "../theme.slint";
+import { ClockWidget } from "../widgets/clock.slint";
+import { WeatherWidget } from "../widgets/weather.slint";
+import { HaTile } from "../widgets/ha_tile.slint";
+import { DeparturesWidget } from "../widgets/departures.slint";
 
 export component OverviewPage inherits Rectangle {
     background: Theme.bg;
-    Text {
-        text: "Overview";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
+
+        HorizontalLayout {
+            spacing: Theme.space-3;
+            ClockWidget { time: ""; date: ""; }
+            WeatherWidget { condition: ""; temperature: ""; }
+        }
+
+        DeparturesWidget { title: "Departures"; items: []; }
     }
 }

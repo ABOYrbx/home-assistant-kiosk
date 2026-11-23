@@ -1,0 +1,26 @@
+import { Theme } from "../theme.slint";
+
+export component HaTile inherits Rectangle {
+    in property <string> label: "";
+    in property <string> state: "";
+    in property <bool> pending: false;
+
+    min-height: Theme.touch-target;
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-1;
+        Text { text: label; color: Theme.fg; font-size: Theme.text-sm; font-weight: 500; }
+        Text {
+            text: pending ? "…" : state;
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+    }
+
+    ta := TouchArea { }
+}

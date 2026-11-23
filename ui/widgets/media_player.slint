@@ -1,0 +1,29 @@
+import { Theme } from "../theme.slint";
+
+export component MediaPlayerWidget inherits Rectangle {
+    in property <string> title: "";
+    in property <string> artist: "";
+    in property <string> state: "";
+    in property <image> art;
+
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    HorizontalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
+        Image {
+            source: art;
+            width: 80px;
+            height: 80px;
+        }
+        VerticalLayout {
+            spacing: Theme.space-1;
+            Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
+            Text { text: artist; color: Theme.muted; font-size: Theme.text-sm; }
+            Text { text: state; color: Theme.muted; font-size: Theme.text-xs; }
+        }
+    }
+}

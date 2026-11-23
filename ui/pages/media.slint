@@ -1,10 +1,7 @@
 import { Theme } from "../theme.slint";
+import { MediaPlayerWidget } from "../widgets/media_player.slint";
 
 export component MediaPage inherits Rectangle {
     background: Theme.bg;
-    Text {
-        text: "Media";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
-    }
+    MediaPlayerWidget { title: ""; artist: ""; state: ""; }
 }

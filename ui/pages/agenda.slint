@@ -1,10 +1,7 @@
 import { Theme } from "../theme.slint";
+import { CalendarWidget } from "../widgets/calendar.slint";
 
 export component AgendaPage inherits Rectangle {
     background: Theme.bg;
-    Text {
-        text: "Agenda";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
-    }
+    CalendarWidget { items: []; }
 }
