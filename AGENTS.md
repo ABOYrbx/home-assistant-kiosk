@@ -94,6 +94,8 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
 │   ├── github-rules.md          # repository and branch policy
 │   ├── herdr-agent.md           # Herdr dispatch guide
+│   ├── agent-prompts/
+│   │   └── implement-issue.md   # implementation prompt template
 │   └── issues/                  # subtask index, mapping, and wave epic drafts
 ├── src/
 │   ├── main.rs                  # CLI, runtime, Slint bootstrap
@@ -234,11 +236,12 @@ cross build --release --target x86_64-unknown-linux-gnu \
 
 ### Herdr dispatch
 
-- Use `scripts/herdr-issue-agent.sh` only from inside a Herdr pane (`HERDR_ENV=1`).
+- Use `scripts/herdr-issue-agent-interactive.sh` (picker) or `scripts/herdr-issue-agent.sh` (flags) only from inside a Herdr pane (`HERDR_ENV=1`).
 - One subtask issue per worktree and branch; pass the model explicitly with `--model`.
 - The launcher creates the worktree/tab, starts the agent, runs gates, and opens a PR. The agent must not push or merge.
 - Review the PR before merging; the launcher never merges.
 - If the agent is blocked, answer it in Herdr; do not let the launcher guess.
+- The implementation prompt lives in [`docs/agent-prompts/implement-issue.md`](docs/agent-prompts/implement-issue.md); update the template, not inline shell text.
 - See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 
 ## 11. Definition of done

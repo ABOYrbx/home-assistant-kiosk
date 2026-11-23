@@ -226,7 +226,7 @@ trap cleanup EXIT
 
 MODEL_ARGS=()
 if [ "$KIND" = "opencode" ]; then
-  OPENCODE_CONFIG_FILE="$(mktemp "${TMPDIR:-/tmp}/ha-kiosk-opencode-XXXXXX.json")"
+  OPENCODE_CONFIG_FILE="$(mktemp "${TMPDIR:-/tmp}/ha-kiosk-opencode-XXXXXX")"
   python3 - "$MODEL" "$OPENCODE_CONFIG_FILE" <<'PY'
 import json, os, sys
 
@@ -288,43 +288,28 @@ fi
 
 gh issue edit "$ISSUE" --repo "$REPO_SLUG" --add-assignee "$GH_ACCOUNT" >/dev/null
 
-PROMPT="$(cat <<EOF
-You are an implementation agent for the Home Assistant Kiosk project.
+PROMPT_TEMPLATE="$REPO/docs/agent-prompts/implement-issue.md"
+[ -f "$PROMPT_TEMPLATE" ] || die "missing prompt template: $PROMPT_TEMPLATE"
 
-Repository: $REPO
-Worktree:   $WORKTREE
-Branch:     $BRANCH
-Issue:      #$ISSUE — $issue_title
-Parent epic: ${parent_epic:-unknown}
+PROMPT="$(python3 - "$PROMPT_TEMPLATE" "$REPO" "$WORKTREE" "$BRANCH" "$ISSUE" "$issue_title" "${parent_epic:-unknown}" "$KIND" "$MODEL" "$issue_body" <<'PY'
+import sys
 
-Read first:
-- AGENTS.md
-- README.md
-- PLAN.md
-- docs/github-rules.md
-- DESIGN.md and tokens.css for any UI work
-
-Issue body:
----
-$issue_body
----
-
-Work only in this worktree and only on this issue. Do not touch other issues.
-Do not push, merge, or open a pull request; the launcher handles that after you finish.
-Do not create secrets, personal data, provider-specific URLs, or hardcoded entity IDs.
-
-Method:
-1. Inspect the worktree and the relevant files.
-2. Implement the issue completely.
-3. For UI work, use the adopted design tokens and verify 800x480, 1024x600, and 1280+.
-4. Run the applicable gates: cargo fmt --check, cargo clippy --all-targets -- -D warnings,
-   cargo test, and python3 scripts/check-docs.py. If the Rust toolchain is unavailable, say so.
-5. Commit the complete change on this branch with a Conventional Commit message.
-6. Comment on GitHub issue #$ISSUE with a handoff: branch, commit, files, tests, open questions.
-7. If you are blocked or the issue is ambiguous, comment on the issue and stop instead of guessing.
-
-Finish with a concise summary: branch, commit, changed files, test results, blockers.
-EOF
+(path, repo, worktree, branch, issue, title, epic, kind, model, body) = sys.argv[1:]
+text = open(path, encoding="utf-8").read()
+for key, value in (
+    ("REPO", repo),
+    ("WORKTREE", worktree),
+    ("BRANCH", branch),
+    ("ISSUE", issue),
+    ("TITLE", title),
+    ("EPIC", epic),
+    ("KIND", kind),
+    ("MODEL", model),
+):
+    text = text.replace("{{" + key + "}}", value)
+text = text.replace("{{ISSUE_BODY}}", body)
+print(text, end="")
+PY
 )"
 
 printf '\nSending implementation prompt (%s ms timeout)\n' "$WAIT_MS"
@@ -364,7 +349,7 @@ if [ -n "$(git -C "$WORKTREE" status --porcelain)" ]; then
   exit 3
 fi
 
-GATE_LOG="$(mktemp "${TMPDIR:-/tmp}/ha-kiosk-gate-XXXXXX.log")"
+GATE_LOG="$(mktemp "${TMPDIR:-/tmp}/ha-kiosk-gate-XXXXXX")"
 {
   if [ -f "$WORKTREE/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
     echo "== cargo fmt --check =="
@@ -401,7 +386,7 @@ if [ "$OPEN_PR" -eq 1 ]; then
     printf 'Pull request already exists: %s\n' "$pr_url"
   else
     report="$(tail -c 6000 "$GATE_LOG")"
-    pr_body="$(mktemp "${TMPDIR:-/tmp}/ha-kiosk-pr-XXXXXX.md")"
+    pr_body="$(mktemp "${TMPDIR:-/tmp}/ha-kiosk-pr-XXXXXX")"
     cat > "$pr_body" <<EOF
 Closes #$ISSUE
 

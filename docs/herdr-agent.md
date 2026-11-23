@@ -7,10 +7,31 @@
 - Run it **inside a Herdr pane** (`HERDR_ENV=1`). The script refuses to control a session from a plain terminal.
 - `gh` authenticated as `ABOYrbx`.
 - `python3`.
+- Optional: `fzf` for the searchable issue picker (otherwise a numbered menu is used).
 - The selected agent kind installed and ready in Herdr:
   - `opencode` (default)
   - `codex`, `claude`, `gemini`, `cursor`, `hermes`, and the other Herdr-supported kinds
 - The model must be valid for that kind. For OpenCode, it must appear in `opencode models`.
+
+## Interactive dispatcher
+
+The easiest entry point:
+
+```bash
+scripts/herdr-issue-agent-interactive.sh
+```
+
+It lists open subtask issues with `fzf` (or a numbered menu), asks for the agent kind, model, and PR preference, then calls the launcher.
+
+```bash
+# Preview the open implementation issues without Herdr
+scripts/herdr-issue-agent-interactive.sh --list
+
+# Skip the picker or prompts
+scripts/herdr-issue-agent-interactive.sh --issue 11 --kind opencode --model opencode-go/deepseek-v4.1-flash
+```
+
+The implementation prompt is the maintained template in [`agent-prompts/implement-issue.md`](agent-prompts/implement-issue.md). It is rendered with the issue, worktree, branch, model, and project rules. Edit the template, not the launcher, when the agent instructions change.
 
 ## Usage
 

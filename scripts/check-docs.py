@@ -36,6 +36,7 @@ REQUIRED_FILES = [
     "docs/departures-entity-contract.md",
     "docs/extension-catalog.md",
     "docs/extensions.md",
+    "docs/agent-prompts/implement-issue.md",
     "docs/github-rules.md",
     "docs/herdr-agent.md",
     "docs/issues/index.md",
@@ -43,6 +44,8 @@ REQUIRED_FILES = [
     "scripts/apply-github-settings.sh",
     "scripts/create-subtask-issues.py",
     "scripts/herdr-issue-agent.sh",
+    "scripts/herdr-issue-agent-interactive.sh",
+    "scripts/list-open-issues.py",
 ]
 
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]

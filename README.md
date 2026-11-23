@@ -77,6 +77,8 @@ docs/
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
 ├── herdr-agent.md              Herdr agent launcher guide
+├── agent-prompts/
+│   └── implement-issue.md      implementation prompt template
 └── issues/                     subtask index, mapping, and wave epic drafts
 config.example.toml             safe, provider-neutral example configuration
 src/                            Rust application (once Wave 0 starts)
@@ -105,10 +107,16 @@ Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; e
 If you use Herdr, launch one subtask issue with a specified model:
 
 ```bash
+scripts/herdr-issue-agent-interactive.sh
+```
+
+Or non-interactively:
+
+```bash
 scripts/herdr-issue-agent.sh --issue 11 --model opencode-go/deepseek-v4.1-flash
 ```
 
-The script creates a worktree/branch, starts the agent in a Herdr tab, waits for it, runs the gates, and opens a PR. It never merges. See [`docs/herdr-agent.md`](docs/herdr-agent.md).
+The launcher creates a worktree/branch, starts the agent in a Herdr tab, waits for it, runs the gates, and opens a PR. It never merges. See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 
 ## Development
 
