@@ -4,7 +4,7 @@ A small, native Home Assistant dashboard for wall-mounted touchscreens and singl
 
 [![Docs check](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml/badge.svg)](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml)
 
-**Status:** planning. The repository currently contains the implementation plan, project rules, and documentation, not a working application. The plan is in [`PLAN.md`](PLAN.md).
+**Status:** planning. The repository currently contains the implementation plan, project rules, and the operator documentation, not a working application. The installation, configuration reference, troubleshooting, and release steps describe the intended v1 behaviour; the plan is in [`PLAN.md`](PLAN.md).
 
 ## Why this exists
 
@@ -48,7 +48,102 @@ The trust boundary is deliberately small: a Minisign-signed catalog, SHA-256-che
 | Raspberry Pi 4/5 | Works, not a release gate |
 | Raspberry Pi Zero v1 (ARMv6) | Not supported |
 
-Primary OS: Raspberry Pi OS Bookworm (64-bit for Pi Zero 2 W and Pi 3). Cross-compiled binaries require glibc 2.35 or newer; Bullseye is not supported for cross-built binaries.
+Primary OS: Raspberry Pi OS Bookworm (64-bit for Pi Zero 2 W and Pi 3). Cross-compiled binaries require glibc 2.35 or newer; Bullseye is not supported for cross-built binaries. Build natively on Bullseye if that release is unavoidable.
+
+## Installation
+
+The v1 release is not published yet. The procedure below is the intended operator flow and is exercised on a clean device before the first release; the evidence is recorded with the [release checklist](docs/release-checklist.md).
+
+### Prerequisites
+
+- Raspberry Pi OS Bookworm, or a comparable Linux distribution with glibc 2.35 or newer for cross-built binaries.
+- Home Assistant 2023.9 or newer, reachable over HTTP(S).
+- A long-lived access token from a Home Assistant user. Prefer a dedicated user that can see only the entities and actions the kiosk needs; some actions require an admin user.
+- A supported display and a working DRM/seat setup (LinuxKMS) or an X11 session (fallback).
+- Network time synchronization and the correct device timezone. A Pi without an RTC shows the wrong time until NTP syncs.
+
+### Install from a release artifact
+
+```bash
+# Verify the download before installing it
+sha256sum -c SHA256SUMS
+
+sudo install -d -m 0755 /usr/local/bin
+sudo install -m 0755 ha-kiosk /usr/local/bin/ha-kiosk
+
+# Runtime packages for the LinuxKMS path; seatd creates the seat group
+sudo apt install libseat1 libinput10 libudev1 libxkbcommon0 libfontconfig1 \
+  fonts-dejavu-core ca-certificates seatd
+
+# Service user, groups, and directories
+sudo useradd --system --home-dir /var/lib/ha-kiosk --shell /usr/sbin/nologin ha-kiosk
+sudo usermod -aG video,render,input,seat ha-kiosk
+sudo install -d -m 0750 -o ha-kiosk -g ha-kiosk /etc/ha-kiosk
+sudo install -d -m 0700 -o ha-kiosk -g ha-kiosk /var/lib/ha-kiosk
+
+# Configuration and token, readable only by the service user
+sudo install -m 0600 -o ha-kiosk -g ha-kiosk config.toml /etc/ha-kiosk/config.toml
+sudo install -m 0600 -o ha-kiosk -g ha-kiosk ha_token /etc/ha-kiosk/ha_token
+
+# Unit
+sudo install -m 0644 ha-kiosk.service /etc/systemd/system/ha-kiosk.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now ha-kiosk
+```
+
+The release includes installer scripts in `deploy/` for the same steps: `deploy/install.sh` creates the user and directories, installs the binary, configuration, and unit, and starts the service. `deploy/uninstall.sh` stops and removes the unit and binary and keeps the configuration unless `--purge` is passed.
+
+### Install from source
+
+A native build avoids the cross-compilation sysroot and is the supported fallback on Bullseye:
+
+```bash
+sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev \
+  libxcb-shape0-dev libxcb-xfixes0-dev libseat-dev libinput-dev libudev-dev
+cargo build --release --no-default-features --features kiosk
+sudo install -m 0755 target/release/ha-kiosk /usr/local/bin/ha-kiosk
+```
+
+### Verify the installation
+
+```bash
+systemctl status ha-kiosk --no-pager
+journalctl -u ha-kiosk -n 50 --no-pager
+```
+
+The display shows a frame within 3 seconds, the Status page shows the Home Assistant version and the last update, and the journal contains no token. If the service runs but the screen stays black, the display backend is the problem; see [Troubleshooting](#troubleshooting).
+
+### Upgrade
+
+```bash
+sudo systemctl stop ha-kiosk
+sudo install -m 0755 ha-kiosk /usr/local/bin/ha-kiosk
+sudo systemctl start ha-kiosk
+journalctl -u ha-kiosk -n 50 --no-pager
+```
+
+Keep the previous binary until the new version has drawn a frame and reconnected. Configuration is not rewritten by an upgrade; a new required key appears as a startup error that names the key.
+
+### Logs
+
+The service logs to journald:
+
+```bash
+journalctl -u ha-kiosk -f
+journalctl -u ha-kiosk --since "1 hour ago"
+```
+
+`RUST_LOG=info` is the default. Raise it to `debug` in a temporary unit drop-in for diagnosis, then remove the drop-in. Debug logging costs CPU on a Pi Zero 2 W.
+
+### Rollback
+
+Restore the previous binary, restart the service, and confirm the frame and the connection. A cache written by a newer schema is discarded with a warning, not migrated. The full rollback rules are in the [release checklist](docs/release-checklist.md).
+
+### Display backends
+
+- **LinuxKMS (default):** `SLINT_BACKEND=linuxkms-software`, input through libinput and `seatd`, no X server and no window manager. Select a mode with `SLINT_DRM_MODE` and an output with `SLINT_DRM_OUTPUT`; rotate with `SLINT_KMS_ROTATION`.
+- **X11 fallback:** the winit build with a minimal window manager, `unclutter` for the cursor, and `xset s off -dpms` for blanking. Without a window manager, fullscreen may not cover the screen.
+- **Wayland:** supported by winit, not a release gate.
 
 ## Design in one paragraph
 
@@ -64,6 +159,7 @@ CONTRIBUTING.md                 contribution workflow and PR rules
 CODE_OF_CONDUCT.md              community conduct
 SECURITY.md                     vulnerability reporting
 README.md                       this overview
+CHANGELOG.md                    release history and unreleased changes
 herdr.sh                        interactive Herdr agent dispatcher
 DESIGN.md                       adopted design system (authoritative)
 tokens.css                      colours, type, spacing, motion tokens
@@ -78,6 +174,8 @@ docs/
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
 ├── herdr-agent.md              Herdr agent launcher guide
+├── troubleshooting.md          operator troubleshooting guide
+├── release-checklist.md        release gates, artifacts, and sign-off
 ├── agent-prompts/
 │   └── implement-issue.md      implementation prompt template
 └── issues/                     subtask index, mapping, and wave epic drafts
@@ -163,20 +261,90 @@ npm run dev
 
 ## Configuration
 
-[`config.example.toml`](config.example.toml) contains placeholders only. Copy it to `/etc/ha-kiosk/config.toml`, set the Home Assistant URL and token file, and choose real entity IDs for your installation. Do not commit the resulting file.
+[`config.example.toml`](config.example.toml) contains placeholders only. Copy it to `/etc/ha-kiosk/config.toml`, set the Home Assistant URL and token file, and choose real entity IDs for your installation. Do not commit the resulting file. The default path is `/etc/ha-kiosk/config.toml`; `--config <path>` overrides it.
 
 Create the token in Home Assistant under **Profile → Security → Long-lived access tokens**. The token is shown once. Prefer a dedicated Home Assistant user with only the entities and actions the kiosk needs; some actions may require an admin user.
 
-The token file must be readable only by the service user. The cache directory is `0700` and the cache file `0600`:
+The token source order is `HA_TOKEN`, then `ha.token_file`, then the development-only `ha.token`. The token file and the configuration file must be mode `0600` and owned by the service user; startup rejects a world-readable token file. The cache directory is `0700` and the cache file `0600`. The permission commands are in [Installation](#installation).
 
-```bash
-sudo install -d -m 0750 -o ha-kiosk -g ha-kiosk /etc/ha-kiosk
-sudo install -d -m 0700 -o ha-kiosk -g ha-kiosk /var/lib/ha-kiosk
-sudo install -m 0600 -o ha-kiosk -g ha-kiosk ha_token /etc/ha-kiosk/ha_token
-sudo install -m 0600 -o ha-kiosk -g ha-kiosk config.toml /etc/ha-kiosk/config.toml
-```
+Unknown keys are rejected at startup, so a typo fails loudly instead of being ignored. File paths must be absolute. `ha.url` accepts `http://` and `https://` and preserves a path prefix; the WebSocket URL is derived automatically. At least one entity must be subscribed after widget, tile, and extra entity IDs are resolved.
 
-The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs a minimal window manager and `unclutter`. Install `fonts-dejavu-core` (or bundle a licensed font) and the runtime libraries `libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, plus `ca-certificates`. Ensure NTP and the device timezone are configured; a Pi without an RTC otherwise shows the wrong clock after boot. The exact install steps are produced in Wave 4.
+### Configuration reference
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `ha.url` | string | required | Home Assistant base URL, `http://` or `https://`, optional path prefix. |
+| `ha.token_file` | string | unset | Absolute path to a `0600` file holding the long-lived token. |
+| `ha.token` | string | unset | Development only. Prefer `token_file` or `HA_TOKEN`. |
+| `ha.allow_invalid_certs` | bool | `false` | Disables TLS validation. Last resort for a local self-signed certificate. |
+| `ha.time_zone` | string | unset | IANA fallback when `get_config` provides no timezone. |
+| `ha.extra_entity_ids` | array of strings | `[]` | Additional entity IDs to subscribe to. |
+| `display.width` | integer | `800` | Desktop window width and layout-test reference. LinuxKMS uses the DRM mode. |
+| `display.height` | integer | `480` | Desktop window height and layout-test reference. |
+| `display.rotation` | integer | `0` | `0`, `90`, `180`, or `270`; maps to `SLINT_KMS_ROTATION` on LinuxKMS. |
+| `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
+| `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
+| `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
+| `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
+| `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
+| `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
+| `widgets.weather.entity` | string | unset | A `weather.*` entity. |
+| `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
+| `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries. |
+| `widgets.weather.refresh_seconds` | integer | `900` | Forecast refresh interval. |
+| `widgets.media.enabled` | bool | `true` | Enable the media widget. |
+| `widgets.media.entity` | string | unset | A `media_player.*` entity. |
+| `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
+| `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.0–1.0. |
+| `widgets.departures.enabled` | bool | `true` | Enable the departures widget. |
+| `widgets.departures.entity` | string | unset | A sensor with the documented `departures` attribute. |
+| `widgets.departures.title` | string | `"Departures"` | Widget heading. |
+| `widgets.departures.max_items` | integer | `6` | Maximum rows. |
+| `widgets.departures.refresh_seconds` | integer | `60` | Optional periodic refresh. |
+| `widgets.calendar.enabled` | bool | `true` | Enable the calendar widget. |
+| `widgets.calendar.entities` | array of strings | unset | One or more `calendar.*` entities. |
+| `widgets.calendar.days` | integer | `2` | Number of days to fetch. |
+| `widgets.calendar.refresh_seconds` | integer | `300` | Refresh interval. |
+| `tiles.columns` | integer | `3` | Grid columns. |
+| `tiles.items[].entity` | string | required | Entity ID for a tile. |
+| `tiles.items[].label` | string | entity name | Tile label. |
+| `tiles.items[].icon` | string | unset | Bundled icon name. |
+| `cache.path` | string | required | Absolute cache file path. The directory must be writable by the service user. |
+| `cache.write_debounce_seconds` | integer | `10` | Debounce for cache writes; minimum 2 seconds. |
+| `cache.max_bytes` | integer | `262144` | Upper bound for the cache file. |
+| `extensions.enabled` | bool | `false` | Wave 6 shop. Disabled in v1. |
+| `extensions.catalog_url` | string | unset | HTTPS URL of the signed catalog index. |
+| `extensions.public_keys` | array of strings | `[]` | Minisign public keys for the catalog. |
+| `extensions.allow_unsigned` | bool | `false` | Development only. Never enable in production. |
+| `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs. |
+| `extensions.refresh_hours` | integer | `24` | Catalog refresh interval. |
+| `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
+| `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
+| `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
+
+The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
+
+## Troubleshooting
+
+The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md). The most common failures:
+
+| Symptom | First check |
+| --- | --- |
+| Startup rejects the token or config file | Mode is `0600` and the service user owns the file. |
+| "Authentication failed" and no retry | The token is invalid or revoked; create a new one. |
+| Service runs but the screen is black | `SLINT_BACKEND=linuxkms-software`, `/dev/dri`, the `seat` group, and `seatd`. |
+| `GLIBC_2.35 not found` | The target is Bullseye; use Bookworm or build natively. |
+| Touch is rotated or offset | `display.rotation` / `SLINT_KMS_ROTATION` and the input transform. |
+| Values stay after Home Assistant stops | Expected: the stale badge and last update time are shown. |
+| Calendar times are shifted | `get_config` timezone, `ha.time_zone`, and the device timezone. |
+| The service restarts in a loop | `journalctl -u ha-kiosk` shows the configuration or display error. |
+| RSS is above budget | Album art, debug logging, or an accidental global subscription. |
+
+## Releases and changelog
+
+[`CHANGELOG.md`](CHANGELOG.md) records released and unreleased changes. [`docs/release-checklist.md`](docs/release-checklist.md) is the release procedure: automated gates, cross artifacts, checksums, changelog, hardware evidence, known limitations, publication, and rollback. Releases and `v*` tags are created by `ABOYrbx` from `main`. No binary is distributed while the Slint license decision is open.
 
 ## Security
 
