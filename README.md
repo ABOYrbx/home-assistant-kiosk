@@ -187,6 +187,16 @@ The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs 
 - Extensions cannot access the filesystem, processes, environment, or Home Assistant services, and never receive the token.
 - Report a vulnerability privately, not in a public issue. See [`SECURITY.md`](SECURITY.md) for the current reporting path.
 
+### Media player and album art
+
+- The media page shows the configured `media_player` entity. Transport and volume controls are disabled unless the entity advertises the matching `supported_features` bit; `volume_level` must also be reported before the slider is enabled.
+- Volume changes are debounced to at most one `media_player.volume_set` call per 100 ms, with a final call on release. Transport taps are ignored while a previous call is still pending.
+- Album art is fetched over HTTP(S) only. A relative `entity_picture` is resolved against `ha.url`; `data:` and `file:` URLs are rejected.
+- The access token is sent only when the image URL matches the Home Assistant origin (scheme, host, and port). Redirects are followed only within that origin, and a cross-origin redirect fails the fetch instead of forwarding the token.
+- Images are limited to 5 MiB, 4096 pixels per side, and 8,000,000 pixels. Larger images are rejected and the previous art stays on screen.
+- Decoded art is cached by URL with an 8 MiB memory budget; the least recently used image is evicted first.
+- Logs contain only the image scheme, host, and path. The query string is never logged because it can carry a signed token.
+
 ## Repository rules
 
 - **Only `ABOYrbx` can push.** The repository is private and has no other collaborators.

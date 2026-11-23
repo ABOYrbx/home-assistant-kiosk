@@ -1,0 +1,15 @@
+{
+  "entity_id": "media_player.example",
+  "state": "playing",
+  "attributes": {
+    "media_title": "Example Song",
+    "media_artist": "Example Artist",
+    "media_album_name": "Example Album",
+    "entity_picture": "/api/media_player_proxy/media_player.example?token=fixture-token",
+    "volume_level": 0.42,
+    "is_volume_muted": false,
+    "supported_features": 16437
+  },
+  "last_changed": "2026-11-23T10:00:00+00:00",
+  "last_updated": "2026-11-23T10:00:00+00:00"
+}
