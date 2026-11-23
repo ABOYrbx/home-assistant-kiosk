@@ -1,0 +1,23 @@
+[Unit]
+Description=Home Assistant Kiosk
+After=seatd.service
+Wants=seatd.service
+
+[Service]
+Type=simple
+User=ha-kiosk
+Group=ha-kiosk
+SupplementaryGroups=video input render
+Environment=RUST_LOG=info
+Environment=SLINT_BACKEND=linuxkms-software
+Environment=LIBSEAT_BACKEND=seatd
+ExecStart=/usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ha-kiosk
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

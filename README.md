@@ -178,6 +178,64 @@ sudo install -m 0600 -o ha-kiosk -g ha-kiosk config.toml /etc/ha-kiosk/config.to
 
 The default kiosk deployment uses LinuxKMS with `seatd`; the X11 fallback needs a minimal window manager and `unclutter`. Install `fonts-dejavu-core` (or bundle a licensed font) and the runtime libraries `libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, plus `ca-certificates`. Ensure NTP and the device timezone are configured; a Pi without an RTC otherwise shows the wrong clock after boot. The exact install steps are produced in Wave 4.
 
+## Installation and operation
+
+### Release builds
+
+Reproducible builds for all supported targets:
+
+```bash
+./scripts/build-all.sh
+```
+
+Artifacts land in `dist/` as `ha-kiosk-<version>-<target>` with a `SHA256SUMS` file. Targets: `aarch64-unknown-linux-gnu`, `armv7-unknown-linux-gnueabihf`, `x86_64-unknown-linux-gnu`. Cross-built binaries require glibc 2.35 or newer (Raspberry Pi OS Bookworm). Bullseye is not supported for cross-built binaries; build natively on the device as a fallback.
+
+### Install
+
+```bash
+sudo ./deploy/install.sh /path/to/ha-kiosk-<version>-aarch64-unknown-linux-gnu
+sudo ./deploy/kiosk-setup.sh
+```
+
+The installer creates the `ha-kiosk` user, installs the binary to `/usr/local/bin/ha-kiosk`, creates `/etc/ha-kiosk` (0750) and `/var/lib/ha-kiosk` (0700), installs the systemd unit, and enables the service. Copy your config to `/etc/ha-kiosk/config.toml` (mode 0600) and the token file to `/etc/ha-kiosk/ha_token` before starting.
+
+### Upgrade and rollback
+
+```bash
+# Upgrade: replace the binary and restart
+sudo install -m 0755 new-binary /usr/local/bin/ha-kiosk
+sudo systemctl restart ha-kiosk.service
+
+# Rollback: reinstall the previous binary and restart
+sudo install -m 0755 previous-binary /usr/local/bin/ha-kiosk
+sudo systemctl restart ha-kiosk.service
+```
+
+### Logs
+
+```bash
+journalctl -u ha-kiosk -f
+```
+
+### Uninstall
+
+```bash
+sudo ./deploy/uninstall.sh          # keeps config and data
+sudo ./deploy/uninstall.sh --purge  # removes everything
+```
+
+### Display backends
+
+- LinuxKMS (primary): `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, `SLINT_DRM_OUTPUT`, `SLINT_DRM_MODE`. Requires `seatd` and the `video`/`input`/`render` groups.
+- X11 fallback: build with the `desktop` feature, run under a minimal window manager (openbox/matchbox) with `unclutter`, `xset s off -dpms`. Without a window manager fullscreen may not cover the screen.
+
+### Troubleshooting
+
+- No display backend: verify `SLINT_BACKEND`, seatd, and group membership; check `journalctl`.
+- Console blanking: ensure `consoleblank=0` is in `/boot/firmware/cmdline.txt` and reboot.
+- Touch rotation: set `SLINT_KMS_ROTATION`; calibrate per panel, do not hardcode a matrix.
+- Wrong clock: verify NTP (`timedatectl set-ntp true`) and the device timezone.
+
 ## Security
 
 - The Home Assistant token is never logged, committed, or sent to a third-party image host.
