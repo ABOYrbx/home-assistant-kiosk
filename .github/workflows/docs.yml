@@ -30,3 +30,6 @@ jobs:
 
       - name: Check documentation and configuration
         run: python3 scripts/check-docs.py
+
+      - name: Test the release build tooling
+        run: python3 -m unittest discover -s tests -p "test_*.py" -v

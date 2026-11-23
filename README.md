@@ -78,6 +78,7 @@ docs/
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
 ├── herdr-agent.md              Herdr agent launcher guide
+├── release-builds.md           reproducible release builds and native fallback
 ├── agent-prompts/
 │   └── implement-issue.md      implementation prompt template
 └── issues/                     subtask index, mapping, and wave epic drafts
@@ -148,10 +149,18 @@ cross build --release --target aarch64-unknown-linux-gnu \
   --no-default-features --features kiosk
 ```
 
+For release artifacts, use `scripts/build-all.sh`. It builds all three targets
+with the digest-pinned images from `Cross.toml`, writes
+`dist/ha-kiosk-<version>-<target>`, and generates `dist/SHA256SUMS`. The
+reproducibility rules, the glibc 2.35+ floor for cross-built binaries, and the
+native-build fallback on the Pi are documented in
+[`docs/release-builds.md`](docs/release-builds.md).
+
 Documentation checks run without a Rust toolchain:
 
 ```bash
 python3 scripts/check-docs.py
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
 
 The design reference prototype is a Vite app; `node_modules/` and its build output are ignored:

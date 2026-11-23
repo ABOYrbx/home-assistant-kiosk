@@ -41,8 +41,12 @@ REQUIRED_FILES = [
     "docs/herdr-agent.md",
     "docs/issues/index.md",
     "docs/plan-review.md",
+    "docs/release-builds.md",
     "scripts/apply-github-settings.sh",
+    "scripts/build-all.sh",
     "scripts/create-subtask-issues.py",
+    "Cross.toml",
+    "tests/test_build_all.py",
     "herdr.sh",
 ]
 
@@ -141,6 +145,10 @@ def check_content() -> None:
     for needle in ("--touch-target", "--muted", "--success", "--warn"):
         if needle not in tokens:
             errors.append(f"tokens.css is missing: {needle}")
+    release = read(ROOT / "docs/release-builds.md")
+    for needle in ("glibc 2.35", "Bookworm", "native build", "SOURCE_DATE_EPOCH"):
+        if needle not in release:
+            errors.append(f"docs/release-builds.md is missing: {needle}")
     for wave in REQUIRED_WAVES:
         text = read(ROOT / wave)
         if "Acceptance gate" not in text:
