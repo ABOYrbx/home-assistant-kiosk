@@ -1,58 +1,216 @@
 import { Theme } from "../theme.slint";
+import { LevelSlider } from "level_slider.slint";
+import { ToggleSwitch } from "toggle_switch.slint";
 
 export component HeroLight inherits Rectangle {
+    in property <bool> configured: false;
     in property <string> name: "";
     in property <bool> on: false;
-    in property <int> brightness: 0;
-    in property <int> color-temp: 0;
+    in-out property <int> brightness: 0;
+    in-out property <int> color-temp: 2700;
+    in property <int> min-kelvin: 2700;
+    in property <int> max-kelvin: 6500;
+    in property <bool> available: false;
+    in property <bool> loading: true;
+    in property <bool> pending: false;
+    in property <bool> brightness-supported: true;
+    in property <bool> color-temp-supported: true;
+    in property <string> brightness-text: "0%";
+    in property <string> color-temp-text: "2700 K";
+    in property <string> state-text: "Off";
+    in property <string> status-text: "";
+    in property <bool> error: false;
+
     callback toggled();
     callback brightness-changed(int);
+    callback brightness-released(int);
     callback color-temp-changed(int);
+    callback color-temp-released(int);
 
-    background: Theme.surface;
+    background: Theme.bg;
     border-radius: Theme.radius-lg;
     border-width: 1px;
     border-color: Theme.border;
 
     VerticalLayout {
-        padding: Theme.space-4;
+        padding: Theme.space-5;
         spacing: Theme.space-3;
 
         HorizontalLayout {
             spacing: Theme.space-3;
-            Text { text: name; color: Theme.fg; font-size: Theme.text-lg; font-weight: 600; }
-            Rectangle {
-                width: Theme.touch-target;
-                height: Theme.touch-target;
-                border-radius: Theme.radius-pill;
-                background: on ? Theme.accent : Theme.border;
-                ta := TouchArea { clicked => { root.toggled(); } }
+
+            VerticalLayout {
+                spacing: Theme.space-1;
+
+                Text {
+                    text: "Light";
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                }
+
+                Text {
+                    text: root.configured ? root.name : "Not configured";
+                    color: Theme.fg;
+                    font-size: Theme.text-xl;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            hero-toggle := ToggleSwitch {
+                checked: root.on;
+                enabled: root.configured && root.available && !root.loading;
+                toggled => { root.toggled(); }
             }
         }
 
-        // Brightness slider (visual track)
         Rectangle {
-            height: 8px;
-            border-radius: Theme.radius-pill;
+            height: 1px;
             background: Theme.border-soft;
-            Rectangle {
-                width: parent.width * brightness / 100;
-                height: parent.height;
-                border-radius: Theme.radius-pill;
-                background: Theme.accent;
+        }
+
+        if !root.configured : Rectangle {
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-md;
+            min-height: Theme.touch-target;
+            HorizontalLayout {
+                padding: Theme.space-3;
+                Text {
+                    text: root.status-text;
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
             }
         }
 
-        // Colour temperature
-        Rectangle {
-            height: 8px;
-            border-radius: Theme.radius-pill;
-            background: Theme.border-soft;
-            Rectangle {
-                width: parent.width * color-temp / 100;
-                height: parent.height;
-                border-radius: Theme.radius-pill;
-                background: Theme.warn;
+        if root.configured && root.loading : Rectangle {
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-md;
+            min-height: Theme.touch-target;
+            HorizontalLayout {
+                padding: Theme.space-3;
+                Text {
+                    text: root.status-text;
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        if root.configured && !root.loading && !root.available : Rectangle {
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-md;
+            min-height: Theme.touch-target;
+            HorizontalLayout {
+                padding: Theme.space-3;
+                Text {
+                    text: root.status-text;
+                    color: Theme.danger;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        if root.configured && !root.loading && root.available : VerticalLayout {
+            spacing: Theme.space-3;
+
+            HorizontalLayout {
+                spacing: Theme.space-2;
+                Text {
+                    text: root.state-text;
+                    color: Theme.fg-2;
+                    font-size: Theme.text-sm;
+                    font-weight: 500;
+                }
+                if root.pending : Text {
+                    text: "Updating…";
+                    color: Theme.warn;
+                    font-size: Theme.text-xs;
+                }
+            }
+
+            VerticalLayout {
+                spacing: Theme.space-1;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Brightness";
+                        color: Theme.fg-2;
+                        font-size: Theme.text-sm;
+                        font-weight: 500;
+                    }
+                    Text {
+                        text: root.brightness-text;
+                        color: Theme.fg;
+                        font-size: Theme.text-sm;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                hero-brightness := LevelSlider {
+                    value <=> root.brightness;
+                    min: 0;
+                    max: 100;
+                    step: 1;
+                    enabled: root.brightness-supported;
+                    changed(value) => { root.brightness-changed(value); }
+                    released(value) => { root.brightness-released(value); }
+                }
+            }
+
+            VerticalLayout {
+                spacing: Theme.space-1;
+
+                HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: "Colour temperature";
+                        color: Theme.fg-2;
+                        font-size: Theme.text-sm;
+                        font-weight: 500;
+                    }
+                    Text {
+                        text: root.color-temp-text;
+                        color: Theme.fg;
+                        font-size: Theme.text-sm;
+                        horizontal-alignment: right;
+                    }
+                }
+
+                hero-color-temp := LevelSlider {
+                    value <=> root.color-temp;
+                    min: root.min-kelvin;
+                    max: root.max-kelvin;
+                    step: 50;
+                    enabled: root.color-temp-supported;
+                    changed(value) => { root.color-temp-changed(value); }
+                    released(value) => { root.color-temp-released(value); }
+                }
+
+                if root.color-temp-supported : HorizontalLayout {
+                    alignment: space-between;
+                    Text { text: "Warm"; color: Theme.muted; font-size: Theme.text-xs; }
+                    Text { text: "Cool"; color: Theme.muted; font-size: Theme.text-xs; }
+                }
+
+                if !root.color-temp-supported : Text {
+                    text: "This light does not support colour temperature.";
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                }
+            }
+
+            if root.error && root.status-text != "" : Text {
+                text: root.status-text;
+                color: Theme.danger;
+                font-size: Theme.text-sm;
+                wrap: word-wrap;
             }
         }
     }

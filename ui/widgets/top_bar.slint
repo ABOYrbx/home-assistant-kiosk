@@ -1,0 +1,105 @@
+import { Theme } from "../theme.slint";
+import { KioskModel } from "../model.slint";
+
+export component TopBar inherits Rectangle {
+    height: Theme.touch-target + Theme.space-5;
+    background: Theme.bg;
+
+    HorizontalLayout {
+        padding-left: Theme.space-6;
+        padding-right: Theme.space-6;
+        spacing: Theme.space-4;
+        alignment: space-between;
+
+        HorizontalLayout {
+            spacing: Theme.space-3;
+            alignment: start;
+
+            VerticalLayout {
+                width: 9px;
+                alignment: center;
+                Rectangle {
+                    width: 9px;
+                    height: 9px;
+                    border-radius: Theme.radius-pill;
+                    background: Theme.accent;
+                }
+            }
+
+            brand := Text {
+                text: KioskModel.brand-title;
+                color: Theme.fg;
+                font-size: Theme.text-lg;
+                font-weight: 600;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-5;
+            alignment: end;
+
+            Rectangle {
+                height: Theme.space-8;
+                border-radius: Theme.radius-pill;
+                border-width: 1px;
+                border-color: Theme.border;
+                background: Theme.surface;
+
+                HorizontalLayout {
+                    padding-left: Theme.space-3;
+                    padding-right: Theme.space-3;
+                    spacing: Theme.space-2;
+
+                    VerticalLayout {
+                        width: 7px;
+                        alignment: center;
+                        Rectangle {
+                            width: 7px;
+                            height: 7px;
+                            border-radius: Theme.radius-pill;
+                            background: KioskModel.connection-connected ? Theme.success : KioskModel.connection-error ? Theme.danger : Theme.warn;
+                        }
+                    }
+
+                    connection-label := Text {
+                        text: KioskModel.connection-label;
+                        color: Theme.fg-2;
+                        font-size: Theme.text-sm;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            VerticalLayout {
+                min-width: 96px;
+                spacing: 0px;
+                alignment: center;
+
+                clock-text := Text {
+                    text: KioskModel.clock-text;
+                    color: Theme.fg;
+                    font-size: Theme.text-xl;
+                    font-weight: 600;
+                    horizontal-alignment: right;
+                }
+
+                date-text := Text {
+                    text: KioskModel.date-text;
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        x: 0px;
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: Theme.border;
+    }
+}

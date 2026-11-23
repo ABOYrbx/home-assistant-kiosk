@@ -1,5 +1,6 @@
 import { Theme } from "../theme.slint";
-import { ClockWidget } from "../widgets/clock.slint";
+import { KioskModel } from "../model.slint";
+import { TopBar } from "../widgets/top_bar.slint";
 import { WeatherWidget } from "../widgets/weather.slint";
 import { HeroLight } from "../widgets/hero_light.slint";
 import { ScenesRow } from "../widgets/scenes.slint";
@@ -10,30 +11,51 @@ export component OverviewPage inherits Rectangle {
     background: Theme.bg;
 
     VerticalLayout {
-        padding: Theme.space-3;
-        spacing: Theme.space-3;
+        spacing: 0px;
 
-        // Top bar
-        HorizontalLayout {
-            spacing: Theme.space-3;
-            alignment: space-between;
-            Text { text: "Home"; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
-            ClockWidget { time: ""; date: ""; }
+        top-bar := TopBar { }
+
+        VerticalLayout {
+            padding: Theme.space-4;
+            spacing: Theme.space-4;
+
+            hero := HeroLight {
+                configured: KioskModel.hero-configured;
+                name: KioskModel.hero-name;
+                on: KioskModel.hero-on;
+                brightness <=> KioskModel.hero-brightness;
+                color-temp <=> KioskModel.hero-color-temp;
+                min-kelvin: KioskModel.hero-min-kelvin;
+                max-kelvin: KioskModel.hero-max-kelvin;
+                available: KioskModel.hero-available;
+                loading: KioskModel.hero-loading;
+                pending: KioskModel.hero-pending;
+                brightness-supported: KioskModel.hero-brightness-supported;
+                color-temp-supported: KioskModel.hero-color-temp-supported;
+                brightness-text: KioskModel.hero-brightness-text;
+                color-temp-text: KioskModel.hero-color-temp-text;
+                state-text: KioskModel.hero-state-text;
+                status-text: KioskModel.hero-status-text;
+                error: KioskModel.hero-error;
+                toggled => { KioskModel.hero-toggled(); }
+                brightness-changed(value) => { KioskModel.hero-brightness-changed(value); }
+                brightness-released(value) => { KioskModel.hero-brightness-released(value); }
+                color-temp-changed(value) => { KioskModel.hero-color-temp-changed(value); }
+                color-temp-released(value) => { KioskModel.hero-color-temp-released(value); }
+            }
+
+            HorizontalLayout {
+                spacing: Theme.space-3;
+                WeatherWidget { }
+                ScenesRow { items: []; }
+            }
+
+            HorizontalLayout {
+                spacing: Theme.space-3;
+                HaTile { label: ""; state: ""; }
+            }
+
+            DeparturesWidget { title: "Departures"; items: []; }
         }
-
-        // Hero light
-        HeroLight { name: ""; on: false; brightness: 0; color-temp: 0; }
-
-        // Scenes
-        ScenesRow { items: []; }
-
-        // Rooms / tiles
-        HorizontalLayout {
-            spacing: Theme.space-3;
-            HaTile { label: ""; state: ""; }
-        }
-
-        // Departures
-        DeparturesWidget { title: "Departures"; items: []; }
     }
 }

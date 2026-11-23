@@ -63,7 +63,9 @@ theme = "dark"
 # ---------------------------------------------------------------------------
 
 [pages.overview]
-widgets = ["clock", "weather", "tiles", "departures"]
+# Brand text in the Overview top bar.
+title = "Home"
+widgets = ["hero_light", "clock", "weather", "tiles", "departures"]
 
 [pages.media]
 widgets = ["media"]
@@ -82,6 +84,20 @@ widgets = ["status"]
 enabled = true
 show_seconds = false
 use_24_hour = true
+
+[widgets.hero_light]
+# The hero card controls this light. Toggle uses light.toggle; the sliders use
+# light.turn_on with brightness_pct and color_temp_kelvin. Slider calls are
+# debounced to at most one every 100 ms, with the final value sent on release.
+enabled = true
+entity = "light.example"
+# Optional display name. Leave empty to use the entity's friendly_name.
+name = ""
+# Colour-temperature slider range in kelvin. Must be between 1000 and 10000 and
+# min_kelvin must be lower than max_kelvin. The entity's own
+# min_color_temp_kelvin/max_color_temp_kelvin attributes take precedence.
+min_kelvin = 2700
+max_kelvin = 6500
 
 [widgets.weather]
 enabled = true

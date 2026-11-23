@@ -1,0 +1,33 @@
+export global KioskModel {
+    in-out property <string> brand-title: "Home";
+    in-out property <string> clock-text: "--:--";
+    in-out property <string> date-text: "";
+    in-out property <string> connection-label: "Offline";
+    in-out property <bool> connection-connected: false;
+    in-out property <bool> connection-warning: true;
+    in-out property <bool> connection-error: false;
+
+    in-out property <bool> hero-configured: false;
+    in-out property <string> hero-name: "Light";
+    in-out property <bool> hero-on: false;
+    in-out property <int> hero-brightness: 0;
+    in-out property <int> hero-color-temp: 2700;
+    in-out property <int> hero-min-kelvin: 2700;
+    in-out property <int> hero-max-kelvin: 6500;
+    in-out property <bool> hero-available: false;
+    in-out property <bool> hero-loading: true;
+    in-out property <bool> hero-pending: false;
+    in-out property <bool> hero-brightness-supported: true;
+    in-out property <bool> hero-color-temp-supported: true;
+    in-out property <string> hero-brightness-text: "0%";
+    in-out property <string> hero-color-temp-text: "2700 K";
+    in-out property <string> hero-state-text: "Off";
+    in-out property <string> hero-status-text: "";
+    in-out property <bool> hero-error: false;
+
+    callback hero-toggled();
+    callback hero-brightness-changed(int);
+    callback hero-brightness-released(int);
+    callback hero-color-temp-changed(int);
+    callback hero-color-temp-released(int);
+}

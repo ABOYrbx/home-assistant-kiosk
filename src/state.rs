@@ -25,6 +25,20 @@ pub struct WeatherView {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LightView {
+    pub entity_id: EntityId,
+    pub name: String,
+    pub on: bool,
+    pub available: bool,
+    pub brightness_pct: u8,
+    pub brightness_supported: bool,
+    pub color_temp_kelvin: u16,
+    pub min_kelvin: u16,
+    pub max_kelvin: u16,
+    pub color_temp_supported: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MediaView {
     pub entity_id: EntityId,
     pub state: String,
