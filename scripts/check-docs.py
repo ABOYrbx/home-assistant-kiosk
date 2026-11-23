@@ -7,6 +7,7 @@ not validate Rust code; the Rust gate arrives in Wave 0.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import sys
@@ -40,11 +41,21 @@ REQUIRED_FILES = [
     "docs/github-rules.md",
     "docs/herdr-agent.md",
     "docs/issues/index.md",
+    "docs/performance.md",
     "docs/plan-review.md",
     "scripts/apply-github-settings.sh",
     "scripts/create-subtask-issues.py",
+    "scripts/perf-budget.py",
+    "tests/test_perf_budget.py",
     "herdr.sh",
 ]
+
+RELEASE_PROFILE = {
+    "opt-level": "s",
+    "lto": True,
+    "strip": True,
+    "panic": "abort",
+}
 
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]
 
@@ -66,6 +77,17 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def load_toml(path: Path):
+    try:
+        import tomllib  # Python 3.11+
+    except ImportError:  # Python 3.9/3.10 on a developer machine
+        import toml  # type: ignore
+
+        return toml.load(path)
+    with path.open("rb") as handle:
+        return tomllib.load(handle)
+
+
 def check_required() -> None:
     for rel in REQUIRED_FILES + REQUIRED_WAVES:
         if not (ROOT / rel).is_file():
@@ -77,15 +99,7 @@ def check_toml() -> None:
     if not path.is_file():
         return
     try:
-        try:
-            import tomllib  # Python 3.11+
-        except ImportError:  # Python 3.9/3.10 on a developer machine
-            import toml  # type: ignore
-
-            data = toml.load(path)
-        else:
-            with path.open("rb") as handle:
-                data = tomllib.load(handle)
+        data = load_toml(path)
         if not isinstance(data, dict):
             errors.append("config.example.toml did not parse to a table")
             return
@@ -96,6 +110,55 @@ def check_toml() -> None:
             errors.append("config.example.toml must ship with extensions.enabled = false")
     except Exception as exc:  # noqa: BLE001 - report the parser error as-is
         errors.append(f"config.example.toml is not valid TOML: {exc}")
+
+
+def check_cargo_profile() -> None:
+    path = ROOT / "Cargo.toml"
+    if not path.is_file():
+        return
+    try:
+        data = load_toml(path)
+    except Exception as exc:  # noqa: BLE001 - report the parser error as-is
+        errors.append(f"Cargo.toml is not valid TOML: {exc}")
+        return
+    profile = data.get("profile", {}).get("release") if isinstance(data, dict) else None
+    if not isinstance(profile, dict):
+        errors.append("Cargo.toml is missing [profile.release]")
+        return
+    for key, expected in RELEASE_PROFILE.items():
+        if profile.get(key) != expected:
+            errors.append(
+                f"Cargo.toml [profile.release] {key} must be {expected!r} "
+                "(PLAN.md section 8, Wave 5)"
+            )
+
+
+def check_performance_doc() -> None:
+    doc = ROOT / "docs" / "performance.md"
+    script = ROOT / "scripts" / "perf-budget.py"
+    if not doc.is_file() or not script.is_file():
+        return
+    try:
+        spec = importlib.util.spec_from_file_location("perf_budget", script)
+        if spec is None or spec.loader is None:
+            raise ImportError("cannot load scripts/perf-budget.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 - report the loader error as-is
+        errors.append(f"scripts/perf-budget.py could not be loaded: {exc}")
+        return
+    text = read(doc)
+    budgets = [
+        f"{module.RSS_HARD_MB:.0f} MB",
+        f"{module.RSS_TARGET_MB:.0f} MB",
+        f"{module.FIRST_FRAME_HARD_MS:.0f} ms",
+        f"{module.IDLE_CPU_HARD_PERCENT:.0f} %",
+        f"{module.SOAK_MIN_HOURS:.0f} h",
+        f"{module.SOAK_GROWTH_HARD_MB:.0f} MB",
+    ]
+    for budget in budgets:
+        if budget not in text:
+            errors.append(f"docs/performance.md does not state the budget: {budget}")
 
 
 def check_markdown() -> None:
@@ -169,6 +232,8 @@ def check_forbidden() -> None:
 def main() -> int:
     check_required()
     check_toml()
+    check_cargo_profile()
+    check_performance_doc()
     check_markdown()
     check_content()
     check_forbidden()
