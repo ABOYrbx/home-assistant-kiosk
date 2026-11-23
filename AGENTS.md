@@ -47,6 +47,7 @@ This file tells every agent and contributor how to work in this repository. Read
 - Workflows run with read-only `GITHUB_TOKEN` permissions by default and may not approve pull requests. Prefer GitHub-owned or verified actions.
 - Do not bypass a failing check or a review rule silently. Record an emergency exception in the issue or pull request and restore the rule immediately.
 - Security reports go through [`SECURITY.md`](SECURITY.md), not a public issue. Conduct is covered by [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+- Local tool state is ignored and must not be force-added: `node_modules/`, `.design-studio/`, `.design-studio.json`, `.openchamber/screenshots/`, `.openchamber/tmp/`, and `.opencode/`. Source-like design files (`DESIGN.md`, `tokens.css`, `styles.css`, `index.html`, `package.json`, `package-lock.json`) stay visible so the owner can decide whether to commit them.
 - Extension source and catalog data never enter this repository; use the separate catalog repository.
 
 ## 3. What this project is
