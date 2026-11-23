@@ -96,7 +96,15 @@ if [ ! -f "$PROMPT_TEMPLATE" ]; then
 fi
 
 if [ "$LIST_ONLY" -eq 0 ] && [ "$DRY_RUN" -eq 0 ] && [ "${HERDR_ENV:-}" != "1" ]; then
-  die "run this inside a Herdr pane (HERDR_ENV=1), or use --list / --dry-run"
+  if herdr status 2>/dev/null | grep -q 'status: running'; then
+    die "this terminal is not a managed Herdr pane. Open a terminal inside the Herdr space (This computer) and run ./herdr.sh there; HERDR_ENV must be 1."
+  else
+    die "Herdr server is not running. Start or attach Herdr, open a space under 'This computer', and run ./herdr.sh from a managed pane; HERDR_ENV must be 1."
+  fi
+fi
+
+if [ "$LIST_ONLY" -eq 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+  herdr agent list >/dev/null 2>&1 || die "Herdr server is not reachable. Start/attach Herdr and open a managed space first."
 fi
 
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated"

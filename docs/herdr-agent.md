@@ -107,6 +107,20 @@ Each run keeps a log directory under the system temp directory:
 
 The final table prints the exact paths. Nothing is deleted automatically, so you can review failures.
 
+## `HERDR_ENV` is empty or the space is unreachable
+
+That pane is not a managed Herdr pane. The current Herdr space is either disconnected or the local Herdr server is not running. `./herdr.sh` refuses to control an unmanaged terminal.
+
+Do this:
+
+1. In the Herdr pane, run `echo $HERDR_ENV`. It must print `1`.
+2. Run `herdr status`. The server must be running.
+3. If the server is stopped, start/attach Herdr (run `herdr` in a normal terminal or restart the Herdr app), then open a space under **This computer**.
+4. If the space shows `unreachable`, reconnect it or create a new space on **This computer**. Do not use a disconnected remote machine for this project.
+5. In the managed pane, run `./herdr.sh` again.
+
+`--list` and `--dry-run` work outside Herdr for inspection, but real agents need a managed pane.
+
 ## Worktrees
 
 Each issue gets:
