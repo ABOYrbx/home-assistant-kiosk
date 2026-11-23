@@ -95,6 +95,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
 │   ├── github-rules.md          # repository and branch policy
 │   ├── herdr-agent.md           # Herdr dispatch guide
+│   ├── performance.md           # Pi Zero 2 W budgets and measurement record
 │   ├── agent-prompts/
 │   │   └── implement-issue.md   # implementation prompt template
 │   └── issues/                  # subtask index, mapping, and wave epic drafts
@@ -117,7 +118,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── pages/                   # overview, media, agenda, shop (Wave 6), status
 │   └── widgets/                 # clock, weather, tile, media, departures, calendar
 ├── deploy/                       # systemd unit and install scripts
-├── scripts/                      # build-all.sh, run-dev.sh
+├── scripts/                      # build, dev, docs, and performance helpers
 └── tests/                        # integration and UI smoke tests (extensions_test.rs in Wave 6)
 ```
 
@@ -147,6 +148,10 @@ cross build --release --target armv7-unknown-linux-gnueabihf \
   --no-default-features --features kiosk
 cross build --release --target x86_64-unknown-linux-gnu \
   --no-default-features --features kiosk
+
+# Documentation, configuration, and performance record checks
+python3 scripts/check-docs.py
+python3 -m unittest discover -s tests -p 'test_*.py'
 ```
 
 - `Cargo.lock` is committed; this is an application, not a library.
@@ -154,6 +159,7 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - Do not add a dependency without checking its license, maintenance status, and target support.
 - Do not enable Slint's default features on the kiosk build. The software renderer is mandatory for the Pi Zero 2 W.
 - Release profile: `opt-level = "s"`, LTO, `strip`, `panic = "abort"`. Measure before changing these.
+- Performance records live in [`docs/performance.md`](docs/performance.md). Check a device record with `python3 scripts/perf-budget.py <record.json>`; never replace a measured value with an estimate.
 
 ## 6. Architecture rules
 

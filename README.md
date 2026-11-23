@@ -50,6 +50,18 @@ The trust boundary is deliberately small: a Minisign-signed catalog, SHA-256-che
 
 Primary OS: Raspberry Pi OS Bookworm (64-bit for Pi Zero 2 W and Pi 3). Cross-compiled binaries require glibc 2.35 or newer; Bullseye is not supported for cross-built binaries.
 
+## Performance
+
+The Pi Zero 2 W budgets are recorded in [`docs/performance.md`](docs/performance.md): resident set size below 150 MB (target below 100 MB), first frame below 3 seconds, idle CPU at most a quarter of one core, and a 24-hour soak with no leak trend or unbounded cache.
+
+A recorded measurement is checked against those budgets with:
+
+```bash
+python3 scripts/perf-budget.py perf-record.json
+```
+
+The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
+
 ## Design in one paragraph
 
 The Slint event loop and application state live on the main thread. A Tokio runtime handles the Home Assistant WebSocket connection, service calls, image fetches, and cache writes in the background. Background tasks send typed events to the UI thread, which updates Slint models. All v1 data comes from Home Assistant; no weather, transit, or calendar provider is hardcoded. Wave 6 adds sandboxed extension data sources as the only sanctioned exception. Configuration is a TOML file, and the token is read from a protected file or an environment variable.
@@ -78,6 +90,7 @@ docs/
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
 ├── herdr-agent.md              Herdr agent launcher guide
+├── performance.md              Pi Zero 2 W budgets and measurement record
 ├── agent-prompts/
 │   └── implement-issue.md      implementation prompt template
 └── issues/                     subtask index, mapping, and wave epic drafts
