@@ -1,0 +1,36 @@
+{
+  "departures": [
+    "not an object",
+    {
+      "destination": "No line",
+      "departure": "2026-11-22T21:10:00+01:00"
+    },
+    {
+      "line": "7",
+      "destination": "No departure"
+    },
+    {
+      "line": "8",
+      "destination": "Bad departure",
+      "departure": "sometime"
+    },
+    {
+      "line": "9",
+      "destination": "Bad delay",
+      "departure": "2026-11-22T21:20:00+01:00",
+      "delay_minutes": "2"
+    },
+    {
+      "line": "10",
+      "destination": "Valid",
+      "departure": "2026-11-22T21:30:00+01:00",
+      "platform": "3"
+    },
+    {
+      "line": "11",
+      "destination": "Also valid",
+      "departure": "2026-11-22T21:40:00+01:00",
+      "cancelled": true
+    }
+  ]
+}

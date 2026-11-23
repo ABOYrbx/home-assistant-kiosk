@@ -1,4 +1,5 @@
 import { Theme } from "theme.slint";
+import { DepartureRow, DeparturesState } from "widgets/departures.slint";
 import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
@@ -41,6 +42,10 @@ export component MainWindow inherits Window {
     min-height: 240px;
 
     in-out property <int> current-page: 0;
+    in property <bool> departures-visible: true;
+    in property <string> departures-title: "Departures";
+    in property <DeparturesState> departures-state: DeparturesState.loading;
+    in property <[DepartureRow]> departures-rows: [];
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
@@ -117,7 +122,16 @@ export component MainWindow inherits Window {
                 }
             }
 
-            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 0 : OverviewPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                departures-visible: root.departures-visible;
+                departures-title: root.departures-title;
+                departures-state: root.departures-state;
+                departures-rows: root.departures-rows;
+            }
             if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }

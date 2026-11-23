@@ -207,3 +207,24 @@ fn env_token_overrides() {
         std::env::remove_var("HA_TOKEN");
     }
 }
+
+#[test]
+fn departures_max_items_outside_the_contract_range_is_rejected() {
+    for (value, accepted) in [("0", false), ("1", true), ("20", true), ("21", false)] {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let content = base_config("token = \"t\"").replace(
+            "[widgets.departures]\nenabled = false\nentity = \"\"",
+            &format!(
+                "[widgets.departures]\nenabled = true\nentity = \"sensor.departures\"\nmax_items = {value}"
+            ),
+        );
+        fs::write(&path, content).unwrap();
+        assert_eq!(
+            Config::load(&path).is_ok(),
+            accepted,
+            "max_items = {value} should be {}",
+            if accepted { "accepted" } else { "rejected" }
+        );
+    }
+}

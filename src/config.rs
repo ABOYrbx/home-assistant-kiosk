@@ -541,6 +541,11 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
             "widgets.departures.refresh_seconds must be >= 10".into(),
         ));
     }
+    if !(1..=20).contains(&config.widgets.departures.max_items) {
+        return Err(ConfigError::Validation(
+            "widgets.departures.max_items must be between 1 and 20".into(),
+        ));
+    }
     if config.widgets.calendar.refresh_seconds < 30 {
         return Err(ConfigError::Validation(
             "widgets.calendar.refresh_seconds must be >= 30".into(),
