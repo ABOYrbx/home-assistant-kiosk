@@ -23,7 +23,7 @@ English only: code, comments, commits, branches, issues, pull requests, document
 
 ## Before you start
 
-1. Pick an open issue, or open one with the bug/feature template.
+1. Pick an open **subtask issue** (the wave issues are epics), or open one with the bug/feature template.
 2. State whether the change is v1 or post-v1. Wave 6 (extension shop) is post-v1.
 3. Create a short-lived branch from `main`:
 
@@ -53,10 +53,10 @@ One logical change per commit. Do not commit generated build output, secrets, lo
 ## Pull requests
 
 - Use the pull request template.
-- Link the issue and name the wave.
+- Link the subtask issue it closes and the parent wave epic.
 - Record the gate evidence: commands run and their result, plus manual/hardware evidence where relevant.
 - Keep the pull request in English.
-- Do not mark a wave complete while a gate is unverified.
+- Close a subtask issue only when its definition of done is met; close the epic only when all subtasks and the wave gate are complete.
 - Squash merge only; the branch is deleted after merge.
 - The `docs` check must pass.
 - Do not force-push `main` or bypass a failing check.

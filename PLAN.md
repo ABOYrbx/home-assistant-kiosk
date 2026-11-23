@@ -610,7 +610,7 @@ Slint callbacks are wired in `ui/bridge.rs`; background tasks never touch a Slin
 
 ## 8. Waves
 
-Each wave has a GitHub issue with a checklist derived from this section. A wave is accepted only when its gate is demonstrated with commands or a written manual test record.
+Each wave is an **epic**. Every checkbox below, except the pure `Commit:` steps, is a separate GitHub issue; the generated mapping is [`docs/issues/index.md`](docs/issues/index.md). A wave is accepted only when its gate is demonstrated with commands or a written manual test record.
 
 ### Wave 0 — Scaffold, interfaces, and cross-compile spike
 
@@ -1005,12 +1005,13 @@ Each extension needs its own issue, a clear memory/CPU budget, and an update to 
 
 Workflow:
 
-1. Open the GitHub issue for the wave (links below).
+1. Open the subtask issue in [`docs/issues/index.md`](docs/issues/index.md); the wave issue is its parent epic.
 2. Create a branch named `wave-N/<short-description>`.
-3. Implement the checklist, keeping commits small and conventional (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
-4. Run the local gate: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
-5. Open a pull request that links the issue and records the gate evidence (commands and results).
-6. Merge only after review. Do not push with any GitHub account other than `ABOYrbx`.
+3. Implement the subtask, keeping commits small and conventional (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
+4. Run the applicable gate: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, and `python3 scripts/check-docs.py`.
+5. Open a pull request that closes the subtask issue, links the parent epic, and records the gate evidence.
+6. Merge only after review. Close the epic only when every subtask and the wave gate are complete.
+7. Do not push with any GitHub account other than `ABOYrbx`.
 
 GitHub issues:
 
@@ -1021,5 +1022,7 @@ GitHub issues:
 - [Wave 4 — Kiosk and deployment: release builds, display, systemd](https://github.com/ABOYrbx/home-assistant-kiosk/issues/1)
 - [Wave 5 — Integration, performance, documentation](https://github.com/ABOYrbx/home-assistant-kiosk/issues/4)
 - [Wave 6 — Community extension shop (post-v1)](https://github.com/ABOYrbx/home-assistant-kiosk/issues/7)
+
+The full subtask-to-issue mapping is generated in [`docs/issues/index.md`](docs/issues/index.md); wave issues are epics, not the implementation units.
 
 **Next step:** Review this plan, resolve the license decision, then start Wave 0.

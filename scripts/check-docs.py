@@ -32,6 +32,7 @@ REQUIRED_FILES = [
     "docs/extension-catalog.md",
     "docs/extensions.md",
     "docs/github-rules.md",
+    "docs/issues/index.md",
     "docs/plan-review.md",
     "scripts/apply-github-settings.sh",
 ]

@@ -52,3 +52,34 @@ Create the Slint application shell: four pages, tab and swipe navigation, touch 
 
 - Slint 1.19 has no cursor-visibility API. Cursor hiding is deployment-specific and must not be faked in `kiosk.rs`.
 - Do not add continuous animations; the Pi Zero 2 W target is a software renderer.
+
+---
+
+## Subtask issues
+
+The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+
+### 2.1 Slint shell and navigation
+
+- [ ] #41 — [W2.1.1] ui/main.slint: window, page host, tab bar for Overview/Media/Agenda/Status.
+- [ ] #42 — [W2.1.2] Horizontal swipe with axis lock and a threshold (at least 20% of width or 60 logical pi...
+- [ ] #43 — [W2.1.3] Page swipe starts only from non-interactive background/edge zones, never from a slider,...
+- [ ] #44 — [W2.1.4] Long lists use vertical Flickable (or equivalent); page swipe and list scrolling do not...
+- [ ] #45 — [W2.1.5] AppController applies AppEvent values and updates Slint models/properties on the UI thr...
+- [ ] #46 — [W2.1.6] Coalesce state updates and cap redraws at four per second; the clock is a separate one-...
+- [ ] #47 — [W2.1.7] Set fullscreen through slint::Window::set_fullscreen(true).
+
+### 2.2 Touch and focus states
+
+- [ ] #48 — [W2.2.1] All interactive elements have a minimum 44 × 44 logical-pixel hit area.
+- [ ] #49 — [W2.2.2] Pressed/active visual state; focus ring for keyboard/mouse development builds.
+- [ ] #50 — [W2.2.3] Tap detection for tiles and long-press reserved for future use (do not ship an undocume...
+- [ ] #51 — [W2.2.4] Test with i-slint-backend-testing: tap changes page; swipe threshold; gesture from a sl...
+- [ ] #52 — [W2.2.5] Verify 800 × 480 and 1024 × 600 layouts; long text elides or wraps without pushing cont...
+
+### 2.3 Theme tokens
+
+- [ ] #53 — [W2.3.1] ui/theme.slint with color, spacing, radius, and type-scale tokens.
+- [ ] #54 — [W2.3.2] Dark theme first; light theme structure prepared but not required to be polished.
+- [ ] #55 — [W2.3.3] Bundled SVG icons for weather conditions; no runtime icon downloads.
+- [ ] #56 — [W2.3.4] Verify contrast for text on background and on tiles.

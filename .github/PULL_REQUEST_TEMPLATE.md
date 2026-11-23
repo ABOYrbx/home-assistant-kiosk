@@ -4,7 +4,9 @@
 
 ## Issue / wave
 
-Closes #
+Closes subtask #
+
+Parent epic: #
 
 Wave: <!-- 0–6, or "docs" for repository policy work -->
 

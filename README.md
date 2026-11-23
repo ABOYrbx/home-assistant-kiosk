@@ -63,7 +63,7 @@ docs/
 ├── extensions.md               Wave 6 author guide (post-v1)
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
-└── issues/                     issue drafts for the seven waves
+└── issues/                     subtask index, mapping, and wave epic drafts
 config.example.toml             safe, provider-neutral example configuration
 src/                            Rust application (once Wave 0 starts)
 ui/                             Slint UI files (once Wave 0 starts)
@@ -74,7 +74,7 @@ tests/                          integration and UI tests
 
 ## Roadmap
 
-Waves 0–5 are the v1 release; Wave 6 is post-v1.
+Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; every implementation checkbox in `PLAN.md` has its own subtask issue. The mapping is in [`docs/issues/index.md`](docs/issues/index.md).
 
 | Wave | Scope |
 | --- | --- |

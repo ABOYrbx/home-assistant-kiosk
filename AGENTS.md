@@ -85,7 +85,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── departures-entity-contract.md
 │   ├── extensions.md            # Wave 6 author guide
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
-│   └── issues/                  # issue drafts for the seven waves
+│   └── issues/                  # subtask index, mapping, and wave epic drafts
 ├── src/
 │   ├── main.rs                  # CLI, runtime, Slint bootstrap
 │   ├── lib.rs                   # public modules for tests
@@ -201,13 +201,14 @@ cross build --release --target x86_64-unknown-linux-gnu \
 
 ## 10. Issues, branches, and pull requests
 
-- Work one wave per issue. The issue body is the checklist; `PLAN.md` is the specification.
-- Branch naming: `wave-0/scaffold`, `wave-1/ha-client`, `wave-3/media`, and so on.
-- One pull request per wave unless the wave is split by an explicit agreement. A pull request records:
-  - the issue it closes,
+- Work one **subtask issue** per checkbox. The wave issue is the **epic**; `PLAN.md` is the specification and [`docs/issues/index.md`](docs/issues/index.md) maps every subtask to its issue.
+- Branch naming: `wave-0/scaffold`, `wave-1/ha-client`, `wave-3/media`, and so on. Add the subtask id when it helps: `wave-3/media-W3.3.2`.
+- One pull request per subtask or coherent group unless the wave is split by an explicit agreement. A pull request records:
+  - the subtask issue it closes and the parent epic,
   - the commands run and their result,
   - any manual/hardware test evidence,
   - known limitations.
+- Close a subtask issue only when its definition of done is met. Close the epic only when every subtask and the wave gate are complete.
 - Do not mark a wave complete while a gate is unverified. If hardware is unavailable, write “not verified on hardware” and list what was tested instead.
 - Reviewers check the gate, not only the diff. A green unit test suite does not prove the Pi memory budget or the display path.
 

@@ -1,0 +1,1346 @@
+{
+  "items": {
+    "W0.1.1": {
+      "id": "W0.1.1",
+      "issue": 11,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Create the Cargo package `ha-kiosk` at the repository root with `src/lib.rs` and `src/main.rs`.",
+      "title": "[W0.1.1] Create the Cargo package ha-kiosk at the repository root with src/lib.rs and src/main.rs.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/11",
+      "wave": 0
+    },
+    "W0.1.2": {
+      "id": "W0.1.2",
+      "issue": 12,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Add dependencies and pin Slint 1.19; set `rust-version = \"1.95\"` and edition 2024.",
+      "title": "[W0.1.2] Add dependencies and pin Slint 1.19; set rust-version = \"1.95\" and edition 2024.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/12",
+      "wave": 0
+    },
+    "W0.1.3": {
+      "id": "W0.1.3",
+      "issue": 13,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Add `build.rs` with `slint_build::compile(\"ui/main.slint\")` and a minimal window that compiles.",
+      "title": "[W0.1.3] Add build.rs with slint_build::compile(\"ui/main.slint\") and a minimal window that compi...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/13",
+      "wave": 0
+    },
+    "W0.1.4": {
+      "id": "W0.1.4",
+      "issue": 14,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Define the interfaces from section 7 as compiling stubs; add `#![deny(unsafe_code)]` unless a reviewed exception is needed.",
+      "title": "[W0.1.4] Define the interfaces from section 7 as compiling stubs; add #![deny(unsafe_code)] unle...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/14",
+      "wave": 0
+    },
+    "W0.1.5": {
+      "id": "W0.1.5",
+      "issue": 15,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Add feature flags `desktop` (winit + software renderer) and `kiosk` (LinuxKMS + software renderer); verify both compile on the host where possible.",
+      "title": "[W0.1.5] Add feature flags desktop (winit + software renderer) and kiosk (LinuxKMS + software re...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/15",
+      "wave": 0
+    },
+    "W0.1.6": {
+      "id": "W0.1.6",
+      "issue": 16,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Add `Cross.toml` using Slint cross images; pin image digests after verification. Add `pre-build` sysroot packages for fontconfig, libinput, libudev, libxkbcommon, and libseat. Document that `cross` requires Docker on macOS.",
+      "title": "[W0.1.6] Add Cross.toml using Slint cross images; pin image digests after verification. Add pre-...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/16",
+      "wave": 0
+    },
+    "W0.1.7": {
+      "id": "W0.1.7",
+      "issue": 17,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Prove the highest-risk path: `cross build --release --target aarch64-unknown-linux-gnu --no-default-features --features kiosk` produces a binary. If it fails, document the exact error and choose the fallback (native build on the Pi) before Wave 1.",
+      "title": "[W0.1.7] Prove the highest-risk path: cross build --release --target aarch64-unknown-linux-gnu -...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/17",
+      "wave": 0
+    },
+    "W0.1.8": {
+      "id": "W0.1.8",
+      "issue": 18,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Add `config.example.toml`, `.gitignore`, `scripts/run-dev.sh`, and a CI workflow skeleton that will pass once `Cargo.toml` exists.",
+      "title": "[W0.1.8] Add config.example.toml, .gitignore, scripts/run-dev.sh, and a CI workflow skeleton tha...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/18",
+      "wave": 0
+    },
+    "W0.1.9": {
+      "id": "W0.1.9",
+      "issue": 19,
+      "task": "0.1",
+      "task_title": "Scaffold and interface contract",
+      "text": "Write `AGENTS.md` with the language, GitHub identity, layout, and build rules.",
+      "title": "[W0.1.9] Write AGENTS.md with the language, GitHub identity, layout, and build rules.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/19",
+      "wave": 0
+    },
+    "W1.1.1": {
+      "id": "W1.1.1",
+      "issue": 20,
+      "task": "1.1",
+      "task_title": "Configuration",
+      "text": "`Config::load(path) -> Result<Config, ConfigError>` with `deny_unknown_fields`.",
+      "title": "[W1.1.1] Config::load(path) -> Result<Config, ConfigError> with deny_unknown_fields.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/20",
+      "wave": 1
+    },
+    "W1.1.2": {
+      "id": "W1.1.2",
+      "issue": 21,
+      "task": "1.1",
+      "task_title": "Configuration",
+      "text": "Token resolution order: `HA_TOKEN` env, `token_file`, literal `token` (development only).",
+      "title": "[W1.1.2] Token resolution order: HA_TOKEN env, token_file, literal token (development only).",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/21",
+      "wave": 1
+    },
+    "W1.1.3": {
+      "id": "W1.1.3",
+      "issue": 22,
+      "task": "1.1",
+      "task_title": "Configuration",
+      "text": "Validate URL scheme, display dimensions/rotation, refresh intervals, entity ID syntax, file permissions, and a non-empty resolved subscription list.",
+      "title": "[W1.1.3] Validate URL scheme, display dimensions/rotation, refresh intervals, entity ID syntax,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/22",
+      "wave": 1
+    },
+    "W1.1.4": {
+      "id": "W1.1.4",
+      "issue": 23,
+      "task": "1.1",
+      "task_title": "Configuration",
+      "text": "Redact the token in `Debug`; unit-test that no error or debug output contains it.",
+      "title": "[W1.1.4] Redact the token in Debug; unit-test that no error or debug output contains it.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/23",
+      "wave": 1
+    },
+    "W1.1.5": {
+      "id": "W1.1.5",
+      "issue": 24,
+      "task": "1.1",
+      "task_title": "Configuration",
+      "text": "Tests: valid config, missing required field, unknown key, bad URL, token file with mode `0644` rejected, token file with `0600` accepted.",
+      "title": "[W1.1.5] Tests: valid config, missing required field, unknown key, bad URL, token file with mode...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/24",
+      "wave": 1
+    },
+    "W1.2.1": {
+      "id": "W1.2.1",
+      "issue": 25,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Implement connect, `auth_required` \u2192 `auth` \u2192 `auth_ok`/`auth_invalid`; derive the WebSocket URL from `ha.url` without dropping a path prefix; honor `allow_invalid_certs` for `wss`.",
+      "title": "[W1.2.1] Implement connect, auth_required \u2192 auth \u2192 auth_ok/auth_invalid; derive the WebSocket UR...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/25",
+      "wave": 1
+    },
+    "W1.2.2": {
+      "id": "W1.2.2",
+      "issue": 26,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Call `get_config` after authentication; emit `ha_version` and the IANA `time_zone`.",
+      "title": "[W1.2.2] Call get_config after authentication; emit ha_version and the IANA time_zone.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/26",
+      "wave": 1
+    },
+    "W1.2.3": {
+      "id": "W1.2.3",
+      "issue": 27,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Implement `subscribe_entities` with the configured entity IDs and decode `a`/`c`/`r` messages, including removed attributes.",
+      "title": "[W1.2.3] Implement subscribe_entities with the configured entity IDs and decode a/c/r messages,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/27",
+      "wave": 1
+    },
+    "W1.2.4": {
+      "id": "W1.2.4",
+      "issue": 28,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Implement `get_states` for diagnostics and tests; do not add a global `subscribe_events(\"state_changed\")` subscription in v1.",
+      "title": "[W1.2.4] Implement get_states for diagnostics and tests; do not add a global subscribe_events(\"s...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/28",
+      "wave": 1
+    },
+    "W1.2.5": {
+      "id": "W1.2.5",
+      "issue": 29,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Implement `call_service` with `target`, `service_data`, optional `return_response`, and a UI-generated `request_id`.",
+      "title": "[W1.2.5] Implement call_service with target, service_data, optional return_response, and a UI-ge...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/29",
+      "wave": 1
+    },
+    "W1.2.6": {
+      "id": "W1.2.6",
+      "issue": 30,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Implement a 30-second ping/pong heartbeat and a read loop that never blocks the command channel.",
+      "title": "[W1.2.6] Implement a 30-second ping/pong heartbeat and a read loop that never blocks the command...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/30",
+      "wave": 1
+    },
+    "W1.2.7": {
+      "id": "W1.2.7",
+      "issue": 31,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Implement reconnect with exponential backoff and jitter, capped at 60 seconds; `auth_invalid` stops retries.",
+      "title": "[W1.2.7] Implement reconnect with exponential backoff and jitter, capped at 60 seconds; auth_inv...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/31",
+      "wave": 1
+    },
+    "W1.2.8": {
+      "id": "W1.2.8",
+      "issue": 32,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Emit `HaEvent` values; never log the token, full credential URL, or image query strings.",
+      "title": "[W1.2.8] Emit HaEvent values; never log the token, full credential URL, or image query strings.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/32",
+      "wave": 1
+    },
+    "W1.2.9": {
+      "id": "W1.2.9",
+      "issue": 33,
+      "task": "1.2",
+      "task_title": "Home Assistant WebSocket client",
+      "text": "Tests with a mock WebSocket server: auth success/failure, `get_config` timezone, path-prefixed URL, snapshot, add/change/remove, service response correlation, disconnect, reconnect, heartbeat timeout.",
+      "title": "[W1.2.9] Tests with a mock WebSocket server: auth success/failure, get_config timezone, path-pre...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/33",
+      "wave": 1
+    },
+    "W1.3.1": {
+      "id": "W1.3.1",
+      "issue": 34,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Define `AppState`, connection state, stale flag, pending actions, Home Assistant version, timezone, and view models.",
+      "title": "[W1.3.1] Define AppState, connection state, stale flag, pending actions, Home Assistant version,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/34",
+      "wave": 1
+    },
+    "W1.3.2": {
+      "id": "W1.3.2",
+      "issue": 35,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Implement a versioned JSON cache with atomic write: write a temporary file in the same directory, `fsync` the file, rename, then `fsync` the directory.",
+      "title": "[W1.3.2] Implement a versioned JSON cache with atomic write: write a temporary file in the same...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/35",
+      "wave": 1
+    },
+    "W1.3.3": {
+      "id": "W1.3.3",
+      "issue": 36,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Store a configuration fingerprint (widget/tile/entity IDs and refresh settings) in the cache header; discard a cache whose schema or fingerprint does not match.",
+      "title": "[W1.3.3] Store a configuration fingerprint (widget/tile/entity IDs and refresh settings) in the...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/36",
+      "wave": 1
+    },
+    "W1.3.4": {
+      "id": "W1.3.4",
+      "issue": 37,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Debounce writes (default 10 s) to limit SD-card wear; cache only the configured views and entity set; cap the cache size.",
+      "title": "[W1.3.4] Debounce writes (default 10 s) to limit SD-card wear; cache only the configured views a...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/37",
+      "wave": 1
+    },
+    "W1.3.5": {
+      "id": "W1.3.5",
+      "issue": 38,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Enforce cache directory `0700` and file `0600`.",
+      "title": "[W1.3.5] Enforce cache directory 0700 and file 0600.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/38",
+      "wave": 1
+    },
+    "W1.3.6": {
+      "id": "W1.3.6",
+      "issue": 39,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Load the cache before the first frame; reject incompatible schema versions with a warning, not a crash.",
+      "title": "[W1.3.6] Load the cache before the first frame; reject incompatible schema versions with a warni...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/39",
+      "wave": 1
+    },
+    "W1.3.7": {
+      "id": "W1.3.7",
+      "issue": 40,
+      "task": "1.3",
+      "task_title": "State and cache",
+      "text": "Tests: round-trip, missing file, corrupt JSON, schema mismatch, fingerprint mismatch, atomic rename on failure, permissions, cache size cap.",
+      "title": "[W1.3.7] Tests: round-trip, missing file, corrupt JSON, schema mismatch, fingerprint mismatch, a...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/40",
+      "wave": 1
+    },
+    "W2.1.1": {
+      "id": "W2.1.1",
+      "issue": 41,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "`ui/main.slint`: window, page host, tab bar for Overview/Media/Agenda/Status.",
+      "title": "[W2.1.1] ui/main.slint: window, page host, tab bar for Overview/Media/Agenda/Status.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/41",
+      "wave": 2
+    },
+    "W2.1.2": {
+      "id": "W2.1.2",
+      "issue": 42,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "Horizontal swipe with axis lock and a threshold (at least 20% of width or 60 logical pixels); tab bar remains the reliable fallback.",
+      "title": "[W2.1.2] Horizontal swipe with axis lock and a threshold (at least 20% of width or 60 logical pi...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/42",
+      "wave": 2
+    },
+    "W2.1.3": {
+      "id": "W2.1.3",
+      "issue": 43,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "Page swipe starts only from non-interactive background/edge zones, never from a slider, scrollable list, button, or tile.",
+      "title": "[W2.1.3] Page swipe starts only from non-interactive background/edge zones, never from a slider,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/43",
+      "wave": 2
+    },
+    "W2.1.4": {
+      "id": "W2.1.4",
+      "issue": 44,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "Long lists use vertical `Flickable` (or equivalent); page swipe and list scrolling do not conflict.",
+      "title": "[W2.1.4] Long lists use vertical Flickable (or equivalent); page swipe and list scrolling do not...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/44",
+      "wave": 2
+    },
+    "W2.1.5": {
+      "id": "W2.1.5",
+      "issue": 45,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "`AppController` applies `AppEvent` values and updates Slint models/properties on the UI thread.",
+      "title": "[W2.1.5] AppController applies AppEvent values and updates Slint models/properties on the UI thr...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/45",
+      "wave": 2
+    },
+    "W2.1.6": {
+      "id": "W2.1.6",
+      "issue": 46,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "Coalesce state updates and cap redraws at four per second; the clock is a separate one-second timer.",
+      "title": "[W2.1.6] Coalesce state updates and cap redraws at four per second; the clock is a separate one-...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/46",
+      "wave": 2
+    },
+    "W2.1.7": {
+      "id": "W2.1.7",
+      "issue": 47,
+      "task": "2.1",
+      "task_title": "Slint shell and navigation",
+      "text": "Set fullscreen through `slint::Window::set_fullscreen(true)`.",
+      "title": "[W2.1.7] Set fullscreen through slint::Window::set_fullscreen(true).",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/47",
+      "wave": 2
+    },
+    "W2.2.1": {
+      "id": "W2.2.1",
+      "issue": 48,
+      "task": "2.2",
+      "task_title": "Touch and focus states",
+      "text": "All interactive elements have a minimum 44 \u00d7 44 logical-pixel hit area.",
+      "title": "[W2.2.1] All interactive elements have a minimum 44 \u00d7 44 logical-pixel hit area.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/48",
+      "wave": 2
+    },
+    "W2.2.2": {
+      "id": "W2.2.2",
+      "issue": 49,
+      "task": "2.2",
+      "task_title": "Touch and focus states",
+      "text": "Pressed/active visual state; focus ring for keyboard/mouse development builds.",
+      "title": "[W2.2.2] Pressed/active visual state; focus ring for keyboard/mouse development builds.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/49",
+      "wave": 2
+    },
+    "W2.2.3": {
+      "id": "W2.2.3",
+      "issue": 50,
+      "task": "2.2",
+      "task_title": "Touch and focus states",
+      "text": "Tap detection for tiles and long-press reserved for future use (do not ship an undocumented long-press action).",
+      "title": "[W2.2.3] Tap detection for tiles and long-press reserved for future use (do not ship an undocume...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/50",
+      "wave": 2
+    },
+    "W2.2.4": {
+      "id": "W2.2.4",
+      "issue": 51,
+      "task": "2.2",
+      "task_title": "Touch and focus states",
+      "text": "Test with `i-slint-backend-testing`: tap changes page; swipe threshold; gesture from a slider does not change page; vertical scroll does not change page; a too-small target fails the layout check.",
+      "title": "[W2.2.4] Test with i-slint-backend-testing: tap changes page; swipe threshold; gesture from a sl...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/51",
+      "wave": 2
+    },
+    "W2.2.5": {
+      "id": "W2.2.5",
+      "issue": 52,
+      "task": "2.2",
+      "task_title": "Touch and focus states",
+      "text": "Verify 800 \u00d7 480 and 1024 \u00d7 600 layouts; long text elides or wraps without pushing controls off-screen.",
+      "title": "[W2.2.5] Verify 800 \u00d7 480 and 1024 \u00d7 600 layouts; long text elides or wraps without pushing cont...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/52",
+      "wave": 2
+    },
+    "W2.3.1": {
+      "id": "W2.3.1",
+      "issue": 53,
+      "task": "2.3",
+      "task_title": "Theme tokens",
+      "text": "`ui/theme.slint` with color, spacing, radius, and type-scale tokens.",
+      "title": "[W2.3.1] ui/theme.slint with color, spacing, radius, and type-scale tokens.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/53",
+      "wave": 2
+    },
+    "W2.3.2": {
+      "id": "W2.3.2",
+      "issue": 54,
+      "task": "2.3",
+      "task_title": "Theme tokens",
+      "text": "Dark theme first; light theme structure prepared but not required to be polished.",
+      "title": "[W2.3.2] Dark theme first; light theme structure prepared but not required to be polished.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/54",
+      "wave": 2
+    },
+    "W2.3.3": {
+      "id": "W2.3.3",
+      "issue": 55,
+      "task": "2.3",
+      "task_title": "Theme tokens",
+      "text": "Bundled SVG icons for weather conditions; no runtime icon downloads.",
+      "title": "[W2.3.3] Bundled SVG icons for weather conditions; no runtime icon downloads.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/55",
+      "wave": 2
+    },
+    "W2.3.4": {
+      "id": "W2.3.4",
+      "issue": 56,
+      "task": "2.3",
+      "task_title": "Theme tokens",
+      "text": "Verify contrast for text on background and on tiles.",
+      "title": "[W2.3.4] Verify contrast for text on background and on tiles.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/56",
+      "wave": 2
+    },
+    "W3.1.1": {
+      "id": "W3.1.1",
+      "issue": 57,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Clock and date from local time; one-second timer; 12/24-hour setting.",
+      "title": "[W3.1.1] Clock and date from local time; one-second timer; 12/24-hour setting.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/57",
+      "wave": 3
+    },
+    "W3.1.2": {
+      "id": "W3.1.2",
+      "issue": 58,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Weather from a configured `weather.*` entity: condition, current temperature, unit, and attributes that exist.",
+      "title": "[W3.1.2] Weather from a configured weather.* entity: condition, current temperature, unit, and a...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/58",
+      "wave": 3
+    },
+    "W3.1.3": {
+      "id": "W3.1.3",
+      "issue": 59,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Forecast via `weather.get_forecasts` with `return_response: true`; configurable `hourly`/`daily` and count.",
+      "title": "[W3.1.3] Forecast via weather.get_forecasts with return_response: true; configurable hourly/dail...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/59",
+      "wave": 3
+    },
+    "W3.1.4": {
+      "id": "W3.1.4",
+      "issue": 60,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Map Home Assistant condition strings to bundled icons; unknown condition gets a neutral icon.",
+      "title": "[W3.1.4] Map Home Assistant condition strings to bundled icons; unknown condition gets a neutral...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/60",
+      "wave": 3
+    },
+    "W3.1.5": {
+      "id": "W3.1.5",
+      "issue": 61,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Refresh forecast every 15 minutes by default; retry with backoff; keep the last forecast on failure.",
+      "title": "[W3.1.5] Refresh forecast every 15 minutes by default; retry with backoff; keep the last forecas...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/61",
+      "wave": 3
+    },
+    "W3.1.6": {
+      "id": "W3.1.6",
+      "issue": 62,
+      "task": "3.1",
+      "task_title": "Clock and weather",
+      "text": "Unit tests with recorded JSON fixtures; no live network in tests.",
+      "title": "[W3.1.6] Unit tests with recorded JSON fixtures; no live network in tests.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/62",
+      "wave": 3
+    },
+    "W3.2.1": {
+      "id": "W3.2.1",
+      "issue": 63,
+      "task": "3.2",
+      "task_title": "Home Assistant tiles",
+      "text": "Configurable grid with `columns` and explicit tile entries (entity, label, optional icon).",
+      "title": "[W3.2.1] Configurable grid with columns and explicit tile entries (entity, label, optional icon).",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/63",
+      "wave": 3
+    },
+    "W3.2.2": {
+      "id": "W3.2.2",
+      "issue": 64,
+      "task": "3.2",
+      "task_title": "Home Assistant tiles",
+      "text": "Bind state and supported attributes; show unavailable/unknown states honestly.",
+      "title": "[W3.2.2] Bind state and supported attributes; show unavailable/unknown states honestly.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/64",
+      "wave": 3
+    },
+    "W3.2.3": {
+      "id": "W3.2.3",
+      "issue": 65,
+      "task": "3.2",
+      "task_title": "Home Assistant tiles",
+      "text": "Implement the action table from section 4.3; unsupported domains are read-only.",
+      "title": "[W3.2.3] Implement the action table from section 4.3; unsupported domains are read-only.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/65",
+      "wave": 3
+    },
+    "W3.2.4": {
+      "id": "W3.2.4",
+      "issue": 66,
+      "task": "3.2",
+      "task_title": "Home Assistant tiles",
+      "text": "Show a pending state during a service call and an error if it fails; ignore repeated taps while pending.",
+      "title": "[W3.2.4] Show a pending state during a service call and an error if it fails; ignore repeated ta...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/66",
+      "wave": 3
+    },
+    "W3.2.5": {
+      "id": "W3.2.5",
+      "issue": 67,
+      "task": "3.2",
+      "task_title": "Home Assistant tiles",
+      "text": "Tests: mapping for each supported domain; unknown domain stays read-only; failed call surfaces an error; rapid taps produce at most one in-flight call.",
+      "title": "[W3.2.5] Tests: mapping for each supported domain; unknown domain stays read-only; failed call s...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/67",
+      "wave": 3
+    },
+    "W3.3.1": {
+      "id": "W3.3.1",
+      "issue": 68,
+      "task": "3.3",
+      "task_title": "Media player",
+      "text": "Parse `media_player` state, title, artist, album, `entity_picture`, volume, and supported features.",
+      "title": "[W3.3.1] Parse media_player state, title, artist, album, entity_picture, volume, and supported f...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/68",
+      "wave": 3
+    },
+    "W3.3.2": {
+      "id": "W3.3.2",
+      "issue": 69,
+      "task": "3.3",
+      "task_title": "Media player",
+      "text": "Play/pause, previous/next, and volume slider; disable controls the entity does not support; debounce volume changes (at most one call per 100 ms, final value on release).",
+      "title": "[W3.3.2] Play/pause, previous/next, and volume slider; disable controls the entity does not supp...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/69",
+      "wave": 3
+    },
+    "W3.3.3": {
+      "id": "W3.3.3",
+      "issue": 70,
+      "task": "3.3",
+      "task_title": "Media player",
+      "text": "Fetch album art over HTTP(S) only when needed; resolve relative URLs against the HA base URL; send the token only to the Home Assistant origin and never forward it across an origin redirect; honor `allow_invalid_certs`; decode off the UI thread into `SharedPixelBuffer`; reject images above a documented byte/pixel limit; cache by URL with a memory cap.",
+      "title": "[W3.3.3] Fetch album art over HTTP(S) only when needed; resolve relative URLs against the HA bas...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/70",
+      "wave": 3
+    },
+    "W3.3.4": {
+      "id": "W3.3.4",
+      "issue": 71,
+      "task": "3.3",
+      "task_title": "Media player",
+      "text": "Log only the image host and path, never the query string.",
+      "title": "[W3.3.4] Log only the image host and path, never the query string.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/71",
+      "wave": 3
+    },
+    "W3.3.5": {
+      "id": "W3.3.5",
+      "issue": 72,
+      "task": "3.3",
+      "task_title": "Media player",
+      "text": "Tests: parser fixtures, disabled controls, failed image fetch keeps the previous art.",
+      "title": "[W3.3.5] Tests: parser fixtures, disabled controls, failed image fetch keeps the previous art.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/72",
+      "wave": 3
+    },
+    "W3.4.1": {
+      "id": "W3.4.1",
+      "issue": 73,
+      "task": "3.4",
+      "task_title": "Departures",
+      "text": "Implement the provider-neutral contract in `docs/departures-entity-contract.md`: a configured sensor entity with a `departures` attribute.",
+      "title": "[W3.4.1] Implement the provider-neutral contract in docs/departures-entity-contract.md: a config...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/73",
+      "wave": 3
+    },
+    "W3.4.2": {
+      "id": "W3.4.2",
+      "issue": 74,
+      "task": "3.4",
+      "task_title": "Departures",
+      "text": "Parse line, destination, departure time, optional delay, platform, and cancelled flag; sort by departure time; drop past entries. Interpret a timestamp without an offset in the Home Assistant timezone.",
+      "title": "[W3.4.2] Parse line, destination, departure time, optional delay, platform, and cancelled flag;...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/74",
+      "wave": 3
+    },
+    "W3.4.3": {
+      "id": "W3.4.3",
+      "issue": 75,
+      "task": "3.4",
+      "task_title": "Departures",
+      "text": "Refresh every 60 seconds by default, and immediately on reconnect; ignore stacked refreshes while one is in flight.",
+      "title": "[W3.4.3] Refresh every 60 seconds by default, and immediately on reconnect; ignore stacked refre...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/75",
+      "wave": 3
+    },
+    "W3.4.4": {
+      "id": "W3.4.4",
+      "issue": 76,
+      "task": "3.4",
+      "task_title": "Departures",
+      "text": "Show \u201cNo departures\u201d and \u201cData unavailable\u201d as distinct states.",
+      "title": "[W3.4.4] Show \u201cNo departures\u201d and \u201cData unavailable\u201d as distinct states.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/76",
+      "wave": 3
+    },
+    "W3.4.5": {
+      "id": "W3.4.5",
+      "issue": 77,
+      "task": "3.4",
+      "task_title": "Departures",
+      "text": "Tests with fixtures, including malformed entries, timezone offsets, and a cancelled service.",
+      "title": "[W3.4.5] Tests with fixtures, including malformed entries, timezone offsets, and a cancelled ser...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/77",
+      "wave": 3
+    },
+    "W3.5.1": {
+      "id": "W3.5.1",
+      "issue": 78,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Call `calendar.get_events` for each configured calendar with a start/end range and `return_response: true`.",
+      "title": "[W3.5.1] Call calendar.get_events for each configured calendar with a start/end range and return...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/78",
+      "wave": 3
+    },
+    "W3.5.2": {
+      "id": "W3.5.2",
+      "issue": 79,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Interpret timestamps without an offset in the Home Assistant timezone from `get_config`; convert to the device timezone for display.",
+      "title": "[W3.5.2] Interpret timestamps without an offset in the Home Assistant timezone from get_config;...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/79",
+      "wave": 3
+    },
+    "W3.5.3": {
+      "id": "W3.5.3",
+      "issue": 80,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Merge events from multiple calendars, sort by start, and render today/tomorrow sections.",
+      "title": "[W3.5.3] Merge events from multiple calendars, sort by start, and render today/tomorrow sections.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/80",
+      "wave": 3
+    },
+    "W3.5.4": {
+      "id": "W3.5.4",
+      "issue": 81,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Handle all-day events, overlapping events, and calendars that return errors independently.",
+      "title": "[W3.5.4] Handle all-day events, overlapping events, and calendars that return errors independently.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/81",
+      "wave": 3
+    },
+    "W3.5.5": {
+      "id": "W3.5.5",
+      "issue": 82,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Refresh every 5 minutes and on reconnect.",
+      "title": "[W3.5.5] Refresh every 5 minutes and on reconnect.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/82",
+      "wave": 3
+    },
+    "W3.5.6": {
+      "id": "W3.5.6",
+      "issue": 83,
+      "task": "3.5",
+      "task_title": "Calendar",
+      "text": "Tests with fixtures for multiple calendars, all-day events, and one failing calendar.",
+      "title": "[W3.5.6] Tests with fixtures for multiple calendars, all-day events, and one failing calendar.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/83",
+      "wave": 3
+    },
+    "W4.1.1": {
+      "id": "W4.1.1",
+      "issue": 84,
+      "task": "4.1",
+      "task_title": "Release builds and cross-compilation",
+      "text": "Finalize `Cross.toml` with pinned image digests and required `pre-build` packages.",
+      "title": "[W4.1.1] Finalize Cross.toml with pinned image digests and required pre-build packages.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/84",
+      "wave": 4
+    },
+    "W4.1.2": {
+      "id": "W4.1.2",
+      "issue": 85,
+      "task": "4.1",
+      "task_title": "Release builds and cross-compilation",
+      "text": "`scripts/build-all.sh` builds `aarch64-unknown-linux-gnu`, `armv7-unknown-linux-gnueabihf`, and `x86_64-unknown-linux-gnu` with `--no-default-features --features kiosk`.",
+      "title": "[W4.1.2] scripts/build-all.sh builds aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf, a...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/85",
+      "wave": 4
+    },
+    "W4.1.3": {
+      "id": "W4.1.3",
+      "issue": 86,
+      "task": "4.1",
+      "task_title": "Release builds and cross-compilation",
+      "text": "Name artifacts with version and target; generate SHA-256 checksums; place them in `dist/`.",
+      "title": "[W4.1.3] Name artifacts with version and target; generate SHA-256 checksums; place them in dist/.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/86",
+      "wave": 4
+    },
+    "W4.1.4": {
+      "id": "W4.1.4",
+      "issue": 87,
+      "task": "4.1",
+      "task_title": "Release builds and cross-compilation",
+      "text": "Document the glibc 2.35+ requirement and the Bookworm-only support for cross-built binaries.",
+      "title": "[W4.1.4] Document the glibc 2.35+ requirement and the Bookworm-only support for cross-built bina...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/87",
+      "wave": 4
+    },
+    "W4.1.5": {
+      "id": "W4.1.5",
+      "issue": 88,
+      "task": "4.1",
+      "task_title": "Release builds and cross-compilation",
+      "text": "Document the native-build fallback on the Pi.",
+      "title": "[W4.1.5] Document the native-build fallback on the Pi.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/88",
+      "wave": 4
+    },
+    "W4.2.1": {
+      "id": "W4.2.1",
+      "issue": 89,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "`src/kiosk.rs`: fullscreen, display rotation, platform detection, and clear errors when no display backend is available.",
+      "title": "[W4.2.1] src/kiosk.rs: fullscreen, display rotation, platform detection, and clear errors when n...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/89",
+      "wave": 4
+    },
+    "W4.2.2": {
+      "id": "W4.2.2",
+      "issue": 90,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "LinuxKMS path: `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, input through libinput/libseat. Document `SLINT_DRM_OUTPUT` and `SLINT_DRM_MODE` for multi-display or explicit resolution selection.",
+      "title": "[W4.2.2] LinuxKMS path: SLINT_BACKEND=linuxkms-software, SLINT_KMS_ROTATION, input through libin...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/90",
+      "wave": 4
+    },
+    "W4.2.3": {
+      "id": "W4.2.3",
+      "issue": 91,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "X11 fallback: winit build, a minimal window manager (for example openbox or matchbox), cursor hiding with `unclutter` or equivalent, blanking off (`xset s off -dpms`). Without a window manager, fullscreen may not cover the screen.",
+      "title": "[W4.2.3] X11 fallback: winit build, a minimal window manager (for example openbox or matchbox),...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/91",
+      "wave": 4
+    },
+    "W4.2.4": {
+      "id": "W4.2.4",
+      "issue": 92,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "Install a font (`fonts-dejavu-core`) or bundle a licensed font; include the icon set\u2019s license and attribution in `README.md`.",
+      "title": "[W4.2.4] Install a font (fonts-dejavu-core) or bundle a licensed font; include the icon set\u2019s li...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/92",
+      "wave": 4
+    },
+    "W4.2.5": {
+      "id": "W4.2.5",
+      "issue": 93,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "Ensure time synchronization (`systemd-timesyncd` or chrony) and the device timezone are set; a Pi without an RTC otherwise shows the wrong clock after boot.",
+      "title": "[W4.2.5] Ensure time synchronization (systemd-timesyncd or chrony) and the device timezone are s...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/93",
+      "wave": 4
+    },
+    "W4.2.6": {
+      "id": "W4.2.6",
+      "issue": 94,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "Touch calibration and rotation notes for common 7-inch panels; do not hardcode a calibration matrix.",
+      "title": "[W4.2.6] Touch calibration and rotation notes for common 7-inch panels; do not hardcode a calibr...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/94",
+      "wave": 4
+    },
+    "W4.2.7": {
+      "id": "W4.2.7",
+      "issue": 95,
+      "task": "4.2",
+      "task_title": "Kiosk mode",
+      "text": "Disable console blanking for the LinuxKMS path (`consoleblank=0` in the kernel command line) and document it.",
+      "title": "[W4.2.7] Disable console blanking for the LinuxKMS path (consoleblank=0 in the kernel command li...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/95",
+      "wave": 4
+    },
+    "W4.3.1": {
+      "id": "W4.3.1",
+      "issue": 96,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "`deploy/ha-kiosk.service`: restart on failure, start after the seat/graphical target or after `seatd`, run as the `ha-kiosk` user, never as root. Use `RestartSec=5` and a sane `StartLimitBurst`/`StartLimitIntervalSec`. Set `Environment=RUST_LOG=info`, `Environment=SLINT_BACKEND=linuxkms-software`, and `Environment=LIBSEAT_BACKEND=seatd` on the default KMS path. Add baseline hardening (`NoNewPrivileges=yes`, `ProtectSystem=strict`, `ReadWritePaths=/var/lib/ha-kiosk`); if seatd/logind socket access is blocked, relax to `ProtectSystem=full` and document why.",
+      "title": "[W4.3.1] deploy/ha-kiosk.service: restart on failure, start after the seat/graphical target or a...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/96",
+      "wave": 4
+    },
+    "W4.3.2": {
+      "id": "W4.3.2",
+      "issue": 97,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "Default seat model: **seatd + system service** with the service user in the `seat` group. Document the alternatives (systemd user service inside an autologin session, or a system service with `PAMName=login` and a TTY) and test the chosen default.",
+      "title": "[W4.3.2] Default seat model: seatd + system service with the service user in the seat group. Doc...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/97",
+      "wave": 4
+    },
+    "W4.3.3": {
+      "id": "W4.3.3",
+      "issue": 98,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "`deploy/kiosk-setup.sh`: install/enable seatd, console blanking off, rotation, and a reboot notice for the chosen model.",
+      "title": "[W4.3.3] deploy/kiosk-setup.sh: install/enable seatd, console blanking off, rotation, and a rebo...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/98",
+      "wave": 4
+    },
+    "W4.3.4": {
+      "id": "W4.3.4",
+      "issue": 99,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "Grant only the required groups (`video`, `input`, `render` as needed); prefer libseat/seatd over root.",
+      "title": "[W4.3.4] Grant only the required groups (video, input, render as needed); prefer libseat/seatd o...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/99",
+      "wave": 4
+    },
+    "W4.3.5": {
+      "id": "W4.3.5",
+      "issue": 100,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "`deploy/install.sh`: create user, install binary, create `/var/lib/ha-kiosk` (`0700`, owned by the service user), install config with `0600`, install the runtime packages (`libseat1`, `libinput10`, `libudev1`, `libxkbcommon0`, `libfontconfig1`, `fonts-dejavu-core`, `ca-certificates`, `seatd` on the KMS path), install unit, enable and start.",
+      "title": "[W4.3.5] deploy/install.sh: create user, install binary, create /var/lib/ha-kiosk (0700, owned b...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/100",
+      "wave": 4
+    },
+    "W4.3.6": {
+      "id": "W4.3.6",
+      "issue": 101,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "`deploy/uninstall.sh`: stop, disable, remove unit and binary; keep config unless `--purge` is passed.",
+      "title": "[W4.3.6] deploy/uninstall.sh: stop, disable, remove unit and binary; keep config unless --purge...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/101",
+      "wave": 4
+    },
+    "W4.3.7": {
+      "id": "W4.3.7",
+      "issue": 102,
+      "task": "4.3",
+      "task_title": "systemd and install",
+      "text": "README: install, upgrade, logs (`journalctl -u ha-kiosk`), display backends, and rollback.",
+      "title": "[W4.3.7] README: install, upgrade, logs (journalctl -u ha-kiosk), display backends, and rollback.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/102",
+      "wave": 4
+    },
+    "W5.1.1": {
+      "id": "W5.1.1",
+      "issue": 103,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Mock Home Assistant server covering config \u2192 connect \u2192 snapshot \u2192 UI state.",
+      "title": "[W5.1.1] Mock Home Assistant server covering config \u2192 connect \u2192 snapshot \u2192 UI state.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/103",
+      "wave": 5
+    },
+    "W5.1.2": {
+      "id": "W5.1.2",
+      "issue": 104,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Offline scenario: server stops, cached data appears with a stale badge; server returns, state resyncs.",
+      "title": "[W5.1.2] Offline scenario: server stops, cached data appears with a stale badge; server returns,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/104",
+      "wave": 5
+    },
+    "W5.1.3": {
+      "id": "W5.1.3",
+      "issue": 105,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Authentication failure: invalid token shows an error and does not loop.",
+      "title": "[W5.1.3] Authentication failure: invalid token shows an error and does not loop.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/105",
+      "wave": 5
+    },
+    "W5.1.4": {
+      "id": "W5.1.4",
+      "issue": 106,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Service failure: tile shows an error and does not fake success.",
+      "title": "[W5.1.4] Service failure: tile shows an error and does not fake success.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/106",
+      "wave": 5
+    },
+    "W5.1.5": {
+      "id": "W5.1.5",
+      "issue": 107,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Malformed messages and unknown domains do not crash the app.",
+      "title": "[W5.1.5] Malformed messages and unknown domains do not crash the app.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/107",
+      "wave": 5
+    },
+    "W5.1.6": {
+      "id": "W5.1.6",
+      "issue": 108,
+      "task": "5.1",
+      "task_title": "End-to-end tests",
+      "text": "Add `cargo audit` (and optionally `cargo deny check licenses`) to CI; review findings before release.",
+      "title": "[W5.1.6] Add cargo audit (and optionally cargo deny check licenses) to CI; review findings befor...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/108",
+      "wave": 5
+    },
+    "W5.2.1": {
+      "id": "W5.2.1",
+      "issue": 109,
+      "task": "5.2",
+      "task_title": "Performance and stability",
+      "text": "Measure RSS, first-frame time, and idle CPU on the Pi Zero 2 W; record the method and numbers.",
+      "title": "[W5.2.1] Measure RSS, first-frame time, and idle CPU on the Pi Zero 2 W; record the method and n...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/109",
+      "wave": 5
+    },
+    "W5.2.2": {
+      "id": "W5.2.2",
+      "issue": 110,
+      "task": "5.2",
+      "task_title": "Performance and stability",
+      "text": "Use `/usr/bin/time -v` or systemd memory accounting on the Pi; use `heaptrack` on x86_64 for allocation hotspots.",
+      "title": "[W5.2.2] Use /usr/bin/time -v or systemd memory accounting on the Pi; use heaptrack on x86_64 fo...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/110",
+      "wave": 5
+    },
+    "W5.2.3": {
+      "id": "W5.2.3",
+      "issue": 111,
+      "task": "5.2",
+      "task_title": "Performance and stability",
+      "text": "Verify RSS < 150 MB (target < 100 MB), first frame < 3 s, idle CPU low enough that the device does not throttle.",
+      "title": "[W5.2.3] Verify RSS < 150 MB (target < 100 MB), first frame < 3 s, idle CPU low enough that the...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/111",
+      "wave": 5
+    },
+    "W5.2.4": {
+      "id": "W5.2.4",
+      "issue": 112,
+      "task": "5.2",
+      "task_title": "Performance and stability",
+      "text": "Run a 24-hour soak with a simulated state-change stream; check for leaks and unbounded caches.",
+      "title": "[W5.2.4] Run a 24-hour soak with a simulated state-change stream; check for leaks and unbounded...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/112",
+      "wave": 5
+    },
+    "W5.2.5": {
+      "id": "W5.2.5",
+      "issue": 113,
+      "task": "5.2",
+      "task_title": "Performance and stability",
+      "text": "Tune release profile (`opt-level = \"s\"`, LTO, `strip`, `panic = \"abort\"`) and confirm behavior.",
+      "title": "[W5.2.5] Tune release profile (opt-level = \"s\", LTO, strip, panic = \"abort\") and confirm behavior.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/113",
+      "wave": 5
+    },
+    "W5.3.1": {
+      "id": "W5.3.1",
+      "issue": 114,
+      "task": "5.3",
+      "task_title": "Documentation and release",
+      "text": "README: features, supported hardware, install, config reference, troubleshooting, security, license status.",
+      "title": "[W5.3.1] README: features, supported hardware, install, config reference, troubleshooting, secur...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/114",
+      "wave": 5
+    },
+    "W5.3.2": {
+      "id": "W5.3.2",
+      "issue": 115,
+      "task": "5.3",
+      "task_title": "Documentation and release",
+      "text": "Commented `config.example.toml`; no real credentials or personal identifiers.",
+      "title": "[W5.3.2] Commented config.example.toml; no real credentials or personal identifiers.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/115",
+      "wave": 5
+    },
+    "W5.3.3": {
+      "id": "W5.3.3",
+      "issue": 116,
+      "task": "5.3",
+      "task_title": "Documentation and release",
+      "text": "Troubleshooting: cross-compile errors, glibc mismatch, no display backend, touch rotation, token permissions, Home Assistant version.",
+      "title": "[W5.3.3] Troubleshooting: cross-compile errors, glibc mismatch, no display backend, touch rotati...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/116",
+      "wave": 5
+    },
+    "W5.3.4": {
+      "id": "W5.3.4",
+      "issue": 117,
+      "task": "5.3",
+      "task_title": "Documentation and release",
+      "text": "Release checklist: tests, clippy, fmt, cross artifacts, checksums, changelog, known limitations.",
+      "title": "[W5.3.4] Release checklist: tests, clippy, fmt, cross artifacts, checksums, changelog, known lim...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/117",
+      "wave": 5
+    },
+    "W6.1.1": {
+      "id": "W6.1.1",
+      "issue": 118,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Define the signed catalog format (`index.json` + `index.json.minisig`) and JSON schemas for catalog entries and manifests.",
+      "title": "[W6.1.1] Define the signed catalog format (index.json + index.json.minisig) and JSON schemas for...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/118",
+      "wave": 6
+    },
+    "W6.1.2": {
+      "id": "W6.1.2",
+      "issue": 119,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Fetch the catalog over HTTPS, verify Minisign signatures against configured public keys, cache the last verified index, and enforce a catalog size cap.",
+      "title": "[W6.1.2] Fetch the catalog over HTTPS, verify Minisign signatures against configured public keys...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/119",
+      "wave": 6
+    },
+    "W6.1.3": {
+      "id": "W6.1.3",
+      "issue": 120,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Enforce HTTPS, size caps, SHA-256 checksums, and `min_app_version`/`api_version` compatibility. Unsigned catalogs and HTTP URLs are accepted only when `allow_unsigned` and `dev_mode` are both explicitly enabled.",
+      "title": "[W6.1.3] Enforce HTTPS, size caps, SHA-256 checksums, and min_app_version/api_version compatibil...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/120",
+      "wave": 6
+    },
+    "W6.1.4": {
+      "id": "W6.1.4",
+      "issue": 121,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Download `.hkext` packages (gzipped tar) to a temp directory; verify size and checksum before extraction.",
+      "title": "[W6.1.4] Download .hkext packages (gzipped tar) to a temp directory; verify size and checksum be...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/121",
+      "wave": 6
+    },
+    "W6.1.5": {
+      "id": "W6.1.5",
+      "issue": 122,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Reject absolute paths, `..`, symlinks, hardlinks, device files, and decompressed-size bombs during extraction.",
+      "title": "[W6.1.5] Reject absolute paths, .., symlinks, hardlinks, device files, and decompressed-size bom...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/122",
+      "wave": 6
+    },
+    "W6.1.6": {
+      "id": "W6.1.6",
+      "issue": 123,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Install atomically under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; keep one previous version for rollback.",
+      "title": "[W6.1.6] Install atomically under /var/lib/ha-kiosk/extensions/<id>/<version>/; keep one previou...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/123",
+      "wave": 6
+    },
+    "W6.1.7": {
+      "id": "W6.1.7",
+      "issue": 124,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Maintain `installed.json` (id, version, enabled, manifest hash, source catalog) and enforce `0600`/`0700` permissions.",
+      "title": "[W6.1.7] Maintain installed.json (id, version, enabled, manifest hash, source catalog) and enfor...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/124",
+      "wave": 6
+    },
+    "W6.1.8": {
+      "id": "W6.1.8",
+      "issue": 125,
+      "task": "6.1",
+      "task_title": "Catalog, signature, and store",
+      "text": "Tests: valid/invalid/tampered signature, key rotation, checksum mismatch, oversized package, path traversal, install/update/rollback/remove, offline cache.",
+      "title": "[W6.1.8] Tests: valid/invalid/tampered signature, key rotation, checksum mismatch, oversized pac...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/125",
+      "wave": 6
+    },
+    "W6.2.1": {
+      "id": "W6.2.1",
+      "issue": 126,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Add a Rhai engine with no filesystem, process, environment, or module access.",
+      "title": "[W6.2.1] Add a Rhai engine with no filesystem, process, environment, or module access.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/126",
+      "wave": 6
+    },
+    "W6.2.2": {
+      "id": "W6.2.2",
+      "issue": 127,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Register only `http_get_json`, `ha_state`, `now`, and `log`; enforce the manifest's host and entity allowlists.",
+      "title": "[W6.2.2] Register only http_get_json, ha_state, now, and log; enforce the manifest's host and en...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/127",
+      "wave": 6
+    },
+    "W6.2.3": {
+      "id": "W6.2.3",
+      "issue": 128,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "`http_get_json`: GET only, HTTPS, 10 s timeout, 1 MB cap, no credentials, no cross-host redirects.",
+      "title": "[W6.2.3] http_get_json: GET only, HTTPS, 10 s timeout, 1 MB cap, no credentials, no cross-host r...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/128",
+      "wave": 6
+    },
+    "W6.2.4": {
+      "id": "W6.2.4",
+      "issue": 129,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "`ha_state`: read-only snapshot, allowlisted entity IDs, no service calls, no HA token exposure.",
+      "title": "[W6.2.4] ha_state: read-only snapshot, allowlisted entity IDs, no service calls, no HA token exp...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/129",
+      "wave": 6
+    },
+    "W6.2.5": {
+      "id": "W6.2.5",
+      "issue": 130,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Set operation, string, array, map, call-depth, and wall-clock limits; run the script off the UI thread.",
+      "title": "[W6.2.5] Set operation, string, array, map, call-depth, and wall-clock limits; run the script of...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/130",
+      "wave": 6
+    },
+    "W6.2.6": {
+      "id": "W6.2.6",
+      "issue": 131,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Validate the `departures`, `list`, or `key_value` output shape; cap at 100 items; reject malformed output.",
+      "title": "[W6.2.6] Validate the departures, list, or key_value output shape; cap at 100 items; reject malf...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/131",
+      "wave": 6
+    },
+    "W6.2.7": {
+      "id": "W6.2.7",
+      "issue": 132,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Keep last good data on failure; mark repeated failures degraded; show the error in the shop/status page.",
+      "title": "[W6.2.7] Keep last good data on failure; mark repeated failures degraded; show the error in the...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/132",
+      "wave": 6
+    },
+    "W6.2.8": {
+      "id": "W6.2.8",
+      "issue": 133,
+      "task": "6.2",
+      "task_title": "Sandboxed extension host",
+      "text": "Tests: forbidden host/entity, redirect escape, HTTP rejection, infinite loop/operation limit, oversized allocation, malformed output, timeout.",
+      "title": "[W6.2.8] Tests: forbidden host/entity, redirect escape, HTTP rejection, infinite loop/operation...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/133",
+      "wave": 6
+    },
+    "W6.3.1": {
+      "id": "W6.3.1",
+      "issue": 134,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Add a Shop page (fifth page, only when `extensions.enabled = true`) with installed/available lists.",
+      "title": "[W6.3.1] Add a Shop page (fifth page, only when extensions.enabled = true) with installed/availa...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/134",
+      "wave": 6
+    },
+    "W6.3.2": {
+      "id": "W6.3.2",
+      "issue": 135,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Show name, version, author, license, description, permissions, configuration status, and errors.",
+      "title": "[W6.3.2] Show name, version, author, license, description, permissions, configuration status, an...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/135",
+      "wave": 6
+    },
+    "W6.3.3": {
+      "id": "W6.3.3",
+      "issue": 136,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Implement install, update, remove, enable/disable with a first-install trust confirmation.",
+      "title": "[W6.3.3] Implement install, update, remove, enable/disable with a first-install trust confirmation.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/136",
+      "wave": 6
+    },
+    "W6.3.4": {
+      "id": "W6.3.4",
+      "issue": 137,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Show configuration keys and the exact TOML/secret file paths; no on-screen keyboard in Wave 6.",
+      "title": "[W6.3.4] Show configuration keys and the exact TOML/secret file paths; no on-screen keyboard in...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/137",
+      "wave": 6
+    },
+    "W6.3.5": {
+      "id": "W6.3.5",
+      "issue": 138,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Add extension errors to the Status page; keep the page usable while the catalog is offline.",
+      "title": "[W6.3.5] Add extension errors to the Status page; keep the page usable while the catalog is offl...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/138",
+      "wave": 6
+    },
+    "W6.3.6": {
+      "id": "W6.3.6",
+      "issue": 139,
+      "task": "6.3",
+      "task_title": "Shop UI and configuration",
+      "text": "Tests with the Slint testing backend: install/update/remove flows, permission display, offline state, error state.",
+      "title": "[W6.3.6] Tests with the Slint testing backend: install/update/remove flows, permission display,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/139",
+      "wave": 6
+    },
+    "W6.4.1": {
+      "id": "W6.4.1",
+      "issue": 140,
+      "task": "6.4",
+      "task_title": "Companion catalog repository and documentation",
+      "text": "Create the separate `home-assistant-kiosk-extensions` repository (visibility decided in section 12) with `index.json`, `index.json.minisig`, schemas, and extension sources.",
+      "title": "[W6.4.1] Create the separate home-assistant-kiosk-extensions repository (visibility decided in s...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/140",
+      "wave": 6
+    },
+    "W6.4.2": {
+      "id": "W6.4.2",
+      "issue": 141,
+      "task": "6.4",
+      "task_title": "Companion catalog repository and documentation",
+      "text": "Add a validated example extension, `org.example.bus-departures`, using a configurable stop ID and placeholder API host; no real provider URL or personal ID.",
+      "title": "[W6.4.2] Add a validated example extension, org.example.bus-departures, using a configurable sto...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/141",
+      "wave": 6
+    },
+    "W6.4.3": {
+      "id": "W6.4.3",
+      "issue": 142,
+      "task": "6.4",
+      "task_title": "Companion catalog repository and documentation",
+      "text": "Document the author API, manifest, permissions, config schema, output schema, packaging, versioning, and security rules.",
+      "title": "[W6.4.3] Document the author API, manifest, permissions, config schema, output schema, packaging...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/142",
+      "wave": 6
+    },
+    "W6.4.4": {
+      "id": "W6.4.4",
+      "issue": 143,
+      "task": "6.4",
+      "task_title": "Companion catalog repository and documentation",
+      "text": "Document the release/signing flow: CI validates; a maintainer signs the index offline with Minisign; the private key never enters CI or either repository.",
+      "title": "[W6.4.4] Document the release/signing flow: CI validates; a maintainer signs the index offline w...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/143",
+      "wave": 6
+    },
+    "W6.4.5": {
+      "id": "W6.4.5",
+      "issue": 144,
+      "task": "6.4",
+      "task_title": "Companion catalog repository and documentation",
+      "text": "Document community review: license, permissions, no secrets, no service calls, no arbitrary UI, tests, removal process.",
+      "title": "[W6.4.5] Document community review: license, permissions, no secrets, no service calls, no arbit...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/144",
+      "wave": 6
+    }
+  },
+  "repo": "ABOYrbx/home-assistant-kiosk",
+  "updated_at": "2026-11-23T04:26:19.961466+00:00"
+}

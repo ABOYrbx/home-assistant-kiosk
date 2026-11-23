@@ -93,11 +93,10 @@ Security settings currently available: Dependabot alerts and Dependabot security
 ## Pull requests
 
 - Use the pull request template.
-- Link the issue it closes and name the wave.
+- Link the subtask issue it closes and the parent wave epic.
 - Record gate evidence: commands run and their result; manual/hardware evidence where relevant.
-- Keep one wave or one focused change per pull request.
-- Do not mix documentation-only changes with code changes unless the gate requires it.
-- Do not mark a wave complete while a gate is unverified.
+- Keep one subtask or one coherent group per pull request.
+- Do not close a subtask issue until its definition of done is met; do not close the epic until every subtask and the wave gate are complete.
 - The final push must be made with `ABOYrbx`.
 
 Branch naming:

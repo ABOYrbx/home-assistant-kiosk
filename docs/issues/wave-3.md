@@ -70,3 +70,51 @@ Implement the five data widgets. Each widget is independently testable with fixt
 
 - The departures widget is deliberately generic. If an integration exposes another shape, the user maps it to the contract with a template sensor; do not add a parser per provider.
 - Album art and icons are bounded caches; unbounded caches are a release blocker on a 512 MB device.
+
+---
+
+## Subtask issues
+
+The wave issue is the epic. Every checkbox above, except the commit step, is a separate issue:
+
+### 3.1 Clock and weather
+
+- [ ] #57 — [W3.1.1] Clock and date from local time; one-second timer; 12/24-hour setting.
+- [ ] #58 — [W3.1.2] Weather from a configured weather.* entity: condition, current temperature, unit, and a...
+- [ ] #59 — [W3.1.3] Forecast via weather.get_forecasts with return_response: true; configurable hourly/dail...
+- [ ] #60 — [W3.1.4] Map Home Assistant condition strings to bundled icons; unknown condition gets a neutral...
+- [ ] #61 — [W3.1.5] Refresh forecast every 15 minutes by default; retry with backoff; keep the last forecas...
+- [ ] #62 — [W3.1.6] Unit tests with recorded JSON fixtures; no live network in tests.
+
+### 3.2 Home Assistant tiles
+
+- [ ] #63 — [W3.2.1] Configurable grid with columns and explicit tile entries (entity, label, optional icon).
+- [ ] #64 — [W3.2.2] Bind state and supported attributes; show unavailable/unknown states honestly.
+- [ ] #65 — [W3.2.3] Implement the action table from section 4.3; unsupported domains are read-only.
+- [ ] #66 — [W3.2.4] Show a pending state during a service call and an error if it fails; ignore repeated ta...
+- [ ] #67 — [W3.2.5] Tests: mapping for each supported domain; unknown domain stays read-only; failed call s...
+
+### 3.3 Media player
+
+- [ ] #68 — [W3.3.1] Parse media_player state, title, artist, album, entity_picture, volume, and supported f...
+- [ ] #69 — [W3.3.2] Play/pause, previous/next, and volume slider; disable controls the entity does not supp...
+- [ ] #70 — [W3.3.3] Fetch album art over HTTP(S) only when needed; resolve relative URLs against the HA bas...
+- [ ] #71 — [W3.3.4] Log only the image host and path, never the query string.
+- [ ] #72 — [W3.3.5] Tests: parser fixtures, disabled controls, failed image fetch keeps the previous art.
+
+### 3.4 Departures
+
+- [ ] #73 — [W3.4.1] Implement the provider-neutral contract in docs/departures-entity-contract.md: a config...
+- [ ] #74 — [W3.4.2] Parse line, destination, departure time, optional delay, platform, and cancelled flag;...
+- [ ] #75 — [W3.4.3] Refresh every 60 seconds by default, and immediately on reconnect; ignore stacked refre...
+- [ ] #76 — [W3.4.4] Show “No departures” and “Data unavailable” as distinct states.
+- [ ] #77 — [W3.4.5] Tests with fixtures, including malformed entries, timezone offsets, and a cancelled ser...
+
+### 3.5 Calendar
+
+- [ ] #78 — [W3.5.1] Call calendar.get_events for each configured calendar with a start/end range and return...
+- [ ] #79 — [W3.5.2] Interpret timestamps without an offset in the Home Assistant timezone from get_config;...
+- [ ] #80 — [W3.5.3] Merge events from multiple calendars, sort by start, and render today/tomorrow sections.
+- [ ] #81 — [W3.5.4] Handle all-day events, overlapping events, and calendars that return errors independently.
+- [ ] #82 — [W3.5.5] Refresh every 5 minutes and on reconnect.
+- [ ] #83 — [W3.5.6] Tests with fixtures for multiple calendars, all-day events, and one failing calendar.
