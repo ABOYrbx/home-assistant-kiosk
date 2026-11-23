@@ -36,22 +36,27 @@ pub struct MediaView {
     pub supported_features: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DepartureItem {
     pub line: String,
     pub destination: String,
+    /// The raw `departure` value from the sensor attribute.
     pub departure: String,
+    /// Absolute departure time, derived from `departure` for display and caching.
+    #[serde(default)]
+    pub departure_utc: Option<String>,
     pub delay_minutes: Option<i64>,
     pub platform: Option<String>,
     pub cancelled: bool,
     pub remarks: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DeparturesView {
     pub entity_id: EntityId,
     pub title: String,
     pub items: Vec<DepartureItem>,
+    /// `false` when the entity is missing or its `departures` attribute is invalid.
     #[serde(default = "default_true_bool")]
     pub available: bool,
 }
