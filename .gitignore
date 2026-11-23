@@ -1,27 +1,117 @@
-# Rust
+# ---------------------------------------------------------------------------
+# Rust / Cargo
+# ---------------------------------------------------------------------------
+# Build output. Cargo.lock is committed because this is an application.
 /target/
 **/*.rs.bk
+*.pdb
+*.profraw
+*.profdata
 
-# Release artifacts
+# Coverage and profiling
+/coverage/
+lcov.info
+tarpaulin-report.*
+perf.data*
+heaptrack.*
+massif.out.*
+flamegraph.svg
+*.folded
+
+# ---------------------------------------------------------------------------
+# Release, cross-compile and extension packages
+# ---------------------------------------------------------------------------
 /dist/
+/artifacts/
+.cross/
+*.hkext
+!tests/fixtures/**/*.hkext
+/extensions-local/
+/extension-store/
 
+# ---------------------------------------------------------------------------
 # Local configuration and secrets
+# ---------------------------------------------------------------------------
 config.toml
 !config.example.toml
 ha_token
 *.token
+*.secret.toml
+secrets.toml
 .env
 .env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+minisign.key
+*.minisign.key
+id_rsa*
+id_ed25519*
+!tests/fixtures/**/*.pem
+!tests/fixtures/**/*.key
 
-# Logs and local state
-*.log
+# ---------------------------------------------------------------------------
+# Local runtime state
+# ---------------------------------------------------------------------------
 /state.json
+/cache/
+/.cache/
+/logs/
+*.log
+*.log.*
 
-# Editors and OS files
+# ---------------------------------------------------------------------------
+# Python helpers (documentation and issue tooling)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Node / local design tooling
+# ---------------------------------------------------------------------------
+node_modules/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Design Studio / OpenChamber local state
+# ---------------------------------------------------------------------------
+# Keep source-like files such as DESIGN.md, tokens.css, styles.css, index.html
+# and package.json visible so the owner can decide whether to commit them.
+.design-studio.json
+.design-studio/
+.openchamber/screenshots/
+.openchamber/tmp/
+.opencode/
+
+# ---------------------------------------------------------------------------
+# Editors, OS files and temporary files
+# ---------------------------------------------------------------------------
 .DS_Store
+._*
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Trash-*
 .idea/
 .vscode/
 *.swp
-
-# Cross / Docker
-.cross/
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+.history/
