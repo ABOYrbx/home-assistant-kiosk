@@ -178,6 +178,19 @@ impl AppState {
             }
         }
     }
+
+    /// Restore a cached snapshot for the first frame before the network is back.
+    ///
+    /// Cached values are never live: the result is marked stale and disconnected
+    /// so the UI shows the offline badge until a fresh snapshot arrives.
+    pub fn restore_from_cache(cached: AppState) -> Self {
+        Self {
+            connection: ConnectionState::Disconnected,
+            stale: true,
+            pending: HashMap::new(),
+            ..cached
+        }
+    }
 }
 
 pub trait CacheStore {
