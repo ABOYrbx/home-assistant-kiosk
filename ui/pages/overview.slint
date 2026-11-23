@@ -1,6 +1,8 @@
 import { Theme } from "../theme.slint";
 import { ClockWidget } from "../widgets/clock.slint";
 import { WeatherWidget } from "../widgets/weather.slint";
+import { HeroLight } from "../widgets/hero_light.slint";
+import { ScenesRow } from "../widgets/scenes.slint";
 import { HaTile } from "../widgets/ha_tile.slint";
 import { DeparturesWidget } from "../widgets/departures.slint";
 
@@ -11,12 +13,27 @@ export component OverviewPage inherits Rectangle {
         padding: Theme.space-3;
         spacing: Theme.space-3;
 
+        // Top bar
         HorizontalLayout {
             spacing: Theme.space-3;
+            alignment: space-between;
+            Text { text: "Home"; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
             ClockWidget { time: ""; date: ""; }
-            WeatherWidget { condition: ""; temperature: ""; }
         }
 
+        // Hero light
+        HeroLight { name: ""; on: false; brightness: 0; color-temp: 0; }
+
+        // Scenes
+        ScenesRow { items: []; }
+
+        // Rooms / tiles
+        HorizontalLayout {
+            spacing: Theme.space-3;
+            HaTile { label: ""; state: ""; }
+        }
+
+        // Departures
         DeparturesWidget { title: "Departures"; items: []; }
     }
 }

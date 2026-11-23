@@ -1,0 +1,59 @@
+import { Theme } from "../theme.slint";
+
+export component HeroLight inherits Rectangle {
+    in property <string> name: "";
+    in property <bool> on: false;
+    in property <int> brightness: 0;
+    in property <int> color-temp: 0;
+    callback toggled();
+    callback brightness-changed(int);
+    callback color-temp-changed(int);
+
+    background: Theme.surface;
+    border-radius: Theme.radius-lg;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-3;
+
+        HorizontalLayout {
+            spacing: Theme.space-3;
+            Text { text: name; color: Theme.fg; font-size: Theme.text-lg; font-weight: 600; }
+            Rectangle {
+                width: Theme.touch-target;
+                height: Theme.touch-target;
+                border-radius: Theme.radius-pill;
+                background: on ? Theme.accent : Theme.border;
+                ta := TouchArea { clicked => { root.toggled(); } }
+            }
+        }
+
+        // Brightness slider (visual track)
+        Rectangle {
+            height: 8px;
+            border-radius: Theme.radius-pill;
+            background: Theme.border-soft;
+            Rectangle {
+                width: parent.width * brightness / 100;
+                height: parent.height;
+                border-radius: Theme.radius-pill;
+                background: Theme.accent;
+            }
+        }
+
+        // Colour temperature
+        Rectangle {
+            height: 8px;
+            border-radius: Theme.radius-pill;
+            background: Theme.border-soft;
+            Rectangle {
+                width: parent.width * color-temp / 100;
+                height: parent.height;
+                border-radius: Theme.radius-pill;
+                background: Theme.warn;
+            }
+        }
+    }
+}

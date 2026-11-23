@@ -1,0 +1,29 @@
+import { Theme } from "../theme.slint";
+
+export component ScenesRow inherits Rectangle {
+    in property <[string]> items: [];
+
+    background: Theme.bg;
+    VerticalLayout {
+        spacing: Theme.space-2;
+        Text { text: "Scenes"; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            for item in items : Rectangle {
+                min-width: Theme.touch-target;
+                min-height: Theme.touch-target;
+                border-radius: Theme.radius-md;
+                border-width: 1px;
+                border-color: Theme.border;
+                background: Theme.surface;
+                Text {
+                    text: item;
+                    color: Theme.fg;
+                    font-size: Theme.text-sm;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
