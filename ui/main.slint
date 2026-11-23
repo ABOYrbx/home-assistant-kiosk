@@ -41,6 +41,7 @@ export component MainWindow inherits Window {
     min-height: 240px;
 
     in-out property <int> current-page: 0;
+    out property <int> overview-layout-mode: root.width < Theme.breakpoint-two-column ? 0 : (root.width < Theme.breakpoint-three-column ? 1 : 2);
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
@@ -117,7 +118,17 @@ export component MainWindow inherits Window {
                 }
             }
 
-            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 0 : overview-page := OverviewPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                layout-mode: root.overview-layout-mode;
+                connection-label: "Offline";
+                connected: false;
+                time: "--:--";
+                date: "";
+            }
             if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }

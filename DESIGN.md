@@ -93,6 +93,13 @@ Rules:
 - Text elides or wraps to a fixed number of lines; never push a control off-screen.
 - The prototype's Energy and Schedule cards are **post-v1**, not v1 gates.
 
+Implementation notes (Slint):
+
+- `OverviewPage.layout-mode` is `0` below 1024 px, `1` from 1024 px, and `2` from 1280 px. `MainWindow.overview-layout-mode` derives it from the window width.
+- Every mode uses exactly one contained vertical scroll region for secondary content; horizontal scrolling is disabled on those regions.
+- Dashboard content is capped at 1440 px and centred. The top bar keeps a fixed 56 px compact or 64 px regular height, and the clock has a fixed width so values do not shift the layout.
+- `tests/ui_layout_test.rs` checks the breakpoints, the contained scroll region, the column order, and the 1440 px cap at 800 × 480, 1024 × 600, 1279, 1280, and 2048 px.
+
 ## 6. Components and data mapping
 
 | Prototype | Kiosk mapping |

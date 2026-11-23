@@ -14,11 +14,12 @@ export component HaTile inherits Rectangle {
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-1;
-        Text { text: label; color: Theme.fg; font-size: Theme.text-sm; font-weight: 500; }
+        Text { text: label; color: Theme.fg; font-size: Theme.text-sm; font-weight: 500; overflow: elide; }
         Text {
             text: pending ? "…" : state;
             color: Theme.muted;
             font-size: Theme.text-sm;
+            overflow: elide;
         }
     }
 

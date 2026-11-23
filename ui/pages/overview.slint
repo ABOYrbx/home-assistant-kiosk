@@ -1,39 +1,333 @@
 import { Theme } from "../theme.slint";
-import { ClockWidget } from "../widgets/clock.slint";
-import { WeatherWidget } from "../widgets/weather.slint";
 import { HeroLight } from "../widgets/hero_light.slint";
 import { ScenesRow } from "../widgets/scenes.slint";
 import { HaTile } from "../widgets/ha_tile.slint";
 import { DeparturesWidget } from "../widgets/departures.slint";
+import { ScrollView } from "std-widgets.slint";
 
-export component OverviewPage inherits Rectangle {
+export struct OverviewRoom {
+    label: string,
+    state: string,
+}
+
+component OverviewTopBar inherits Rectangle {
+    in property <string> connection-label: "";
+    in property <bool> connected: false;
+    in property <string> time: "--:--";
+    in property <string> date: "";
+    in property <bool> compact: false;
+
+    height: compact ? Theme.topbar-height-compact : Theme.topbar-height;
     background: Theme.bg;
 
-    VerticalLayout {
-        padding: Theme.space-3;
-        spacing: Theme.space-3;
+    property <length> side-padding: compact ? Theme.space-3 : Theme.space-6;
 
-        // Top bar
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        width: min(parent.width, Theme.content-max-width + 2 * side-padding);
+        height: parent.height;
+
         HorizontalLayout {
+            padding-left: side-padding;
+            padding-right: side-padding;
             spacing: Theme.space-3;
             alignment: space-between;
-            Text { text: "Home"; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
-            ClockWidget { time: ""; date: ""; }
+
+            HorizontalLayout {
+                spacing: Theme.space-2;
+                alignment: start;
+
+                Rectangle {
+                    width: Theme.space-2;
+                    height: Theme.space-2;
+                    border-radius: Theme.radius-pill;
+                    background: Theme.accent;
+                }
+
+                Text {
+                    text: "Home";
+                    color: Theme.fg;
+                    font-size: compact ? Theme.text-base : Theme.text-lg;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+
+            HorizontalLayout {
+                spacing: compact ? Theme.space-2 : Theme.space-5;
+                alignment: end;
+
+                Rectangle {
+                    height: Theme.touch-target;
+                    border-radius: Theme.radius-pill;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    background: Theme.surface;
+
+                    HorizontalLayout {
+                        padding-left: Theme.space-2;
+                        padding-right: Theme.space-3;
+                        spacing: Theme.space-1;
+                        alignment: center;
+
+                        Rectangle {
+                            width: Theme.space-2;
+                            height: Theme.space-2;
+                            border-radius: Theme.radius-pill;
+                            background: connected ? Theme.success : Theme.warn;
+                        }
+
+                        Text {
+                            text: connection-label;
+                            color: Theme.fg-2;
+                            font-size: Theme.text-sm;
+                            overflow: elide;
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 0px;
+                    alignment: center;
+
+                    Text {
+                        text: time;
+                        width: Theme.clock-width;
+                        horizontal-alignment: right;
+                        color: Theme.fg;
+                        font-size: compact ? Theme.text-lg : Theme.text-xl;
+                        font-weight: 600;
+                        overflow: elide;
+                    }
+
+                    Text {
+                        text: date;
+                        width: Theme.clock-width;
+                        horizontal-alignment: right;
+                        color: Theme.muted;
+                        font-size: Theme.text-xs;
+                        overflow: elide;
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        width: parent.width;
+        height: 1px;
+        background: Theme.border;
+    }
+}
+
+component RoomsGrid inherits Rectangle {
+    in property <[OverviewRoom]> rooms: [];
+    in property <int> item-columns: 2;
+
+    background: transparent;
+
+    VerticalLayout {
+        spacing: Theme.space-2;
+
+        Text {
+            text: "Rooms";
+            color: Theme.fg;
+            font-size: Theme.text-base;
+            font-weight: 600;
+            overflow: elide;
         }
 
-        // Hero light
-        HeroLight { name: ""; on: false; brightness: 0; color-temp: 0; }
+        GridLayout {
+            spacing: Theme.space-2;
 
-        // Scenes
-        ScenesRow { items: []; }
+            for room[idx] in rooms : HaTile {
+                row: idx / item-columns;
+                col: idx - (idx / item-columns) * item-columns;
+                label: room.label;
+                state: room.state;
+                min-width: 0px;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+}
 
-        // Rooms / tiles
-        HorizontalLayout {
-            spacing: Theme.space-3;
-            HaTile { label: ""; state: ""; }
+component SecondaryContent inherits VerticalLayout {
+    in property <[string]> scenes: [];
+    in property <[OverviewRoom]> rooms: [];
+    in property <[string]> departures: [];
+    in property <int> item-columns: 2;
+
+    spacing: Theme.space-3;
+
+    ScenesRow {
+        items: root.scenes;
+        item-columns: root.item-columns;
+    }
+
+    RoomsGrid {
+        rooms: root.rooms;
+        item-columns: root.item-columns;
+    }
+
+    DeparturesWidget {
+        title: "Departures";
+        items: root.departures;
+    }
+}
+
+export component OverviewPage inherits Rectangle {
+    // 0 = compact (< 1024px), 1 = two-column (1024-1279px), 2 = three-column (>= 1280px).
+    in property <int> layout-mode: 0;
+    in property <bool> connected: false;
+    in property <string> connection-label: "";
+    in property <string> time: "--:--";
+    in property <string> date: "";
+    in property <string> hero-name: "";
+    in property <bool> hero-on: false;
+    in property <int> hero-brightness: 0;
+    in property <int> hero-color-temp: 0;
+    in property <[string]> scenes: [];
+    in property <[OverviewRoom]> rooms: [];
+    in property <[string]> departures: [];
+
+    background: Theme.bg;
+
+    property <bool> compact: layout-mode == 0;
+    property <bool> two-column: layout-mode == 1;
+    property <bool> three-column: layout-mode == 2;
+    property <length> page-gutter: max(Theme.space-6, (root.width - Theme.content-max-width) / 2);
+
+    VerticalLayout {
+        spacing: 0px;
+
+        overview-topbar := OverviewTopBar {
+            connection-label: root.connection-label;
+            connected: root.connected;
+            time: root.time;
+            date: root.date;
+            compact: root.compact;
         }
 
-        // Departures
-        DeparturesWidget { title: "Departures"; items: []; }
+        if root.compact : compact-layout := Rectangle {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                padding: Theme.space-3;
+                spacing: Theme.space-3;
+
+                HeroLight {
+                    height: Theme.hero-compact-height;
+                    name: root.hero-name;
+                    on: root.hero-on;
+                    brightness: root.hero-brightness;
+                    color-temp: root.hero-color-temp;
+                }
+
+                compact-scroll := ScrollView {
+                    vertical-stretch: 1;
+                    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                    vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+
+                    SecondaryContent {
+                        width: compact-scroll.visible-width;
+                        scenes: root.scenes;
+                        rooms: root.rooms;
+                        departures: root.departures;
+                        item-columns: 2;
+                    }
+                }
+            }
+        }
+
+        if root.two-column : two-column-layout := Rectangle {
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                padding-left: root.page-gutter;
+                padding-right: root.page-gutter;
+                padding-top: Theme.space-4;
+                padding-bottom: Theme.space-4;
+                spacing: Theme.space-4;
+
+                two-column-hero := HeroLight {
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
+                    min-width: 0px;
+                    name: root.hero-name;
+                    on: root.hero-on;
+                    brightness: root.hero-brightness;
+                    color-temp: root.hero-color-temp;
+                }
+
+                two-column-secondary := ScrollView {
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
+                    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                    vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+
+                    SecondaryContent {
+                        width: two-column-secondary.visible-width;
+                        scenes: root.scenes;
+                        rooms: root.rooms;
+                        departures: root.departures;
+                        item-columns: 2;
+                    }
+                }
+            }
+        }
+
+        if root.three-column : three-column-layout := Rectangle {
+            vertical-stretch: 1;
+
+            three-column-scroll := ScrollView {
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+
+                three-column-content := HorizontalLayout {
+                    width: three-column-scroll.visible-width;
+                    min-height: three-column-scroll.visible-height;
+                    padding-left: root.page-gutter;
+                    padding-right: root.page-gutter;
+                    padding-top: Theme.space-6;
+                    padding-bottom: Theme.space-6;
+                    spacing: Theme.space-4;
+
+                    three-column-hero := HeroLight {
+                        horizontal-stretch: 2;
+                        vertical-stretch: 1;
+                        min-width: 0px;
+                        name: root.hero-name;
+                        on: root.hero-on;
+                        brightness: root.hero-brightness;
+                        color-temp: root.hero-color-temp;
+                    }
+
+                    three-column-secondary := VerticalLayout {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        spacing: Theme.space-3;
+
+                        ScenesRow {
+                            items: root.scenes;
+                            item-columns: 2;
+                        }
+
+                        RoomsGrid {
+                            rooms: root.rooms;
+                            item-columns: 2;
+                        }
+                    }
+
+                    three-column-tertiary := DeparturesWidget {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        title: "Departures";
+                        items: root.departures;
+                    }
+                }
+            }
+        }
     }
 }

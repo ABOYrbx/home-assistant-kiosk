@@ -12,11 +12,12 @@ export component DeparturesWidget inherits Rectangle {
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-2;
-        Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
+        Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; overflow: elide; }
         for item in items : Text {
             text: item;
             color: Theme.fg-2;
             font-size: Theme.text-sm;
+            overflow: elide;
         }
     }
 }

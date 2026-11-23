@@ -20,7 +20,7 @@ export component HeroLight inherits Rectangle {
 
         HorizontalLayout {
             spacing: Theme.space-3;
-            Text { text: name; color: Theme.fg; font-size: Theme.text-lg; font-weight: 600; }
+            Text { text: name; color: Theme.fg; font-size: Theme.text-lg; font-weight: 600; overflow: elide; }
             Rectangle {
                 width: Theme.touch-target;
                 height: Theme.touch-target;
