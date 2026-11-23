@@ -106,7 +106,9 @@ refresh_seconds = 60
 [widgets.calendar]
 enabled = true
 entities = ["calendar.family"]
+# Number of days from today that the agenda covers; 2 renders today and tomorrow.
 days = 2
+# Refresh interval in seconds; 300 is the default, the minimum is 30.
 refresh_seconds = 300
 
 # ---------------------------------------------------------------------------

@@ -60,13 +60,33 @@ fn default_true_bool() -> bool {
     true
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalendarItem {
     pub calendar_id: EntityId,
     pub summary: String,
-    pub start: String,
-    pub end: String,
+    pub start: DateTime<Utc>,
+    #[serde(default)]
+    pub end: Option<DateTime<Utc>>,
     pub all_day: bool,
+    #[serde(default)]
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CalendarError {
+    pub calendar_id: EntityId,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CalendarView {
+    pub items: Vec<CalendarItem>,
+    #[serde(default)]
+    pub errors: Vec<CalendarError>,
+    #[serde(default)]
+    pub last_success: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub stale: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -87,7 +107,7 @@ pub struct AppState {
     pub weather: Option<WeatherView>,
     pub media: Option<MediaView>,
     pub departures: Option<DeparturesView>,
-    pub calendar: Vec<CalendarItem>,
+    pub calendar: Option<CalendarView>,
     pub stale: bool,
     pub last_success: Option<DateTime<Utc>>,
     pub pending: HashMap<u64, crate::events::PendingAction>,
@@ -103,7 +123,7 @@ impl Default for AppState {
             weather: None,
             media: None,
             departures: None,
-            calendar: Vec::new(),
+            calendar: None,
             stale: true,
             last_success: None,
             pending: HashMap::new(),
