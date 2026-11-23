@@ -4,6 +4,8 @@ The community catalog is a **separate, public GitHub repository**. The kiosk nev
 
 Proposed repository name: `home-assistant-kiosk-extensions` (provisional). The visibility must be public before community use; the private-key custody is an open decision (see `PLAN.md` section 12).
 
+See also: [Extension Author Guide](extensions.md) for the manifest, script API, output schema, configuration, packaging, and author checklist.
+
 ## Repository layout
 
 ```text
@@ -110,13 +112,21 @@ Verification rules:
 
 Key rotation: publish a new public key in the catalog repository and in a kiosk release/update first; sign the index with the new key; keep the old key in the config for a transition period; then remove it. A compromised key needs a revocation notice and a new release.
 
+### Signing key custody
+
+- Generate the Minisign key pair on an offline machine or hardware token; record the public key in the catalog README and in the kiosk configuration.
+- The private key never enters CI, the catalog repository, the kiosk repository, a pull request, an issue, or a log. Do not store it as a CI secret.
+- Keep one encrypted offline backup. A lost key is a rotation event, not a reason to reuse or weaken the old key.
+- Sign only an index whose package sources, checksums, and permissions a maintainer has reviewed.
+- If the private key is exposed, publish a revocation notice, rotate the key, and ship a kiosk configuration update.
+
 `allow_unsigned = true` exists only for local development. A production shop must reject unsigned catalogs and must show a persistent warning if the flag is on.
 
 ## Package format
 
 - Suffix: `.hkext`.
 - Format: gzipped tar (`tar -czf`).
-- Root: the extension directory.
+- Root: the archive contains `manifest.toml`, the entry script, `README.md`, and `LICENSE` at its root; no wrapping directory.
 - Required: `manifest.toml`, `entry` script, `README.md`, `LICENSE`.
 - Maximum compressed size: 5 MiB (configurable).
 - Maximum decompressed size: 20 MiB.
@@ -150,6 +160,22 @@ The catalog CI checks:
 - The example bus extension runs against a fixture in a sandbox test.
 - The index signature verifies with the public key.
 
+## Community review
+
+Every catalog pull request is reviewed by a maintainer before packaging and signing. The review covers:
+
+| Area | What is checked |
+| --- | --- |
+| License | An SPDX identifier is declared, the license text ships in the package, and redistribution is allowed. |
+| Permissions | `http_hosts` and `ha_entities` are minimal and match the script; no wildcard hosts, credentials, or unrelated entities. |
+| Secrets | No API keys, tokens, personal stop IDs, home addresses, or real provider URLs appear in the source, fixtures, README, or screenshots. |
+| Home Assistant access | `ha_state` reads only declared entities; the script never calls a service and never receives the HA token. |
+| UI | Output is data only: `departures`, `list`, or `key_value`. No native code, Slint files, HTML, images, or arbitrary UI. |
+| Tests | The extension has a test or a recorded test plan, and CI validates the schema, manifest, script, checksum, and fixture run. |
+| Removal | The README states how to disable or remove the extension, and the catalog entry can be withdrawn without breaking installed kiosks. |
+
+A reviewer may approve, request changes, or reject a submission. A maintainer never signs an index entry that has not passed review. Security removals follow the process below.
+
 ## Review checklist
 
 - [ ] Extension ID is reverse-DNS and version is semver.
@@ -157,8 +183,10 @@ The catalog CI checks:
 - [ ] Permissions are minimal (HTTP hosts and HA entities).
 - [ ] No Home Assistant service calls, filesystem, process, or environment access.
 - [ ] Output is `departures`, `list`, or `key_value` and within limits.
+- [ ] No native code, Slint files, HTML, images, or arbitrary UI.
 - [ ] No secrets, personal data, or real provider IDs in source, fixtures, or README.
 - [ ] Script handles API errors, missing fields, and empty lists.
+- [ ] Tests or a recorded test plan cover success, API error, and empty output.
 - [ ] Package checksum and size match.
 - [ ] README explains configuration and limitations.
 - [ ] Removal/deprecation plan is clear.

@@ -4,6 +4,8 @@ This guide describes the post-v1 community extensions for the Home Assistant Kio
 
 Extensions are untrusted third-party code. The signed catalog proves who published a package; it does not prove that the package is safe. Read the security rules before publishing.
 
+See also: [Extension Catalog Specification](extension-catalog.md) for the repository layout, index format, release flow, signing, and review process.
+
 ## What an extension can and cannot do
 
 An extension can:
@@ -33,7 +35,7 @@ org.example.bus-departures/
 └── LICENSE
 ```
 
-The package root is the extension directory. Paths must be relative; absolute paths, `..`, symlinks, hardlinks, and device files are rejected.
+The archive contains these files at its root; do not wrap them in an extra directory. Paths must be relative; absolute paths, `..`, symlinks, hardlinks, and device files are rejected.
 
 ## Manifest
 
@@ -154,6 +156,47 @@ fn refresh(config) {
 
 Output is data only. The built-in widgets decide fonts, colors, layout, and touch targets.
 
+## Output schema
+
+Every `refresh` result is a map. The host validates it against the manifest's `provides` value, rejects unknown fields and wrong types, and caps the item count at 100. A rejected result shows an error and keeps the last good data.
+
+`departures`:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `kind` | string | yes | Must be `"departures"`. |
+| `title` | string | no | Widget heading. |
+| `items` | array | yes | Up to 100 departure objects. |
+| `items[].line` | string | yes | Line or route label. |
+| `items[].destination` | string | yes | Destination label. |
+| `items[].departure` | string | yes | RFC 3339 timestamp; an offset is preferred. |
+| `items[].delay_minutes` | integer | no | Defaults to `0`. |
+| `items[].platform` | string or null | no | Omit or return `()`. |
+| `items[].cancelled` | boolean | no | Defaults to `false`. |
+| `items[].remarks` | string or null | no | Short status text. |
+
+`list`:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `kind` | string | yes | Must be `"list"`. |
+| `title` | string | no | Widget heading. |
+| `columns` | array of strings | yes | Header labels. |
+| `rows` | array of arrays | yes | Up to 100 rows; each row matches `columns` in length. |
+| `rows[]` | string, number, or boolean | yes | Cell values are rendered as text. |
+
+`key_value`:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `kind` | string | yes | Must be `"key_value"`. |
+| `title` | string | no | Widget heading. |
+| `items` | array | yes | Up to 100 entries. |
+| `items[].label` | string | yes | Field label. |
+| `items[].value` | string, number, or boolean | yes | Field value rendered as text. |
+
+The host does not render HTML, Markdown, images, or custom controls. Long strings are truncated by the widget, not by the script.
+
 ## Configuration and secrets
 
 Non-secret settings:
@@ -174,13 +217,16 @@ The secret file is mode `0600` and owned by the service user. The host injects o
 
 ## Packaging
 
-From the extension directory:
+From the parent directory:
 
 ```bash
 tar -czf org.example.bus-departures-1.0.0.hkext \
+  -C org.example.bus-departures \
   manifest.toml main.rhai README.md LICENSE
 sha256sum org.example.bus-departures-1.0.0.hkext
 ```
+
+The `-C` flag keeps `manifest.toml` at the archive root, as the catalog requires.
 
 The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub release asset or another stable HTTPS URL. Do not change a published package; publish a new version.
 
