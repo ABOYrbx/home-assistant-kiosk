@@ -366,6 +366,10 @@ pub struct Config {
     pub cache: CacheConfig,
     #[serde(default)]
     pub extensions: ExtensionsConfig,
+    /// Path the configuration was loaded from. Not part of the file schema; the
+    /// shop uses it to show where `[extensions.settings]` belongs.
+    #[serde(skip)]
+    pub source_path: Option<PathBuf>,
 }
 
 // DisplayConfig needs Default
@@ -385,6 +389,7 @@ impl Config {
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
         let raw = std::fs::read_to_string(path)?;
         let mut config: Config = toml::from_str(&raw)?;
+        config.source_path = Some(path.to_path_buf());
         // token resolution
         let token = resolve_token(&config.ha)?;
         config.ha.token = token;
@@ -614,6 +619,35 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
     ) {
         return Err(ConfigError::Validation(
             "widgets.weather.forecast_type must be daily or hourly".into(),
+        ));
+    }
+    validate_extensions(&config.extensions)?;
+    Ok(())
+}
+
+fn validate_extensions(ext: &ExtensionsConfig) -> Result<(), ConfigError> {
+    if !ext.enabled {
+        return Ok(());
+    }
+    let Some(url) = &ext.catalog_url else {
+        return Err(ConfigError::Validation(
+            "extensions.catalog_url is required when extensions are enabled".into(),
+        ));
+    };
+    if url.scheme() != "https" && !ext.dev_mode {
+        return Err(ConfigError::Validation(
+            "extensions.catalog_url must use https unless extensions.dev_mode is true".into(),
+        ));
+    }
+    if ext.allow_unsigned && !ext.dev_mode {
+        return Err(ConfigError::Validation(
+            "extensions.allow_unsigned requires extensions.dev_mode = true".into(),
+        ));
+    }
+    if ext.public_keys.is_empty() && !ext.allow_unsigned {
+        return Err(ConfigError::Validation(
+            "extensions.public_keys must not be empty unless extensions.allow_unsigned is true"
+                .into(),
         ));
     }
     Ok(())

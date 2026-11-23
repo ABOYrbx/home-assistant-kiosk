@@ -81,9 +81,25 @@ pub enum HaEvent {
     },
 }
 
+/// Results from the Wave 6 extension store and host.
+#[derive(Debug, Clone)]
+pub enum ShopEvent {
+    InstalledLoaded(Vec<crate::extensions::InstalledExtension>),
+    CatalogLoaded(Vec<crate::extensions::ShopEntry>),
+    CatalogOffline {
+        reason: String,
+    },
+    ActionResult {
+        id: String,
+        action: crate::extensions::ShopAction,
+        result: Result<(), String>,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub enum AppEvent {
     Ha(HaEvent),
+    Shop(ShopEvent),
     Weather(Result<crate::state::WeatherView, SourceError>),
     Media(Option<crate::state::MediaView>),
     Departures(Result<crate::state::DeparturesView, SourceError>),

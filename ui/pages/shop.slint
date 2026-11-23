@@ -1,0 +1,373 @@
+import { Theme } from "../theme.slint";
+
+export struct ShopEntryView {
+    id: string,
+    name: string,
+    version: string,
+    author: string,
+    license: string,
+    description: string,
+    status: string,
+    permissions: string,
+    config-keys: string,
+    config-path: string,
+    secret-path: string,
+    error: string,
+    installed: bool,
+    enabled: bool,
+    update-available: bool,
+    available: bool,
+}
+
+component ShopButton inherits Rectangle {
+    in property <string> label: "";
+    in property <bool> primary: false;
+    in property <bool> destructive: false;
+    callback clicked();
+
+    min-width: Theme.touch-target;
+    min-height: Theme.touch-target;
+    border-radius: Theme.radius-md;
+    background: primary ? Theme.accent : Theme.surface;
+    border-width: 1px;
+    border-color: destructive ? Theme.danger : Theme.border;
+
+    Text {
+        text: root.label;
+        color: primary ? Theme.accent-on : (destructive ? Theme.danger : Theme.fg);
+        font-size: Theme.text-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    states [
+        pressed when ta.pressed: {
+            background: Theme.border;
+        }
+    ]
+}
+
+component ShopEntryCard inherits Rectangle {
+    in property <ShopEntryView> entry;
+    callback install(string);
+    callback update(string);
+    callback remove(string);
+    callback set-enabled(string, bool);
+
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-2;
+
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Text {
+                text: entry.name;
+                color: Theme.fg;
+                font-size: Theme.text-base;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: "v" + entry.version;
+                color: Theme.muted;
+                font-size: Theme.text-sm;
+            }
+            Text {
+                text: entry.status;
+                color: entry.status == "Error" ? Theme.danger : (entry.status == "Disabled" ? Theme.warn : Theme.muted);
+                font-size: Theme.text-sm;
+                horizontal-alignment: right;
+            }
+        }
+
+        Text {
+            text: "by " + entry.author + " · " + entry.license;
+            color: Theme.fg-2;
+            font-size: Theme.text-sm;
+            overflow: elide;
+        }
+
+        Text {
+            text: entry.description;
+            color: Theme.fg-2;
+            font-size: Theme.text-sm;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: "Permissions: " + entry.permissions;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: "Configuration: " + entry.config-keys;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            wrap: word-wrap;
+        }
+
+        Text {
+            text: entry.config-path;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            overflow: elide;
+        }
+
+        Text {
+            text: entry.secret-path;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            overflow: elide;
+        }
+
+        if entry.error != "" : Text {
+            text: entry.error;
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            wrap: word-wrap;
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            alignment: start;
+
+            if entry.update-available : update-button := ShopButton {
+                label: "Update";
+                primary: true;
+                clicked => { root.update(entry.id); }
+            }
+
+            if entry.installed : toggle-button := ShopButton {
+                label: entry.enabled ? "Disable" : "Enable";
+                clicked => { root.set-enabled(entry.id, !entry.enabled); }
+            }
+
+            if entry.installed : remove-button := ShopButton {
+                label: "Remove";
+                destructive: true;
+                clicked => { root.remove(entry.id); }
+            }
+
+            if !entry.installed && entry.available : install-button := ShopButton {
+                label: "Install";
+                primary: true;
+                clicked => { root.install(entry.id); }
+            }
+        }
+    }
+}
+
+export component ShopPage inherits Rectangle {
+    background: Theme.bg;
+
+    in property <[ShopEntryView]> installed: [];
+    in property <[ShopEntryView]> available: [];
+    in property <bool> catalog-online: true;
+    in property <string> catalog-error: "";
+    in property <string> config-path: "";
+    in property <string> secret-dir: "";
+    in property <string> pending-id: "";
+    in-out property <string> confirm-id: "";
+    in-out property <string> confirm-name: "";
+    in-out property <string> confirm-permissions: "";
+    in property <string> confirm-warning: "Community extensions are third-party code. A signed catalog proves who published a package, not that it is safe. Only install extensions you trust, and review the permissions below.";
+
+    callback refresh();
+    callback install(string);
+    callback update(string);
+    callback remove(string);
+    callback set-enabled(string, bool);
+    callback confirm-install(string);
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
+
+        HorizontalLayout {
+            spacing: Theme.space-3;
+            Text {
+                text: "Extensions";
+                color: Theme.fg;
+                font-size: Theme.text-xl;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+            Text {
+                text: catalog-online ? "Catalog online" : "Catalog offline";
+                color: catalog-online ? Theme.success : Theme.warn;
+                font-size: Theme.text-sm;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            refresh-button := ShopButton {
+                label: "Refresh";
+                clicked => { root.refresh(); }
+            }
+        }
+
+        if !catalog-online : Rectangle {
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-md;
+            border-width: 1px;
+            border-color: Theme.border;
+            VerticalLayout {
+                padding: Theme.space-2;
+                spacing: Theme.space-1;
+                Text {
+                    text: "The catalog is offline. Installed extensions keep working; install and update are unavailable.";
+                    color: Theme.warn;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
+                if catalog-error != "" : Text {
+                    text: catalog-error;
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        if pending-id != "" : Text {
+            text: "Working on " + pending-id + "…";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        fl := Flickable {
+            content-height: content.preferred-height;
+            content := VerticalLayout {
+                width: fl.width;
+                spacing: Theme.space-3;
+
+                Text {
+                    text: "Installed";
+                    color: Theme.fg;
+                    font-size: Theme.text-lg;
+                    font-weight: 600;
+                }
+
+                if installed.length == 0 : Text {
+                    text: "No extensions installed. Choose one from the available list.";
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
+
+                for item in installed : ShopEntryCard {
+                    entry: item;
+                    install(id) => {
+                        root.confirm-id = id;
+                        root.confirm-name = item.name;
+                        root.confirm-permissions = item.permissions;
+                    }
+                    update(id) => { root.update(id); }
+                    remove(id) => { root.remove(id); }
+                    set-enabled(id, on) => { root.set-enabled(id, on); }
+                }
+
+                Text {
+                    text: "Available";
+                    color: Theme.fg;
+                    font-size: Theme.text-lg;
+                    font-weight: 600;
+                }
+
+                if available.length == 0 : Text {
+                    text: catalog-online ? "No extensions are available in the catalog." : "Install and update are unavailable while the catalog is offline.";
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
+
+                for item in available : ShopEntryCard {
+                    entry: item;
+                    install(id) => {
+                        root.confirm-id = id;
+                        root.confirm-name = item.name;
+                        root.confirm-permissions = item.permissions;
+                    }
+                    update(id) => { root.update(id); }
+                    remove(id) => { root.remove(id); }
+                    set-enabled(id, on) => { root.set-enabled(id, on); }
+                }
+
+                Text {
+                    text: "Settings file: " + config-path + "   Secrets: " + secret-dir;
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+
+    // First-install trust confirmation. Drawn last so it covers the list.
+    if confirm-id != "" : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        background: Theme.bg;
+
+        VerticalLayout {
+            padding: Theme.space-4;
+            spacing: Theme.space-3;
+
+            Text {
+                text: "Install " + confirm-name + "?";
+                color: Theme.fg;
+                font-size: Theme.text-xl;
+                font-weight: 600;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: confirm-warning;
+                color: Theme.fg-2;
+                font-size: Theme.text-sm;
+                wrap: word-wrap;
+            }
+
+            Text {
+                text: "Permissions: " + confirm-permissions;
+                color: Theme.muted;
+                font-size: Theme.text-sm;
+                wrap: word-wrap;
+            }
+
+            Rectangle { vertical-stretch: 1; }
+
+            HorizontalLayout {
+                spacing: Theme.space-2;
+                alignment: end;
+
+                cancel-button := ShopButton {
+                    label: "Cancel";
+                    clicked => { root.confirm-id = ""; }
+                }
+
+                confirm-button := ShopButton {
+                    label: "Install";
+                    primary: true;
+                    clicked => {
+                        let id = root.confirm-id;
+                        root.confirm-id = "";
+                        root.confirm-install(id);
+                    }
+                }
+            }
+        }
+    }
+}

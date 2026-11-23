@@ -2,9 +2,41 @@ import { Theme } from "../theme.slint";
 
 export component StatusPage inherits Rectangle {
     background: Theme.bg;
-    Text {
-        text: "Status";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    in property <[string]> extension-errors: [];
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
+
+        Text {
+            text: "Status";
+            color: Theme.fg;
+            font-size: Theme.text-xl;
+        }
+
+        if extension-errors.length > 0 : Rectangle {
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-md;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            VerticalLayout {
+                padding: Theme.space-3;
+                spacing: Theme.space-1;
+                Text {
+                    text: "Extension errors";
+                    color: Theme.fg;
+                    font-size: Theme.text-base;
+                    font-weight: 600;
+                }
+                for message in extension-errors : Text {
+                    text: message;
+                    color: Theme.danger;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
+            }
+        }
     }
 }

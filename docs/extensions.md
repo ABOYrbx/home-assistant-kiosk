@@ -21,6 +21,20 @@ An extension cannot:
 - Draw arbitrary UI or open windows.
 - Read the kiosk configuration or another extension's settings.
 
+## Shop page
+
+The Shop is a fifth page. It appears only when `extensions.enabled = true`; with the default configuration the kiosk keeps four pages.
+
+- **Installed** lists extensions recorded in `installed.json`, including ones that are no longer in the catalog.
+- **Available** lists catalog entries that are not installed. Each card shows the name, version, author, license, description, status, declared permissions, configuration keys, and the exact settings and secret file paths.
+- **Actions:** Install, Update, Remove, and Enable/Disable. Install opens a first-install trust confirmation that repeats the warning and permissions; nothing is installed until the user confirms. Update is offered only when the catalog version differs from the installed version.
+- **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success.
+- **Offline:** installed extensions stay usable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
+- **Errors** are also collected on the Status page.
+- **No on-screen keyboard:** the page shows the configuration keys and the exact TOML and secret file paths. Edit those files directly.
+
+The shop view model is implemented; the signed catalog fetch, package store, and Rhai host are separate Wave 6 tasks. Until the store is wired, actions report that the extension store is unavailable rather than pretending to install.
+
 ## Package layout
 
 An extension package is a gzipped tar archive with the suffix `.hkext`:
