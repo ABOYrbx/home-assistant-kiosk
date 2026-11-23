@@ -64,6 +64,7 @@ CONTRIBUTING.md                 contribution workflow and PR rules
 CODE_OF_CONDUCT.md              community conduct
 SECURITY.md                     vulnerability reporting
 README.md                       this overview
+herdr.sh                        interactive Herdr agent dispatcher
 DESIGN.md                       adopted design system (authoritative)
 tokens.css                      colours, type, spacing, motion tokens
 index.html                      Vite design reference prototype
@@ -104,25 +105,21 @@ Waves 0–5 are the v1 release; Wave 6 is post-v1. Each wave issue is an epic; e
 
 ## Agent dispatch (Herdr)
 
-For up to four issues in a new Herdr workspace:
+`./herdr.sh` is the single entry point. It selects 1–4 open subtask issues, creates a new Herdr workspace, starts one agent per issue, and opens one PR per issue. It never merges.
 
 ```bash
-scripts/herdr-issue-team.sh
+# Interactive: pick up to four issues
+./herdr.sh
+
+# Preselected issues
+./herdr.sh --issues 11,12 --model opencode-go/deepseek-v4.1-flash
+
+# Preview only
+./herdr.sh --list
+./herdr.sh --issues 11 --model opencode-go/deepseek-v4.1-flash --dry-run
 ```
 
-For one subtask issue:
-
-```bash
-scripts/herdr-issue-agent-interactive.sh
-```
-
-Or non-interactively:
-
-```bash
-scripts/herdr-issue-agent.sh --issue 11 --model opencode-go/deepseek-v4.1-flash
-```
-
-The launcher creates worktrees/branches, starts the agents in Herdr, waits for them, runs the gates, and opens a PR per issue. It never merges. See [`docs/herdr-agent.md`](docs/herdr-agent.md).
+Each agent gets its own worktree, branch, tab titled with the issue, and PR. See [`docs/herdr-agent.md`](docs/herdr-agent.md) and the prompt template [`docs/agent-prompts/implement-issue.md`](docs/agent-prompts/implement-issue.md).
 
 ## Development
 

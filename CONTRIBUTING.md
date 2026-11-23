@@ -82,13 +82,14 @@ One logical change per commit. Do not commit generated build output, secrets, lo
 
 ## Herdr dispatch
 
-If you use Herdr, launch one subtask issue with a specified model:
+`./herdr.sh` selects 1–4 open subtask issues, creates a new Herdr workspace, starts one agent per issue, and opens one PR per issue. It never merges.
 
 ```bash
-scripts/herdr-issue-agent.sh --issue 11 --model opencode-go/deepseek-v4.1-flash
+./herdr.sh
+./herdr.sh --issues 11,12 --model opencode-go/deepseek-v4.1-flash
 ```
 
-The launcher creates the worktree/tab, starts the agent, runs the gates, and opens a PR. It never merges. Read [`docs/herdr-agent.md`](docs/herdr-agent.md) first.
+Read [`docs/herdr-agent.md`](docs/herdr-agent.md) first.
 
 ## Security
 

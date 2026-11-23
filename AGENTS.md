@@ -76,6 +76,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 ├── PLAN.md                      # implementation plan and source of truth
 ├── README.md                    # operator-facing overview
 ├── SECURITY.md
+├── herdr.sh                     # interactive Herdr agent dispatcher
 ├── DESIGN.md                    # adopted design system (authoritative)
 ├── tokens.css                   # design tokens
 ├── index.html                   # Vite design reference prototype
@@ -236,11 +237,11 @@ cross build --release --target x86_64-unknown-linux-gnu \
 
 ### Herdr dispatch
 
-- Use `scripts/herdr-issue-team.sh` for up to four issues in a new Herdr workspace, `scripts/herdr-issue-agent-interactive.sh` for one issue, or `scripts/herdr-issue-agent.sh` for flags.
+- Use `./herdr.sh` inside a Herdr pane. It selects 1–4 issues, creates a new workspace, and launches one agent per issue.
 - One subtask issue per worktree and branch; each agent gets its own tab titled with the issue and its own PR.
-- The launcher creates the worktrees/tabs, starts the agents, runs gates, and opens PRs. The agents must not push or merge.
+- The script creates the worktrees/tabs, starts the agents, runs gates, and opens PRs. The agents must not push or merge.
 - Review every PR before merging; no script merges.
-- If an agent is blocked, answer it in Herdr; do not let the launcher guess.
+- If an agent is blocked, answer it in Herdr; do not let the script guess.
 - The implementation prompt lives in [`docs/agent-prompts/implement-issue.md`](docs/agent-prompts/implement-issue.md); update the template, not inline shell text.
 - See [`docs/herdr-agent.md`](docs/herdr-agent.md).
 

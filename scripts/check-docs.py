@@ -43,10 +43,7 @@ REQUIRED_FILES = [
     "docs/plan-review.md",
     "scripts/apply-github-settings.sh",
     "scripts/create-subtask-issues.py",
-    "scripts/herdr-issue-agent.sh",
-    "scripts/herdr-issue-agent-interactive.sh",
-    "scripts/herdr-issue-team.sh",
-    "scripts/list-open-issues.py",
+    "herdr.sh",
 ]
 
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]

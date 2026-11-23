@@ -1,6 +1,6 @@
 # Implementation Prompt Template
 
-This template is rendered by `scripts/herdr-issue-agent.sh`. It is intentionally strict: one issue, one worktree, one reviewable branch.
+This template is rendered by `./herdr.sh`. It is intentionally strict: one issue, one worktree, one reviewable branch.
 
 ---
 
