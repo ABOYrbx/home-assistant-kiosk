@@ -18,10 +18,15 @@ REQUIRED_FILES = [
     "AGENTS.md",
     "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
+    "DESIGN.md",
     "PLAN.md",
     "README.md",
     "SECURITY.md",
     "config.example.toml",
+    "tokens.css",
+    "styles.css",
+    "index.html",
+    "package.json",
     ".github/CODEOWNERS",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
@@ -125,6 +130,13 @@ def check_content() -> None:
     readme = read(ROOT / "README.md")
     if "Repository rules" not in readme:
         errors.append("README.md is missing the repository rules section")
+    design = read(ROOT / "DESIGN.md")
+    if "Status: adopted" not in design:
+        errors.append("DESIGN.md is missing its adopted status")
+    tokens = read(ROOT / "tokens.css")
+    for needle in ("--touch-target", "--muted", "--success", "--warn"):
+        if needle not in tokens:
+            errors.append(f"tokens.css is missing: {needle}")
     for wave in REQUIRED_WAVES:
         text = read(ROOT / wave)
         if "Acceptance gate" not in text:

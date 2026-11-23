@@ -10,11 +10,18 @@ A small, native Home Assistant dashboard for wall-mounted touchscreens and singl
 
 A browser-based dashboard is convenient but expensive on a Pi Zero 2 W: a browser, a compositor, and a frontend bundle consume most of the available memory. This project uses one native process, one Home Assistant WebSocket connection, and a software renderer. It keeps the last known state on disk so the display survives a network or Home Assistant outage.
 
+## Design
+
+The visual design is adopted, not a placeholder. [`DESIGN.md`](DESIGN.md) and [`tokens.css`](tokens.css) are the authoritative design system; [`index.html`](index.html) and [`styles.css`](styles.css) are the Vite reference prototype. The production kiosk is Slint, not a browser.
+
+The Overview follows the prototype: top bar, hero light with brightness/colour temperature, scenes/quick actions, and a configurable rooms/tile group. The layout must also work at 800 × 480 and 1024 × 600. Energy and Schedule are post-v1. The prototype's mock values are not production data.
+
 ## Planned v1 features
 
 - Clock and date.
 - Weather and a short forecast from a Home Assistant `weather` entity.
 - A configurable grid of Home Assistant tiles.
+- An Overview with hero light controls (toggle, brightness, colour temperature), scenes/quick actions, and a configurable rooms/tile group.
 - Now-playing card for a Home Assistant `media_player`.
 - Departures from a provider-neutral Home Assistant sensor contract.
 - Calendar agenda from Home Assistant calendars.
@@ -57,6 +64,12 @@ CONTRIBUTING.md                 contribution workflow and PR rules
 CODE_OF_CONDUCT.md              community conduct
 SECURITY.md                     vulnerability reporting
 README.md                       this overview
+DESIGN.md                       adopted design system (authoritative)
+tokens.css                      colours, type, spacing, motion tokens
+index.html                      Vite design reference prototype
+styles.css                      prototype layout and components
+package.json                    prototype only (Vite), not the kiosk runtime
+package-lock.json
 docs/
 ├── plan-review.md              fact-check findings and corrections
 ├── departures-entity-contract.md
@@ -117,6 +130,13 @@ Documentation checks run without a Rust toolchain:
 
 ```bash
 python3 scripts/check-docs.py
+```
+
+The design reference prototype is a Vite app; `node_modules/` and its build output are ignored:
+
+```bash
+npm install
+npm run dev
 ```
 
 ## Configuration

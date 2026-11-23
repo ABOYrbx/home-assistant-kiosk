@@ -32,5 +32,6 @@ $ python3 scripts/check-docs.py
 - [ ] Documentation and `config.example.toml` match the behavior.
 - [ ] New behavior has a test or a recorded manual test.
 - [ ] Error, offline, empty, and unavailable states are handled where relevant.
+- [ ] For UI changes: design tokens only, 44 px targets, AA contrast, and 800 × 480 / 1024 × 600 / 1280+ checked; screenshots attached.
 - [ ] The push was made with the `ABOYrbx` account.
 - [ ] I did not force-push or bypass a failing check.

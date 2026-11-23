@@ -10,7 +10,7 @@
 
 **Spec:** This file is the source of truth. The fact-check and change log is in [`docs/plan-review.md`](docs/plan-review.md). The generic departures entity contract is in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Repository rules for agents are in [`AGENTS.md`](AGENTS.md).
 
-**Status:** Planning complete; no application code yet. Revision 3, 2026-11-22 (second full review).
+**Status:** Planning complete; no application code yet. Revision 5, 2026-11-23 (design template adopted).
 
 ---
 
@@ -21,6 +21,7 @@
 - Clock and date, updated once per second.
 - Current weather and a short forecast from a Home Assistant `weather` entity.
 - A configurable grid of Home Assistant tiles (switch, light, climate, cover, scene, script, and read-only sensors).
+- An Overview based on the adopted minimal design: hero light with brightness and colour temperature, scenes/quick actions, and a configurable rooms/tile group.
 - Now-playing card for a Home Assistant `media_player`: title, artist, album art, play/pause, previous/next, volume.
 - Departures list from a documented, provider-neutral Home Assistant entity contract.
 - Calendar events from one or more Home Assistant `calendar` entities.
@@ -81,6 +82,7 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
 | 19 | Extensions | Signed catalog + sandboxed Rhai data scripts + declarative widgets | Bus departures and custom lists without native code or arbitrary UI on a 512 MB device. |
 | 20 | Catalog trust | Separate public GitHub repository; Minisign-signed index; SHA-256 packages | Provenance without a private signing key in CI or the kiosk repo. |
 | 21 | Shop page | Wave 6 adds a fifth page only when extensions are enabled; v1 remains four pages | Keeps the v1 release gate unchanged. |
+| 22 | Design system | Adopt `DESIGN.md` + `tokens.css` and the Overview prototype as the visual reference; production UI is Slint | The owner chose the existing minimal prototype; it replaces the placeholder theme. |
 
 ---
 
@@ -97,6 +99,7 @@ Cross-compiled binaries are built against a glibc 2.35 sysroot (Slint's cross im
 - **Assets:** Bundle a font or declare the system font package as a runtime dependency (`fonts-dejavu-core` on Debian). Use an icon set with a documented, compatible license and record the attribution in `README.md`. No runtime icon downloads.
 - **No personal data:** Examples use placeholders such as `light.example`, `weather.home`, `calendar.family`, and `sensor.departures`. Do not add a real address, stop ID, token, internal hostname, or person’s name to the repository.
 - **Timeouts:** Every network operation has a timeout. WebSocket reconnect uses exponential backoff with jitter, capped at 60 seconds.
+- **Design:** `DESIGN.md` and `tokens.css` are authoritative. Use tokens for colour, type, space, radius, and motion; no hardcoded values. The Vite prototype is a reference, not production UI. Check 800 × 480, 1024 × 600, and 1280+.
 - **Touch:** Interactive elements are at least 44 × 44 logical pixels. Text must remain readable at 800 × 480 and at 1024 × 600.
 - **Builds:** `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test` must pass before a wave is accepted.
 - **License:** Slint is available under GPL-3.0-only, a royalty-free license that excludes embedded systems, or a commercial license. Do not add a project license or distribute binaries until the license choice is recorded. See section 12.
@@ -162,7 +165,7 @@ Supported tile actions in v1:
 | Domain | Tap action | Notes |
 | --- | --- | --- |
 | `switch`, `input_boolean` | `homeassistant.toggle` | Show current state. |
-| `light` | `light.toggle` | Optional brightness later; v1 toggles only. |
+| `light` | `light.toggle`; hero uses `light.turn_on` with `brightness_pct` and `color_temp_kelvin` | Configured light only; sliders debounced; no colour wheel in v1. |
 | `scene`, `script` | `scene.turn_on`, `script.turn_on` | Momentary action; no state toggle. |
 | `cover` | `cover.open_cover` / `cover.close_cover` | Choose by current state. |
 | `climate` | Read-only in v1 | Temperature display; setpoint control is a later feature. |
@@ -249,6 +252,20 @@ Alternatives considered:
 
 **Companion repository:** `home-assistant-kiosk-extensions` (name provisional, separate from this repo). It contains the catalog schema, extension sources, release packaging, validation CI, and the offline signing instructions. It must be public for community use; the visibility decision is recorded in section 12.
 
+### 4.7 Design system and Overview (adopted)
+
+The kiosk uses the minimal design system in [`DESIGN.md`](DESIGN.md) and [`tokens.css`](tokens.css). The Vite prototype in [`index.html`](index.html) and [`styles.css`](styles.css) is the visual reference; the production UI is Slint. Adopted on 2026-11-23.
+
+- The visual language is authoritative: white/warm surfaces, near-black accent, Inter/system sans, thin borders, generous whitespace, one warm light glow.
+- The **Overview** page follows the prototype: top bar (brand, connection, clock/date), hero light card with toggle + brightness + colour temperature, scenes/quick actions, and a configurable rooms/tile group.
+- **Media, Agenda, and Status** remain separate pages and use the same tokens and components.
+- **Energy** and **Schedule** cards are post-v1; they need data sources that are not part of the v1 gate.
+- Breakpoints: compact 800 × 480, two-column 1024 × 600, three-column 1280+; no horizontal page scroll; tap targets at least 44 × 44 px.
+- The prototype's mock values are not production data. Rooms, scenes, lights, and metrics must come from Home Assistant or configuration; never hardcode them.
+- Accessibility: AA contrast, visible focus, labelled controls, five data states (Loading, Empty, Error, Populated, Edge), reduced-motion equivalent.
+- Slint adaptation: port tokens to `ui/theme.slint`; use flat colours and simple gradients instead of CSS `color-mix`/blur; bundle Inter with its OFL licence or use the system sans fallback; simplify the lamp glow for the software renderer.
+- The prototype and the Slint port must be kept in sync. A design change updates `DESIGN.md`, `tokens.css`, the prototype, and the Slint implementation in one change.
+
 ---
 
 ## 5. Configuration
@@ -282,6 +299,12 @@ home-assistant-kiosk/
 ├── AGENTS.md
 ├── PLAN.md
 ├── README.md
+├── DESIGN.md                    # adopted visual design system (authoritative)
+├── tokens.css                  # colour, type, space, motion tokens
+├── index.html                  # Vite design reference prototype
+├── styles.css                  # prototype layout and components
+├── package.json                # prototype only (Vite); not the kiosk runtime
+├── package-lock.json
 ├── Cargo.toml
 ├── Cargo.lock
 ├── Cross.toml
@@ -295,7 +318,9 @@ home-assistant-kiosk/
 │   ├── extensions.md      # Wave 6 author guide
 │   ├── extension-catalog.md # Wave 6 catalog/signing spec
 │   └── issues/
-│       ├── wave-0.md … wave-6.md
+│       ├── index.md       # subtask issue map
+│       ├── subtasks.json
+│       └── wave-0.md … wave-6.md
 ├── src/
 │   ├── main.rs            # entry point, CLI, runtime, Slint bootstrap
 │   ├── lib.rs             # public modules for tests
@@ -716,7 +741,7 @@ Each wave is an **epic**. Every checkbox below is a separate GitHub issue, inclu
 
 ### Wave 3 — Feature widgets
 
-**Dependencies:** Waves 1 and 2. **Agents:** 5, parallel, one widget owner each.
+**Dependencies:** Waves 1 and 2. **Agents:** 5, parallel, one widget owner each; task 3.6 runs after the widgets land.
 
 #### 3.1 Clock and weather
 
@@ -767,7 +792,20 @@ Each wave is an **epic**. Every checkbox below is a separate GitHub issue, inclu
 - [ ] Tests with fixtures for multiple calendars, all-day events, and one failing calendar.
 - [ ] Commit: `feat: calendar agenda widget`.
 
-**Wave 3 gate:** All widgets render with fixtures in the desktop build; each widget has unit tests; no widget requires a live network or a specific provider.
+#### 3.6 Adopted design port (Overview)
+
+The design system is adopted. This task ports the reference prototype to Slint and extends the light tile with the hero controls.
+
+- [ ] Port `DESIGN.md` and `tokens.css` to `ui/theme.slint`; no hardcoded colours, spacing, or type sizes in components.
+- [ ] Build the Overview top bar and hero light card: toggle, brightness, colour temperature, using `light.turn_on` with `brightness_pct`/`color_temp_kelvin` and debounced sliders.
+- [ ] Implement scenes/quick actions and a configurable rooms/tile group from Home Assistant entities; never hardcode room, scene, or light names.
+- [ ] Add compact layouts for 800 × 480 and 1024 × 600 plus the three-column 1280+ layout; no page-level horizontal scroll; secondary content uses paging or one contained scroll region.
+- [ ] Fix the known design defects: 44 px switch hit area, AA contrast tokens, Inter bundle/fallback, and a software-renderer-friendly glow without CSS blur.
+- [ ] Verify the five data states (Loading, Empty, Error, Populated, Edge) and capture screenshots at 800 × 480, 1024 × 600, 1280, 1440, and 2048.
+- [ ] Keep Energy and Schedule post-v1; do not ship the prototype's mock metrics as production data.
+- [ ] Commit: `feat: port adopted design to Slint Overview`.
+
+**Wave 3 gate:** All widgets render with fixtures in the desktop build; each widget has unit tests; no widget requires a live network or a specific provider. The Overview matches the adopted tokens and passes the 800 × 480, 1024 × 600, and 1280+ layout checks.
 
 ---
 
@@ -913,6 +951,7 @@ Each wave is an **epic**. Every checkbox below is a separate GitHub issue, inclu
 | Media parser, disabled controls, volume debounce, same-origin token | fixture/unit tests | 3 |
 | Departures contract, timezone, malformed data | fixture/unit tests | 3 |
 | Calendar merge, timezone, all-day events, partial failures | fixture/unit tests | 3 |
+| Adopted design tokens, hero controls, breakpoints, contrast | token test + screenshots at 800×480, 1024×600, 1280+ | 3 |
 | Offline and reconnect behaviour | end-to-end mock server | 5 |
 | Dependency vulnerabilities | `cargo audit` in CI | 5 |
 | RSS, startup, idle CPU, 24 h soak | Pi test record | 5 |
@@ -936,6 +975,7 @@ These are the failure modes most likely to hurt a real user and are not fully co
 6. **Secret handling.** Token in logs, token in a crash message, world-readable config, token sent to a third-party image host, or token in a screenshot are all release blockers.
 7. **Timezone correctness.** A kiosk in a different timezone from Home Assistant must still show calendar and departure times correctly; naive timestamps use the `get_config` timezone.
 8. **Extension trust boundary.** A signed catalog proves provenance, not safety. A community script must not reach a host or entity outside its declared permissions, must not call HA services, and must not exhaust memory or CPU on a Pi.
+9. **Design fidelity vs Pi performance.** The adopted prototype is a browser reference. The Slint port must keep the hierarchy and tokens while dropping blur-heavy effects and fitting 800 × 480.
 
 Each focus item has an owning task above; the end-to-end tests in Wave 5 pin items 1, 2, and 5, and the Pi test record pins items 3 and 4. Timezone and image-token tests live with the widget and WebSocket tasks; the extension tests live in Wave 6.
 
@@ -949,6 +989,7 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 | Cross-compiled glibc mismatch | Binary fails on Bullseye | Require Bookworm for cross-built binaries; document native builds. |
 | Cross images change or disappear | Build breaks | Pin image digests; keep a native-build fallback. |
 | Pi Zero 2 W CPU too slow for smooth swipes | Poor UX | No continuous animations; coalesce redraws; test with a 800×480 panel. |
+| Web prototype does not fit the Pi display or software renderer | Design looks wrong or runs slowly | Compact 800×480 layout, no CSS blur/color-mix, simplified glow, screenshot checks at every breakpoint. |
 | Home Assistant instance has hundreds of entities | Memory and traffic blow up | Subscribe only to configured entity IDs; never cache the full state set. |
 | Home Assistant behind a path-prefixed reverse proxy | WebSocket URL built at the root fails | Derive `<prefix>/api/websocket` from `ha.url`; test a path-prefixed URL. |
 | Kiosk timezone differs from Home Assistant | Calendar/departure times are wrong | Use `get_config.time_zone` for naive timestamps; convert for display. |
@@ -981,9 +1022,10 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 
 These are deliberately outside the v1 gate. They are recorded so the architecture keeps a place for them, not as commitments.
 
-- **Richer tile controls:** light brightness/color temperature, cover position, climate setpoint and mode, fan speed.
+- **Richer tile controls:** cover position, climate setpoint and mode, fan speed, and a light colour wheel beyond the v1 brightness/colour-temperature controls.
+- **Energy and Schedule cards:** from the adopted prototype; needs energy/automation data sources and is not part of the v1 gate.
 - **Protocol optimization:** use Home Assistant's `coalesce_messages` supported feature when available to reduce per-message overhead on a Pi; measure before enabling.
-- **Visual design pass:** final typography, iconography, tile density, and dark/light polish beyond the functional placeholder theme.
+- **Design polish:** final typography, iconography, tile density, and dark/light polish after the Slint port of the adopted design.
 - **Camera and image widgets:** a snapshot or stream tile, with a strict memory and network budget.
 - **Auto page rotation:** cycle pages after a configurable idle interval; useful for a wall display.
 - **Idle screen and burn-in protection:** dim or blank after inactivity, with a tap to wake; optional presence-based wake and scheduled night dimming via Home Assistant.

@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>home-assistant-kiosk — Lamp</title>
+    <link rel="stylesheet" href="./tokens.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="kiosk">
+      <h1 class="sr-only">Lamp dashboard</h1>
+
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true"></span>
+          <span class="brand__name">Home</span>
+        </div>
+        <div class="topbar__meta">
+          <span class="status-pill">
+            <span class="status-pill__dot" aria-hidden="true"></span>
+            Connected
+          </span>
+          <div class="clockblock">
+            <time class="clock" datetime="2026-11-23T14:32">14:32</time>
+            <span class="date">Mon 23 Nov</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="dashboard" aria-label="Lamp dashboard">
+        <!-- Hero: lamp control -->
+        <section class="widget widget--hero" aria-labelledby="lamp-title">
+          <header class="widget__head">
+            <div>
+              <p class="eyebrow">Light</p>
+              <h2 class="widget__title" id="lamp-title">Living room</h2>
+            </div>
+            <label class="switch" aria-label="Toggle lamp">
+              <input type="checkbox" class="switch__input" checked />
+              <span class="switch__track"></span>
+            </label>
+          </header>
+
+          <div class="lamp">
+            <span class="lamp__glow" aria-hidden="true"></span>
+            <div class="orb" style="--level: 72">
+              <div class="orb__inner">
+                <p class="orb__readout">
+                  <span class="orb__value" data-bind="brightness">72</span
+                  ><span class="orb__unit">%</span>
+                </p>
+                <span class="orb__caption">Brightness</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="control__row">
+              <label class="control__label" for="brightness">Brightness</label>
+              <output class="control__value" for="brightness" id="brightness-out">72%</output>
+            </div>
+            <input
+              id="brightness"
+              class="slider slider--fill"
+              type="range"
+              min="0"
+              max="100"
+              value="72"
+              aria-label="Brightness"
+            />
+            <div class="slider__ends" aria-hidden="true">
+              <span>0</span>
+              <span>100</span>
+            </div>
+          </div>
+
+          <div class="control">
+            <div class="control__row">
+              <label class="control__label" for="cct">Color temperature</label>
+              <output class="control__value" for="cct" id="cct-out">3200 K</output>
+            </div>
+            <input
+              id="cct"
+              class="slider slider--spectrum"
+              type="range"
+              min="2700"
+              max="6500"
+              step="100"
+              value="3200"
+              aria-label="Color temperature"
+            />
+            <div class="slider__ends" aria-hidden="true">
+              <span>Warm</span>
+              <span>Cool</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Scenes -->
+        <section class="widget widget--scenes" aria-labelledby="scenes-title">
+          <header class="widget__head">
+            <p class="eyebrow">Presets</p>
+            <h2 class="widget__title" id="scenes-title">Scenes</h2>
+          </header>
+          <ul class="scenelist">
+            <li>
+              <button class="scene-row" type="button" aria-pressed="false">
+                <span class="swatch swatch--relax" aria-hidden="true"></span>
+                <span class="scene-row__text">
+                  <span class="scene-row__name">Relax</span>
+                  <span class="scene-row__meta">2700 K · 40%</span>
+                </span>
+                <span class="scene-row__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button class="scene-row" type="button" aria-pressed="true">
+                <span class="swatch swatch--read" aria-hidden="true"></span>
+                <span class="scene-row__text">
+                  <span class="scene-row__name">Read</span>
+                  <span class="scene-row__meta">3200 K · 72%</span>
+                </span>
+                <span class="scene-row__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button class="scene-row" type="button" aria-pressed="false">
+                <span class="swatch swatch--focus" aria-hidden="true"></span>
+                <span class="scene-row__text">
+                  <span class="scene-row__name">Focus</span>
+                  <span class="scene-row__meta">5000 K · 100%</span>
+                </span>
+                <span class="scene-row__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+              </button>
+            </li>
+            <li>
+              <button class="scene-row" type="button" aria-pressed="false">
+                <span class="swatch swatch--night" aria-hidden="true"></span>
+                <span class="scene-row__text">
+                  <span class="scene-row__name">Night</span>
+                  <span class="scene-row__meta">2200 K · 12%</span>
+                </span>
+                <span class="scene-row__check" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
+              </button>
+            </li>
+          </ul>
+          <p class="widget__foot">Tap a scene to apply it instantly.</p>
+        </section>
+
+        <!-- Rooms -->
+        <section class="widget widget--rooms" aria-labelledby="rooms-title">
+          <header class="widget__head">
+            <p class="eyebrow">All lights</p>
+            <h2 class="widget__title" id="rooms-title">Rooms</h2>
+          </header>
+          <ul class="rooms">
+            <li class="room">
+              <span class="room__name">Living room</span>
+              <span class="room__state room__state--on"><span class="room__dot" aria-hidden="true"></span>On</span>
+            </li>
+            <li class="room">
+              <span class="room__name">Kitchen</span>
+              <span class="room__state">Off</span>
+            </li>
+            <li class="room">
+              <span class="room__name">Bedroom</span>
+              <span class="room__state room__state--on"><span class="room__dot" aria-hidden="true"></span>On</span>
+            </li>
+            <li class="room">
+              <span class="room__name">Hallway</span>
+              <span class="room__state">Off</span>
+            </li>
+            <li class="room room--muted">
+              <span class="room__name">Garden</span>
+              <span class="room__state room__state--warn">Unavailable</span>
+            </li>
+          </ul>
+          <p class="widget__foot">2 of 5 lights on</p>
+        </section>
+
+        <!-- Quick actions -->
+        <section class="widget widget--quick" aria-labelledby="quick-title">
+          <header class="widget__head">
+            <div>
+              <p class="eyebrow">Controls</p>
+              <h2 class="widget__title" id="quick-title">Quick actions</h2>
+            </div>
+          </header>
+          <div class="actions">
+            <button class="action" type="button">
+              <span class="action__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64A9 9 0 1 1 5.64 6.64" /><line x1="12" y1="2" x2="12" y2="12" /></svg>
+              </span>
+              <span>All lights off</span>
+            </button>
+            <button class="action" type="button">
+              <span class="action__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+              </span>
+              <span>Night mode</span>
+            </button>
+            <button class="action" type="button">
+              <span class="action__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+              </span>
+              <span>Away</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Energy -->
+        <section class="widget widget--energy" aria-labelledby="energy-title">
+          <header class="widget__head">
+            <p class="eyebrow">Lighting</p>
+            <h2 class="widget__title" id="energy-title">Today</h2>
+          </header>
+          <p class="stat__value">4.2<span class="stat__unit"> kWh</span></p>
+          <div class="bars" aria-label="Energy for the last seven days" role="img">
+            <span class="bar" style="--h: 38%"></span>
+            <span class="bar" style="--h: 54%"></span>
+            <span class="bar" style="--h: 46%"></span>
+            <span class="bar" style="--h: 72%"></span>
+            <span class="bar" style="--h: 61%"></span>
+            <span class="bar" style="--h: 88%"></span>
+            <span class="bar bar--now" style="--h: 100%"></span>
+          </div>
+          <p class="stat__delta">12% less than yesterday</p>
+        </section>
+
+        <!-- Schedule -->
+        <section class="widget widget--schedule" aria-labelledby="sched-title">
+          <header class="widget__head">
+            <div>
+              <p class="eyebrow">Automation</p>
+              <h2 class="widget__title" id="sched-title">Schedule</h2>
+            </div>
+          </header>
+          <ol class="timeline">
+            <li class="timeline__item">
+              <time class="timeline__time">18:30</time>
+              <span class="timeline__label">Sunset scene</span>
+            </li>
+            <li class="timeline__item">
+              <time class="timeline__time">22:00</time>
+              <span class="timeline__label">Night mode</span>
+            </li>
+            <li class="timeline__item">
+              <time class="timeline__time">07:00</time>
+              <span class="timeline__label">Morning wake</span>
+            </li>
+          </ol>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        var b = document.getElementById('brightness');
+        var c = document.getElementById('cct');
+        var bo = document.getElementById('brightness-out');
+        var co = document.getElementById('cct-out');
+        var orb = document.querySelector('.orb');
+        var orbValue = document.querySelector('.orb__value');
+
+        function fill(el, val) {
+          var min = Number(el.min);
+          var max = Number(el.max);
+          var pct = ((val - min) / (max - min)) * 100;
+          el.style.setProperty('--fill', pct + '%');
+        }
+
+        function syncB() {
+          if (!b) return;
+          var v = Number(b.value);
+          fill(b, v);
+          if (bo) bo.textContent = v + '%';
+          if (orb) orb.style.setProperty('--level', v);
+          if (orbValue) orbValue.textContent = v;
+        }
+
+        function syncC() {
+          if (!c) return;
+          var v = Number(c.value);
+          fill(c, v);
+          if (co) co.textContent = v + ' K';
+        }
+
+        if (b) { b.addEventListener('input', syncB); syncB(); }
+        if (c) { c.addEventListener('input', syncC); syncC(); }
+      })();
+    </script>
+  </body>
+</html>

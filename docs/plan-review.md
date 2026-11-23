@@ -57,6 +57,19 @@ Key decisions:
 
 New risks accepted by this wave: a malicious extension that stays inside its declared permissions can still show misleading data; a compromised signing key can publish a malicious package; Rhai is a smaller sandbox than WASM. Mitigations are permissions review, signed index, limits, rollback, and the ability to remove a catalog entry; they do not make community code trustworthy.
 
+## Revision 5 — design template adopted
+
+The owner's minimal Vite prototype is now the adopted visual reference for the kiosk:
+
+- **Authoritative system:** `DESIGN.md` + `tokens.css`.
+- **Reference prototype:** `index.html` + `styles.css`; production UI is Slint, not a browser.
+- **v1 mapping:** top bar, hero light with brightness/colour temperature, scenes/quick actions, and a configurable rooms/tile group.
+- **Post-v1 mapping:** Energy and Schedule cards; they need data sources outside the v1 gate.
+- **Fixes applied at adoption:** muted/success/warn tokens darkened to meet AA on `--surface`; 44 px switch hit area added; token mismatches in `DESIGN.md` corrected; `--touch-target` added.
+- **Remaining port work:** Slint tokens, 800 × 480 compact layout, Inter bundling/fallback, simplified glow without CSS blur, and screenshot verification at all breakpoints. These are tracked in Wave 3.6.
+
+The prototype's mock values are not production data. Rooms, scenes, lights, metrics, and schedules must come from Home Assistant or configuration.
+
 ## Blocking corrections
 
 | # | Original claim or implication | Finding | Correction in revision 2 |
@@ -132,7 +145,7 @@ These points from the original plan were checked and kept:
 2. **Hardware availability:** Is a Pi Zero 2 W and a Pi 3 available for the Wave 4/5 gates? If not, the release must be marked “x86_64 verified only”.
 3. **Kiosk backend:** Is LinuxKMS acceptable as primary, with X11 only as a fallback? The plan recommends yes.
 4. **Departures contract:** Is a Home Assistant sensor attribute acceptable for v1, or is a configurable generic HTTP JSON adapter required? The plan recommends the sensor contract for v1.
-5. **UI design:** The plan intentionally uses functional placeholders. A visual design pass is a separate effort after the widgets work.
+5. **UI design:** The minimal prototype is adopted; the Slint port and the 800 × 480 compact layout are tracked in Wave 3.6. Energy and Schedule remain post-v1.
 6. **Localization:** English is the project and UI language in v1. A second language is future work.
 7. **Companion catalog:** Should `home-assistant-kiosk-extensions` be public from the start, and who holds the Minisign private key? A community shop needs a public catalog.
 8. **Wave 6 scope:** The shop is planned as post-v1. If it must ship in v1, the release gate and hardware budget need to be revisited.

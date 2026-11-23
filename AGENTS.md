@@ -76,6 +76,12 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 ├── PLAN.md                      # implementation plan and source of truth
 ├── README.md                    # operator-facing overview
 ├── SECURITY.md
+├── DESIGN.md                    # adopted design system (authoritative)
+├── tokens.css                   # design tokens
+├── index.html                   # Vite design reference prototype
+├── styles.css                   # prototype layout and components
+├── package.json                 # prototype only; not the kiosk runtime
+├── package-lock.json
 ├── Cargo.toml                   # package `ha-kiosk`
 ├── Cargo.lock
 ├── Cross.toml                   # `cross` targets and Slint images
@@ -174,6 +180,17 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - Use `slint::Window::set_fullscreen(true)` for fullscreen. Rotation is a deployment/backend concern (`SLINT_KMS_ROTATION`).
 - UI tests use `i-slint-backend-testing`; do not require a real display in CI.
 - Do not add continuous animations. A 1 Hz clock is the expected baseline.
+
+### Design system rules
+
+- `DESIGN.md` and `tokens.css` are authoritative. The Vite prototype (`index.html`/`styles.css`) is a reference; the production UI is Slint.
+- No hardcoded colour, spacing, type size, radius, or motion value when a token exists. Port tokens to `ui/theme.slint` in Wave 3.6.
+- The Overview follows the adopted prototype: top bar, hero light with brightness/colour temperature, scenes/quick actions, and a configurable rooms/tile group. Energy and Schedule are post-v1.
+- Verify 800 × 480, 1024 × 600, 1280+, 1440, and 2048; no horizontal page scroll; 44 px touch targets; AA contrast; five data states.
+- Bundle Inter with its OFL licence or use the system sans fallback; never fetch a font at runtime.
+- Do not port CSS `color-mix`, blur, or heavy shadows to Slint. Use flat token colours and simple gradients; simplify the lamp glow for the software renderer.
+- Never ship the prototype's mock values as production data. Rooms, scenes, lights, and metrics come from Home Assistant or configuration.
+- A design change updates `DESIGN.md`, `tokens.css`, the prototype, and the Slint implementation together.
 
 ## 8. Coding conventions
 

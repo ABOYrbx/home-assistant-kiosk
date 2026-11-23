@@ -71,6 +71,7 @@ One logical change per commit. Do not commit generated build output, secrets, lo
 - The Home Assistant token is never logged or sent to a third-party host.
 - UI targets are at least 44 x 44 logical pixels.
 - New behavior needs a test or a recorded manual test.
+- Design changes update `DESIGN.md`, `tokens.css`, the Vite prototype, and the Slint port together. No hardcoded colour, spacing, or type value when a token exists. Check 800 × 480, 1024 × 600, and 1280+; 44 px targets; AA contrast.
 
 ## Extensions
 

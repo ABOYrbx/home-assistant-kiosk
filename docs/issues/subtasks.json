@@ -862,6 +862,94 @@
       "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/156",
       "wave": 3
     },
+    "W3.6.1": {
+      "id": "W3.6.1",
+      "is_commit": false,
+      "issue": 167,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Port `DESIGN.md` and `tokens.css` to `ui/theme.slint`; no hardcoded colours, spacing, or type sizes in components.",
+      "title": "[W3.6.1] Port DESIGN.md and tokens.css to ui/theme.slint; no hardcoded colours, spacing, or type...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/167",
+      "wave": 3
+    },
+    "W3.6.2": {
+      "id": "W3.6.2",
+      "is_commit": false,
+      "issue": 168,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Build the Overview top bar and hero light card: toggle, brightness, colour temperature, using `light.turn_on` with `brightness_pct`/`color_temp_kelvin` and debounced sliders.",
+      "title": "[W3.6.2] Build the Overview top bar and hero light card: toggle, brightness, colour temperature,...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/168",
+      "wave": 3
+    },
+    "W3.6.3": {
+      "id": "W3.6.3",
+      "is_commit": false,
+      "issue": 169,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Implement scenes/quick actions and a configurable rooms/tile group from Home Assistant entities; never hardcode room, scene, or light names.",
+      "title": "[W3.6.3] Implement scenes/quick actions and a configurable rooms/tile group from Home Assistant...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/169",
+      "wave": 3
+    },
+    "W3.6.4": {
+      "id": "W3.6.4",
+      "is_commit": false,
+      "issue": 170,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Add compact layouts for 800 \u00d7 480 and 1024 \u00d7 600 plus the three-column 1280+ layout; no page-level horizontal scroll; secondary content uses paging or one contained scroll region.",
+      "title": "[W3.6.4] Add compact layouts for 800 \u00d7 480 and 1024 \u00d7 600 plus the three-column 1280+ layout; no...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/170",
+      "wave": 3
+    },
+    "W3.6.5": {
+      "id": "W3.6.5",
+      "is_commit": false,
+      "issue": 171,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Fix the known design defects: 44 px switch hit area, AA contrast tokens, Inter bundle/fallback, and a software-renderer-friendly glow without CSS blur.",
+      "title": "[W3.6.5] Fix the known design defects: 44 px switch hit area, AA contrast tokens, Inter bundle/f...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/171",
+      "wave": 3
+    },
+    "W3.6.6": {
+      "id": "W3.6.6",
+      "is_commit": false,
+      "issue": 172,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Verify the five data states (Loading, Empty, Error, Populated, Edge) and capture screenshots at 800 \u00d7 480, 1024 \u00d7 600, 1280, 1440, and 2048.",
+      "title": "[W3.6.6] Verify the five data states (Loading, Empty, Error, Populated, Edge) and capture screen...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/172",
+      "wave": 3
+    },
+    "W3.6.7": {
+      "id": "W3.6.7",
+      "is_commit": false,
+      "issue": 173,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Keep Energy and Schedule post-v1; do not ship the prototype's mock metrics as production data.",
+      "title": "[W3.6.7] Keep Energy and Schedule post-v1; do not ship the prototype's mock metrics as productio...",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/173",
+      "wave": 3
+    },
+    "W3.6.8": {
+      "id": "W3.6.8",
+      "is_commit": true,
+      "issue": 174,
+      "task": "3.6",
+      "task_title": "Adopted design port (Overview)",
+      "text": "Commit: `feat: port adopted design to Slint Overview`.",
+      "title": "[W3.6.8] Commit: feat: port adopted design to Slint Overview.",
+      "url": "https://github.com/ABOYrbx/home-assistant-kiosk/issues/174",
+      "wave": 3
+    },
     "W4.1.1": {
       "id": "W4.1.1",
       "issue": 84,
@@ -1584,5 +1672,5 @@
     }
   },
   "repo": "ABOYrbx/home-assistant-kiosk",
-  "updated_at": "2026-11-23T04:30:19.919653+00:00"
+  "updated_at": "2026-11-23T09:07:42.942121+00:00"
 }
