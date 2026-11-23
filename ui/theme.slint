@@ -1,19 +1,44 @@
-// Design tokens ported from tokens.css / DESIGN.md.
+// Design tokens ported from tokens.css and DESIGN.md.
+//
+// tokens.css is authoritative. This global mirrors every token so components
+// can use the design system without a literal colour, spacing, type size,
+// radius, duration, or font value. Literal values are allowed only in this
+// file. If tokens.css changes, update this file in the same change.
+
 export global Theme {
+    // Colour
     in-out property <color> bg: #ffffff;
     in-out property <color> surface: #fafafa;
     in-out property <color> surface-warm: #f5f5f5;
     in-out property <color> fg: #111111;
     in-out property <color> fg-2: #3a3a3a;
     in-out property <color> muted: #6b6b6b;
+    in-out property <color> meta: #111111;
     in-out property <color> border: #e2e2e2;
     in-out property <color> border-soft: #eeeeee;
     in-out property <color> accent: #111111;
     in-out property <color> accent-on: #ffffff;
+    // oklab mix of accent with 8% black (CSS color-mix is not available in Slint).
+    in-out property <color> accent-hover: #0e0e0e;
+    // oklab mix of accent with 14% black.
+    in-out property <color> accent-active: #0c0c0c;
     in-out property <color> success: #0f7a3a;
     in-out property <color> warn: #8a5a12;
     in-out property <color> danger: #c53030;
 
+    // Typography
+    in-out property <string> font-display: "Inter, system-ui, sans-serif";
+    in-out property <string> font-body: "Inter, system-ui, sans-serif";
+    in-out property <string> font-mono: "SF Mono, ui-monospace, Menlo, monospace";
+    in-out property <int> font-weight-regular: 400;
+    in-out property <int> font-weight-medium: 500;
+    in-out property <int> font-weight-semibold: 600;
+    in-out property <float> leading-body: 1.55;
+    in-out property <float> leading-tight: 1.08;
+    // Unitless em factor; Slint has no em unit, so apply it to a font size.
+    in-out property <float> tracking-display: -0.02;
+
+    // Type scale
     in-out property <length> text-xs: 12px;
     in-out property <length> text-sm: 14px;
     in-out property <length> text-base: 16px;
@@ -23,6 +48,7 @@ export global Theme {
     in-out property <length> text-3xl: 48px;
     in-out property <length> text-4xl: 64px;
 
+    // Space
     in-out property <length> space-1: 4px;
     in-out property <length> space-2: 8px;
     in-out property <length> space-3: 12px;
@@ -31,14 +57,43 @@ export global Theme {
     in-out property <length> space-6: 24px;
     in-out property <length> space-8: 32px;
     in-out property <length> space-12: 48px;
+    in-out property <length> section-y-desktop: 112px;
+    in-out property <length> section-y-tablet: 80px;
+    in-out property <length> section-y-phone: 56px;
 
+    // Radius
     in-out property <length> radius-sm: 2px;
     in-out property <length> radius-md: 4px;
     in-out property <length> radius-lg: 8px;
     in-out property <length> radius-pill: 9999px;
 
-    in-out property <length> touch-target: 44px;
+    // Elevation and focus. CSS box-shadow is not available in Slint; these
+    // are the decomposed values a component uses for a ring or a flat shadow.
+    in-out property <length> elev-flat: 0px;
+    in-out property <length> elev-ring: 1px;
+    in-out property <length> elev-raised-y: 12px;
+    in-out property <length> elev-raised-blur: 30px;
+    in-out property <color> elev-raised-color: rgba(0, 0, 0, 0.08);
+    in-out property <length> focus-ring-width: 3px;
+    in-out property <color> focus-ring-color: rgba(17, 17, 17, 0.18);
 
+    // Motion
     in-out property <duration> motion-fast: 140ms;
     in-out property <duration> motion-base: 220ms;
+    in-out property <easing> ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+    // Layout
+    in-out property <length> container-max: 1120px;
+    in-out property <length> container-gutter-desktop: 36px;
+    in-out property <length> container-gutter-tablet: 24px;
+    in-out property <length> container-gutter-phone: 16px;
+
+    // Shared component dimensions. These are not CSS tokens; they keep a
+    // component from inventing a one-off value that the design scale misses.
+    in-out property <length> touch-target: 44px;
+    in-out property <length> border-width: 1px;
+    in-out property <length> window-min-width: 320px;
+    in-out property <length> window-min-height: 240px;
+    in-out property <length> swipe-threshold: 60px;
+    in-out property <length> album-art-size: 80px;
 }

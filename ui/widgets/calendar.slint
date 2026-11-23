@@ -5,17 +5,26 @@ export component CalendarWidget inherits Rectangle {
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
 
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-2;
-        Text { text: "Agenda"; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
+        Text {
+            text: "Agenda";
+            color: Theme.fg;
+            font-family: Theme.font-body;
+            font-size: Theme.text-base;
+            font-weight: Theme.font-weight-semibold;
+            line-height-factor: Theme.leading-body;
+        }
         for item in items : Text {
             text: item;
             color: Theme.fg-2;
+            font-family: Theme.font-body;
             font-size: Theme.text-sm;
+            line-height-factor: Theme.leading-body;
         }
     }
 }

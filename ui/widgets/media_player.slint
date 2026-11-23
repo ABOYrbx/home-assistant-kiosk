@@ -8,7 +8,7 @@ export component MediaPlayerWidget inherits Rectangle {
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
 
     HorizontalLayout {
@@ -16,14 +16,33 @@ export component MediaPlayerWidget inherits Rectangle {
         spacing: Theme.space-3;
         Image {
             source: art;
-            width: 80px;
-            height: 80px;
+            width: Theme.album-art-size;
+            height: Theme.album-art-size;
         }
         VerticalLayout {
             spacing: Theme.space-1;
-            Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
-            Text { text: artist; color: Theme.muted; font-size: Theme.text-sm; }
-            Text { text: state; color: Theme.muted; font-size: Theme.text-xs; }
+            Text {
+                text: title;
+                color: Theme.fg;
+                font-family: Theme.font-body;
+                font-size: Theme.text-base;
+                font-weight: Theme.font-weight-semibold;
+                line-height-factor: Theme.leading-body;
+            }
+            Text {
+                text: artist;
+                color: Theme.muted;
+                font-family: Theme.font-body;
+                font-size: Theme.text-sm;
+                line-height-factor: Theme.leading-body;
+            }
+            Text {
+                text: state;
+                color: Theme.muted;
+                font-family: Theme.font-body;
+                font-size: Theme.text-xs;
+                line-height-factor: Theme.leading-body;
+            }
         }
     }
 }
