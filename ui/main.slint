@@ -39,6 +39,10 @@ export component TabButton inherits TouchTarget {
         border-radius: root.border-radius;
     }
 
+    accessible-role: button;
+    accessible-label: label;
+    accessible-action-default => { root.clicked(); }
+
     Text {
         text: root.label;
         color: root.active ? Theme.accent-on : Theme.fg;

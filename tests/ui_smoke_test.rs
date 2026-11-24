@@ -129,6 +129,41 @@ path = "/tmp/ha-kiosk-ui-smoke-cache.json"
     .unwrap()
 }
 
+/// Minimum interactive hit area from `DESIGN.md` and `PLAN.md`, in logical
+/// pixels.
+const MIN_TOUCH_TARGET: f32 = 44.0;
+
+/// Roles that accept input. `Text`, `Image`, and the landmark roles are
+/// intentionally excluded: they carry information rather than hit areas.
+fn is_interactive_role(role: AccessibleRole) -> bool {
+    matches!(
+        role,
+        AccessibleRole::Button
+            | AccessibleRole::Checkbox
+            | AccessibleRole::Combobox
+            | AccessibleRole::Slider
+            | AccessibleRole::Spinbox
+            | AccessibleRole::Tab
+            | AccessibleRole::Switch
+            | AccessibleRole::TextInput
+            | AccessibleRole::RadioButton
+            | AccessibleRole::ListItem
+    )
+}
+
+fn meets_minimum_touch_target(size: LogicalSize) -> bool {
+    size.width >= MIN_TOUCH_TARGET && size.height >= MIN_TOUCH_TARGET
+}
+
+#[test]
+fn too_small_targets_fail_the_minimum_check() {
+    assert!(meets_minimum_touch_target(LogicalSize::new(44.0, 44.0)));
+    assert!(meets_minimum_touch_target(LogicalSize::new(120.0, 48.0)));
+    assert!(!meets_minimum_touch_target(LogicalSize::new(43.0, 44.0)));
+    assert!(!meets_minimum_touch_target(LogicalSize::new(44.0, 43.0)));
+    assert!(!meets_minimum_touch_target(LogicalSize::new(20.0, 20.0)));
+}
+
 #[test]
 fn too_small_targets_fail_the_minimum_check() {
     assert!(meets_minimum_touch_target(LogicalSize::new(44.0, 44.0)));
