@@ -184,6 +184,7 @@ cross build --release --target x86_64-unknown-linux-gnu \
 - Slint 1.19 does not expose a cursor-visibility API. Cursor hiding belongs to deployment: `unclutter` on X11, compositor settings on Wayland, and a touch-only LinuxKMS path with no pointer needed. Verify the panel behaviour on the target device.
 - Use `slint::Window::set_fullscreen(true)` for fullscreen. Rotation is a deployment/backend concern (`SLINT_KMS_ROTATION`).
 - UI tests use `i-slint-backend-testing`; do not require a real display in CI.
+- Every interactive control builds on `ui/widgets/touch_target.slint`, which enforces the 44 × 44 logical-pixel hit area even when the visual is smaller. The UI smoke test audits all interactive accessible roles for this minimum.
 - Do not add continuous animations. A 1 Hz clock is the expected baseline.
 
 ### Design system rules

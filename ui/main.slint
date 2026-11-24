@@ -1,35 +1,33 @@
 import { Theme } from "theme.slint";
+import { TouchTarget } from "widgets/touch_target.slint";
 import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
 import { StatusPage } from "pages/status.slint";
 
-export component TabButton inherits Rectangle {
+export component TabButton inherits TouchTarget {
     in property <string> label: "";
     in property <bool> active: false;
-    callback clicked();
 
-    min-width: Theme.touch-target;
-    min-height: Theme.touch-target;
     border-radius: Theme.radius-md;
     background: active ? Theme.accent : Theme.surface;
     border-width: 1px;
     border-color: Theme.border;
 
+    accessible-role: button;
+    accessible-label: label;
+    accessible-action-default => { root.clicked(); }
+
     Text {
-        text: label;
-        color: active ? Theme.accent-on : Theme.fg;
+        text: root.label;
+        color: root.active ? Theme.accent-on : Theme.fg;
         font-size: Theme.text-sm;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
 
-    ta := TouchArea {
-        clicked => { root.clicked(); }
-    }
-
     states [
-        pressed when ta.pressed: {
+        pressed when root.pressed: {
             background: Theme.border;
         }
     ]
@@ -50,12 +48,15 @@ export component MainWindow inherits Window {
     property <length> swipe-start-y: 0px;
     property <bool> swipe-tracking: false;
 
-    VerticalLayout {
+    // Root of the shell. Its id is the stable entry point for the UI smoke
+    // test's touch-target audit.
+    app-root := VerticalLayout {
         spacing: 0px;
 
-        // Tab bar
+        // Tab bar. The padding is part of the bar height, so the 44 px target
+        // stays available inside the layout.
         Rectangle {
-            height: Theme.touch-target + Theme.space-2;
+            height: Theme.touch-target + 2 * Theme.space-2;
             background: Theme.surface;
             border-width: 0px;
             border-color: Theme.border;
