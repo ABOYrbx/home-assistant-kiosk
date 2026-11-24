@@ -338,6 +338,8 @@ impl CalendarRefresh {
             }
         }
         sort_items(&mut view.items);
+        view.errors
+            .sort_by(|a, b| a.calendar_id.cmp(&b.calendar_id));
         if succeeded > 0 {
             view.last_success = Some(now);
         }
@@ -348,7 +350,7 @@ impl CalendarRefresh {
     /// Record a failed round, for example after a disconnect.
     pub fn abandon(&mut self, message: &str) -> Option<Vec<CalendarError>> {
         self.requested_at.as_ref()?;
-        let errors: Vec<_> = self
+        let mut errors: Vec<_> = self
             .pending
             .drain()
             .map(|(_, calendar_id)| CalendarError {
@@ -356,6 +358,7 @@ impl CalendarRefresh {
                 message: message.to_string(),
             })
             .collect();
+        errors.sort_by(|a, b| a.calendar_id.cmp(&b.calendar_id));
         self.results.clear();
         self.requested_at = None;
         if errors.is_empty() {
