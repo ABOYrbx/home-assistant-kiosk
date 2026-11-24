@@ -2,8 +2,13 @@ import { Theme } from "../theme.slint";
 
 export component HaTile inherits Rectangle {
     in property <string> label: "";
+    in property <string> icon: "";
     in property <string> state: "";
+    in property <string> detail: "";
+    in property <bool> read-only: false;
     in property <bool> pending: false;
+    in property <string> error: "";
+    callback tapped();
 
     min-height: Theme.touch-target;
     background: Theme.surface;
@@ -28,6 +33,17 @@ export component HaTile inherits Rectangle {
             font-family: Theme.font-body;
             font-size: Theme.text-sm;
             line-height-factor: Theme.leading-body;
+        }
+        if detail != "" && !pending && error == "" : Text {
+            text: detail;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+        }
+        if error != "" : Text {
+            text: error;
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            overflow: elide;
         }
     }
 

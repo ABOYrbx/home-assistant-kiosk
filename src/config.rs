@@ -703,6 +703,11 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
             )));
         }
     }
+    if !config.tiles.items.is_empty() && config.tiles.columns == 0 {
+        return Err(ConfigError::Validation(
+            "tiles.columns must be >= 1 when tiles are configured".into(),
+        ));
+    }
     for e in &config.ha.extra_entity_ids {
         if !validate_entity_id(e) {
             return Err(ConfigError::Validation(format!("invalid entity id: {}", e)));
