@@ -141,6 +141,9 @@ impl AppController {
             },
         );
 
+        // Publish the initial state so the shell never shows blank defaults.
+        UiBridge::apply(&ctrl.window, &ctrl.state);
+
         ctrl
     }
 
