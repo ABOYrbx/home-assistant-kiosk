@@ -140,6 +140,20 @@ Run the service for 24 hours against the mock Home Assistant server from Wave
 entities every second is enough to exercise the coalescing path, the image
 cache, and the cache writer.
 
+The mock server and the state-change stream are part of
+[`tests/e2e_test.rs`](../tests/e2e_test.rs). A shorter host-side leak check runs
+the same client, state owner, and cache for a configurable duration and fails
+when the entity map or the cache grows without bound:
+
+```bash
+HA_KIOSK_SOAK_SECONDS=3600 cargo test --test e2e_test \
+  soak_with_state_change_stream_stays_bounded -- --ignored --nocapture
+```
+
+It prints the event count, cache writes, cache bytes, and the RSS baseline and
+final value. This check measures the test process on the development host, not
+the Pi; the 24-hour Pi run below is still required for the gate.
+
 ```bash
 # Hourly samples; keep the output for the record.
 while true; do

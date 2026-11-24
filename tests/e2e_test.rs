@@ -39,6 +39,8 @@ enum Behaviour {
     ServiceFailure,
     /// Send malformed and unexpected messages before valid data.
     Malformed,
+    /// Stream state changes for an unbounded soak run.
+    Soak,
 }
 
 struct MockHaServer {
@@ -183,6 +185,10 @@ async fn serve_connection(
                     json!({"id": request["id"], "type": "result", "success": true, "result": null}),
                 )
                 .await?;
+                if behaviour == Behaviour::Soak {
+                    stream_soak_messages(&mut ws).await?;
+                    return Ok(());
+                }
                 send_scenario_messages(&mut ws, behaviour).await?;
             }
             Some("call_service") => {
@@ -281,6 +287,72 @@ async fn send_scenario_messages(
         }}),
     )
     .await
+}
+
+/// Keep a connection busy with a simulated state-change stream.
+///
+/// The first event is a snapshot so the client starts from a known state; later
+/// events only change entities that already exist, which exercises the update
+/// path, the cache writer, and the view-model builders for hours without
+/// growing the entity set.
+async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(), BoxError> {
+    send(
+        ws,
+        json!({"type": "event", "event": {
+            "a": [
+                {"entity_id": "light.example", "state": "on", "attributes": {"brightness": 1}},
+                {
+                    "entity_id": "weather.home",
+                    "state": "sunny",
+                    "attributes": {"temperature": 20.0, "temperature_unit": "°C"},
+                },
+                {
+                    "entity_id": "media_player.example",
+                    "state": "playing",
+                    "attributes": {"media_title": "Example track", "volume_level": 0.4},
+                },
+            ],
+        }}),
+    )
+    .await?;
+
+    let mut tick: u64 = 0;
+    loop {
+        match tokio::time::timeout(Duration::from_millis(50), ws.next()).await {
+            Ok(Some(Ok(Message::Text(text)))) => {
+                let Ok(request) = serde_json::from_str::<Value>(text.as_str()) else {
+                    continue;
+                };
+                if request.get("type").and_then(Value::as_str) == Some("ping") {
+                    send(ws, json!({"id": request["id"], "type": "pong"})).await?;
+                }
+            }
+            Ok(Some(Ok(_))) => {}
+            Ok(Some(Err(_))) | Ok(None) => return Ok(()),
+            Err(_) => {
+                tick += 1;
+                let brightness = (tick % 255) as u8;
+                send(
+                    ws,
+                    json!({"type": "event", "event": {
+                        "c": [
+                            {
+                                "entity_id": "light.example",
+                                "state": if tick % 2 == 0 { "on" } else { "off" },
+                                "attributes": {"brightness": brightness},
+                            },
+                            {
+                                "entity_id": "weather.home",
+                                "state": "sunny",
+                                "attributes": {"temperature": 20.0 + (tick % 10) as f64},
+                            },
+                        ],
+                    }}),
+                )
+                .await?;
+            }
+        }
+    }
 }
 
 async fn send(ws: &mut WebSocketStream<TcpStream>, value: Value) -> Result<(), BoxError> {
@@ -630,4 +702,106 @@ async fn malformed_messages_and_unknown_domains_do_not_crash() {
             .is_none()
     );
     assert!(server.service_calls().is_empty());
+}
+
+/// Read the resident set size of this test process in MiB.
+fn rss_mb() -> Option<f64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|line| line.starts_with("VmRSS:"))?;
+    let kib: f64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kib / 1024.0)
+}
+
+/// Soak the client, the state owner, and the cache with a state-change stream.
+///
+/// This is the short, host-side leak check that precedes the 24-hour Pi run in
+/// `docs/performance.md`. It is ignored by default because it is a soak, not a
+/// unit test. Select the duration with `HA_KIOSK_SOAK_SECONDS` (default 60) and
+/// run it with `--ignored --nocapture`:
+///
+/// ```text
+/// HA_KIOSK_SOAK_SECONDS=3600 cargo test --test e2e_test \
+///   soak_with_state_change_stream_stays_bounded -- --ignored --nocapture
+/// ```
+#[tokio::test]
+#[ignore = "long-running soak; set HA_KIOSK_SOAK_SECONDS to choose the duration"]
+async fn soak_with_state_change_stream_stays_bounded() {
+    let seconds = std::env::var("HA_KIOSK_SOAK_SECONDS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(60u64);
+    let server = MockHaServer::start(Behaviour::Soak).await;
+    let mut app = TestApp::start(&server, "test-token");
+
+    app.wait_until(|state| {
+        state.connection == ConnectionState::Connected
+            && state.entities.contains_key("light.example")
+            && state.entities.contains_key("weather.home")
+            && state.entities.contains_key("media_player.example")
+    })
+    .await;
+
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cache_path = dir.path().join("cache.json");
+    let max_bytes = 256 * 1024;
+    let cache = FileCache::new(cache_path.clone(), 1, "soak".to_string(), max_bytes);
+    let baseline_entities = app.state.entities.len();
+
+    let started = tokio::time::Instant::now();
+    let mut events = 0u64;
+    let mut cache_writes = 0u64;
+    let mut last_sample = started;
+    let mut baseline_rss: Option<f64> = None;
+    let mut last_rss = rss_mb();
+
+    while started.elapsed() < Duration::from_secs(seconds) {
+        app.next_event().await;
+        events += 1;
+
+        if events % 20 == 0 {
+            cache.save(&app.state).expect("cache write");
+            cache_writes += 1;
+            let size = std::fs::metadata(&cache_path)
+                .expect("cache metadata")
+                .len();
+            assert!(
+                size <= max_bytes,
+                "cache grew to {size} bytes, above the {max_bytes} byte cap"
+            );
+        }
+
+        if last_sample.elapsed() >= Duration::from_secs(1) {
+            last_sample = tokio::time::Instant::now();
+            last_rss = rss_mb();
+            // Ignore the first seconds of allocator warm-up when comparing.
+            if baseline_rss.is_none() && started.elapsed() >= Duration::from_secs(5) {
+                baseline_rss = last_rss;
+            }
+        }
+    }
+
+    let cache_size = std::fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
+    println!(
+        "soak: {seconds}s, {events} events, {cache_writes} cache writes, \
+         {cache_size} cache bytes, RSS baseline {baseline_rss:?} MiB, final {last_rss:?} MiB"
+    );
+
+    assert_eq!(
+        app.state.entities.len(),
+        baseline_entities,
+        "state updates must not grow the entity map"
+    );
+    assert_eq!(app.state.connection, ConnectionState::Connected);
+    assert!(!app.state.stale, "a live stream must not stay stale");
+    assert!(app.state.pending.is_empty());
+    assert!(cache_size <= max_bytes, "the final cache exceeds its cap");
+
+    if let (Some(baseline), Some(final_rss)) = (baseline_rss, last_rss) {
+        assert!(
+            final_rss - baseline < 16.0,
+            "RSS grew by {:.1} MiB over the soak ({baseline:.1} -> {final_rss:.1}); \
+             investigate the allocation trend",
+            final_rss - baseline
+        );
+    }
 }
