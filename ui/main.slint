@@ -9,12 +9,29 @@ export component TabButton inherits Rectangle {
     in property <bool> active: false;
     callback clicked();
 
+    out property <bool> pressed: ta.pressed;
+    out property <bool> has-focus: focus-scope.has-focus;
+
     min-width: Theme.touch-target;
     min-height: Theme.touch-target;
     border-radius: Theme.radius-md;
     background: active ? Theme.accent : Theme.surface;
     border-width: 1px;
-    border-color: Theme.border;
+    border-color: active ? Theme.accent : Theme.border;
+
+    accessible-role: tab;
+    accessible-label: root.label;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.active;
+    accessible-action-default => { root.clicked(); }
+
+    // Pressed feedback sits between the background and the label so the fill
+    // darkens without changing the selected/active colour.
+    pressed-fill := Rectangle {
+        visible: ta.pressed;
+        background: active ? Theme.accent-active : Theme.border;
+        border-radius: root.border-radius;
+    }
 
     Text {
         text: label;
@@ -24,15 +41,32 @@ export component TabButton inherits Rectangle {
         vertical-alignment: center;
     }
 
+    // Keyboard focus ring. Mouse clicks do not take focus, so the ring only
+    // appears for keyboard navigation in desktop development builds.
+    focus-outline := Rectangle {
+        visible: focus-scope.has-focus;
+        border-width: 2px;
+        border-color: active ? Theme.accent-on : Theme.accent;
+        border-radius: root.border-radius;
+    }
+
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
 
-    states [
-        pressed when ta.pressed: {
-            background: Theme.border;
+    focus-scope := FocusScope {
+        x: 0px;
+        width: 0px;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
         }
-    ]
+    }
+    forward-focus: focus-scope;
 }
 
 export component MainWindow inherits Window {
@@ -44,6 +78,19 @@ export component MainWindow inherits Window {
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
+
+    // Interaction state for the shell tests and for keyboard navigation.
+    out property <int> focused-tab:
+        tab-overview.has-focus ? 0
+        : tab-media.has-focus ? 1
+        : tab-agenda.has-focus ? 2
+        : tab-status.has-focus ? 3
+        : -1;
+    out property <bool> tab-pressed:
+        tab-overview.pressed
+        || tab-media.pressed
+        || tab-agenda.pressed
+        || tab-status.pressed;
 
     // Swipe tracking
     property <length> swipe-start-x: 0px;
