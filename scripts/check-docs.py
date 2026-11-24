@@ -34,15 +34,28 @@ REQUIRED_FILES = [
     ".github/ISSUE_TEMPLATE/config.yml",
     ".github/workflows/docs.yml",
     "docs/departures-entity-contract.md",
+    "docs/deployment.md",
     "docs/extension-catalog.md",
     "docs/extensions.md",
+    "docs/kiosk-display.md",
     "docs/agent-prompts/implement-issue.md",
     "docs/github-rules.md",
     "docs/herdr-agent.md",
     "docs/issues/index.md",
     "docs/plan-review.md",
+    "docs/release-builds.md",
+    "Cross.toml",
+    "deploy/ha-kiosk.service",
+    "deploy/ha-kiosk-user.service",
+    "deploy/install.sh",
+    "deploy/kiosk-setup.sh",
+    "deploy/lib.sh",
+    "deploy/uninstall.sh",
     "scripts/apply-github-settings.sh",
+    "scripts/build-all.sh",
     "scripts/create-subtask-issues.py",
+    "tests/deploy_scripts_test.sh",
+    "tests/test_build_all.py",
     "herdr.sh",
 ]
 
@@ -141,10 +154,39 @@ def check_content() -> None:
     for needle in ("--touch-target", "--muted", "--success", "--warn"):
         if needle not in tokens:
             errors.append(f"tokens.css is missing: {needle}")
+    release = read(ROOT / "docs/release-builds.md")
+    for needle in ("glibc 2.35", "Bookworm", "native build", "SOURCE_DATE_EPOCH"):
+        if needle not in release:
+            errors.append(f"docs/release-builds.md is missing: {needle}")
     for wave in REQUIRED_WAVES:
         text = read(ROOT / wave)
         if "Acceptance gate" not in text:
             errors.append(f"{wave}: missing Acceptance gate")
+
+
+def check_deploy() -> None:
+    unit = read(ROOT / "deploy/ha-kiosk.service")
+    for needle in (
+        "User=ha-kiosk",
+        "Restart=on-failure",
+        "RestartSec=5",
+        "ProtectSystem=strict",
+        "ReadWritePaths=/var/lib/ha-kiosk",
+        "Environment=SLINT_BACKEND=linuxkms-software",
+    ):
+        if needle not in unit:
+            errors.append(f"deploy/ha-kiosk.service is missing: {needle}")
+    if "User=root" in unit:
+        errors.append("deploy/ha-kiosk.service must not run as root")
+    for rel in (
+        "deploy/install.sh",
+        "deploy/kiosk-setup.sh",
+        "deploy/lib.sh",
+        "deploy/uninstall.sh",
+        "tests/deploy_scripts_test.sh",
+    ):
+        if not os.access(ROOT / rel, os.X_OK):
+            errors.append(f"{rel} is not executable")
 
 
 def check_forbidden() -> None:
@@ -171,6 +213,7 @@ def main() -> int:
     check_toml()
     check_markdown()
     check_content()
+    check_deploy()
     check_forbidden()
 
     for warning in warnings:

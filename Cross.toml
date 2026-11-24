@@ -1,12 +1,27 @@
-# Cross-compilation configuration for ha-kiosk.
-# Images are the cross-rs standard images. Pin digests after a verified build
-# (see scripts/build-all.sh and the release checklist).
+# Cross-compilation for the kiosk release binaries.
+#
+# Every image is pinned by tag and digest so a rebuild uses the same toolchain
+# and system libraries even when the tag moves. Bump a digest only together
+# with a verified release build and record the old and new digest in the pull
+# request.
+#
+# Inspect the current digest of a tag with:
+#   docker buildx imagetools inspect ghcr.io/cross-rs/<target>:main
+
+[build]
+# System libraries the LinuxKMS backend and the Slint widgets link against.
+# cross expands CROSS_DEB_ARCH to the Debian architecture of the target.
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update",
+    "apt-get install -y --no-install-recommends pkg-config libfontconfig1-dev:${CROSS_DEB_ARCH} libxkbcommon-dev:${CROSS_DEB_ARCH} libseat-dev:${CROSS_DEB_ARCH} libinput-dev:${CROSS_DEB_ARCH} libudev-dev:${CROSS_DEB_ARCH}",
+]
 
 [target.aarch64-unknown-linux-gnu]
-image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main"
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main@sha256:dbf985a1666e506cc1b27c6d4b1a757413eb4c17ce855c5647f24f3da54e7871"
 
 [target.armv7-unknown-linux-gnueabihf]
-image = "ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:main"
+image = "ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:main@sha256:771b3fab17b7073ec3c751ddd0333070b2ad3a61f32a03239f918f22db10c871"
 
 [target.x86_64-unknown-linux-gnu]
-image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main"
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main@sha256:b53fd3e64ade9ec92c8849a6eb9c1687663c175c01e3de2a44e95cbf9c739246"

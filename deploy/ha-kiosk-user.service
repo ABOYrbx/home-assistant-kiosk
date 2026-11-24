@@ -1,0 +1,52 @@
+# Example unit for the X11 fallback: a systemd user service inside an
+# autologin session. The default deployment uses the system unit
+# deploy/ha-kiosk.service with seatd and LinuxKMS.
+#
+# Install for the desktop user that owns the X session:
+#   install -D -m 0644 deploy/ha-kiosk-user.service \
+#     ~/.config/systemd/user/ha-kiosk.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now ha-kiosk.service
+#
+# The config, token, and state live under the user's home directory, so no
+# root-owned service directory is needed. See docs/deployment.md.
+
+[Unit]
+Description=Home Assistant Kiosk (X11 user session)
+Documentation=file:///usr/share/doc/ha-kiosk/README.md file:///usr/share/doc/ha-kiosk/deployment.md
+After=graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/state/ha-kiosk
+StateDirectory=ha-kiosk
+StateDirectoryMode=0700
+ExecStart=/usr/local/bin/ha-kiosk --config %h/.config/ha-kiosk/config.toml
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+Environment=RUST_LOG=info
+Environment=SLINT_BACKEND=winit
+Environment=DISPLAY=:0
+UMask=0077
+NoNewPrivileges=yes
+# PrivateTmp must stay off: the X11 socket lives in /tmp/.X11-unix and a
+# private /tmp would hide it. ProtectHome is read-only because the session
+# needs to read ~/.Xauthority.
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/ha-kiosk
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ha-kiosk
+
+[Install]
+WantedBy=graphical-session.target
