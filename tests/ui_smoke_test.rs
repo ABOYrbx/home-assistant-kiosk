@@ -1,8 +1,9 @@
+use ha_kiosk::{AppController, Config, MainWindow};
 use i_slint_backend_testing::ElementHandle;
 use slint::platform::PointerEventButton;
 
 /// Drag the pointer from the centre of the page host by the given logical delta.
-async fn drag_page(app: &ha_kiosk::MainWindow, dx: f32, dy: f32) {
+async fn drag_page(app: &MainWindow, dx: f32, dy: f32) {
     let swipe = ElementHandle::find_by_element_id(app, "MainWindow::swipe-area")
         .next()
         .unwrap();
@@ -13,40 +14,57 @@ async fn drag_page(app: &ha_kiosk::MainWindow, dx: f32, dy: f32) {
     swipe.drag(target, PointerEventButton::Left).await;
 }
 
+fn test_config() -> Config {
+    toml::from_str(
+        r#"
+[ha]
+url = "http://127.0.0.1:8123"
+token = "test-token"
+
+[cache]
+path = "/tmp/ha-kiosk-ui-smoke-cache.json"
+"#,
+    )
+    .unwrap()
+}
+
 #[test]
 fn shell_navigation_and_gestures() {
     i_slint_backend_testing::init_integration_test_with_system_time();
 
     slint::spawn_local(async move {
-        let app = ha_kiosk::MainWindow::new().unwrap();
+        let window = MainWindow::new().unwrap();
+        let (commands, _rx) = tokio::sync::mpsc::channel(1);
+        let controller = AppController::new(window, test_config(), commands);
+        let app = controller.window();
 
         // The testing backend uses an 800 x 600 window, so the swipe
         // threshold is max(60px, 20% of 800px) = 160px.
         assert_eq!(app.get_current_page(), 0);
 
         // 120px is more than the 60px floor but below 20% of the width.
-        drag_page(&app, -120.0, 0.0).await;
+        drag_page(app, -120.0, 0.0).await;
         assert_eq!(app.get_current_page(), 0);
 
         // Vertical movement does not change the page.
-        drag_page(&app, 0.0, -220.0).await;
+        drag_page(app, 0.0, -220.0).await;
         assert_eq!(app.get_current_page(), 0);
 
         // A diagonal drag locks to the dominant (vertical) axis even though
         // the horizontal travel is above the page-swipe threshold.
-        drag_page(&app, -220.0, -260.0).await;
+        drag_page(app, -220.0, -260.0).await;
         assert_eq!(app.get_current_page(), 0);
 
         // A horizontal swipe past the threshold moves to the next page.
-        drag_page(&app, -220.0, 0.0).await;
+        drag_page(app, -220.0, 0.0).await;
         assert_eq!(app.get_current_page(), 1);
 
         // A horizontal swipe the other way moves back.
-        drag_page(&app, 220.0, 0.0).await;
+        drag_page(app, 220.0, 0.0).await;
         assert_eq!(app.get_current_page(), 0);
 
         // The tab bar remains the reliable fallback.
-        let tab = ElementHandle::find_by_element_id(&app, "MainWindow::tab-agenda")
+        let tab = ElementHandle::find_by_element_id(app, "MainWindow::tab-agenda")
             .next()
             .unwrap();
         tab.single_click(PointerEventButton::Left).await;
