@@ -145,6 +145,18 @@ Restore the previous binary, restart the service, and confirm the frame and the 
 - **X11 fallback:** the winit build with a minimal window manager, `unclutter` for the cursor, and `xset s off -dpms` for blanking. Without a window manager, fullscreen may not cover the screen.
 - **Wayland:** supported by winit, not a release gate.
 
+## Performance
+
+The Pi Zero 2 W budgets are recorded in [`docs/performance.md`](docs/performance.md): resident set size below 150 MB (target below 100 MB), first frame below 3 seconds, idle CPU at most a quarter of one core, and a 24-hour soak with no leak trend or unbounded cache.
+
+A recorded measurement is checked against those budgets with:
+
+```bash
+python3 scripts/perf-budget.py perf-record.json
+```
+
+The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
+
 ## Design in one paragraph
 
 The Slint event loop and application state live on the main thread. A Tokio runtime handles the Home Assistant WebSocket connection, service calls, image fetches, and cache writes in the background. Background tasks send typed events to the UI thread, which updates Slint models. All v1 data comes from Home Assistant; no weather, transit, or calendar provider is hardcoded. Wave 6 adds sandboxed extension data sources as the only sanctioned exception. Configuration is a TOML file, and the token is read from a protected file or an environment variable.

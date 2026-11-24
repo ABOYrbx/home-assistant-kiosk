@@ -293,6 +293,55 @@ def check_performance_doc() -> None:
             errors.append(f"docs/performance.md does not state the budget: {budget}")
 
 
+def check_cargo_profile() -> None:
+    path = ROOT / "Cargo.toml"
+    if not path.is_file():
+        return
+    try:
+        data = load_toml(path)
+    except Exception as exc:  # noqa: BLE001 - report the parser error as-is
+        errors.append(f"Cargo.toml is not valid TOML: {exc}")
+        return
+    profile = data.get("profile", {}).get("release") if isinstance(data, dict) else None
+    if not isinstance(profile, dict):
+        errors.append("Cargo.toml is missing [profile.release]")
+        return
+    for key, expected in RELEASE_PROFILE.items():
+        if profile.get(key) != expected:
+            errors.append(
+                f"Cargo.toml [profile.release] {key} must be {expected!r} "
+                "(PLAN.md section 8, Wave 5)"
+            )
+
+
+def check_performance_doc() -> None:
+    doc = ROOT / "docs" / "performance.md"
+    script = ROOT / "scripts" / "perf-budget.py"
+    if not doc.is_file() or not script.is_file():
+        return
+    try:
+        spec = importlib.util.spec_from_file_location("perf_budget", script)
+        if spec is None or spec.loader is None:
+            raise ImportError("cannot load scripts/perf-budget.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 - report the loader error as-is
+        errors.append(f"scripts/perf-budget.py could not be loaded: {exc}")
+        return
+    text = read(doc)
+    budgets = [
+        f"{module.RSS_HARD_MB:.0f} MB",
+        f"{module.RSS_TARGET_MB:.0f} MB",
+        f"{module.FIRST_FRAME_HARD_MS:.0f} ms",
+        f"{module.IDLE_CPU_HARD_PERCENT:.0f} %",
+        f"{module.SOAK_MIN_HOURS:.0f} h",
+        f"{module.SOAK_GROWTH_HARD_MB:.0f} MB",
+    ]
+    for budget in budgets:
+        if budget not in text:
+            errors.append(f"docs/performance.md does not state the budget: {budget}")
+
+
 def check_markdown() -> None:
     files = list(ROOT.glob("*.md")) + list((ROOT / "docs").rglob("*.md"))
     files += list((ROOT / ".github").rglob("*.md"))
