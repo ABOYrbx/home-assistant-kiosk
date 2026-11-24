@@ -1,10 +1,26 @@
 import { Theme } from "../theme.slint";
+import { ScrollableList } from "../widgets/scrollable_list.slint";
 
 export component AgendaPage inherits Rectangle {
+    in property <[string]> items: [];
+    out property <length> scroll-y: list.scroll-y;
+
     background: Theme.bg;
-    Text {
-        text: "Agenda";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-2;
+
+        Text {
+            text: "Agenda";
+            color: Theme.fg;
+            font-size: Theme.text-xl;
+        }
+
+        list := ScrollableList {
+            items: root.items;
+            empty-text: "No events";
+            vertical-stretch: 1;
+        }
     }
 }

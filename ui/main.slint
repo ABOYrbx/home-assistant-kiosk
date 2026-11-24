@@ -41,14 +41,19 @@ export component MainWindow inherits Window {
     min-height: 240px;
 
     in-out property <int> current-page: 0;
+    in-out property <[string]> agenda-items: [];
+    // Vertical scroll offset of the agenda list, for scroll affordances and tests.
+    out property <length> agenda-scroll-y: agenda-page.scroll-y;
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
 
-    // Swipe tracking
+    // Swipe tracking. The axis is locked to the first direction that crosses
+    // the slop threshold, so a vertical drag never changes the page.
     property <length> swipe-start-x: 0px;
     property <length> swipe-start-y: 0px;
     property <bool> swipe-tracking: false;
+    property <int> swipe-axis: 0; // 0 = undecided, 1 = horizontal, 2 = vertical
 
     VerticalLayout {
         spacing: 0px;
@@ -88,10 +93,12 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Page host with swipe TouchArea behind content
+        // Page host with swipe TouchArea behind content. Scrollable content is
+        // drawn on top and owns its own vertical and horizontal gestures.
         Rectangle {
             background: Theme.bg;
             vertical-stretch: 1;
+            clip: true;
 
             swipe-area := TouchArea {
                 width: 100%;
@@ -101,26 +108,49 @@ export component MainWindow inherits Window {
                         swipe-start-x = self.mouse-x;
                         swipe-start-y = self.mouse-y;
                         swipe-tracking = true;
+                        swipe-axis = 0;
+                    }
+                    if (event.kind == PointerEventKind.move && swipe-tracking && swipe-axis == 0) {
+                        let dx = abs(self.mouse-x - swipe-start-x);
+                        let dy = abs(self.mouse-y - swipe-start-y);
+                        // Axis lock: the first clear direction wins for the
+                        // rest of the gesture.
+                        if dx >= 8px || dy >= 8px {
+                            swipe-axis = dx > dy ? 1 : 2;
+                        }
                     }
                     if (event.kind == PointerEventKind.up && swipe-tracking) {
                         let dx = self.mouse-x - swipe-start-x;
                         let dy = self.mouse-y - swipe-start-y;
+                        let horizontal = swipe-axis == 1
+                            || (swipe-axis == 0 && abs(dx) > abs(dy));
                         swipe-tracking = false;
-                        if ((abs(dx) >= 60px) || (abs(dx) >= self.width / 5)) && abs(dx) > abs(dy) {
+                        swipe-axis = 0;
+                        if (horizontal
+                            && (abs(dx) >= 60px || abs(dx) >= self.width / 5)
+                            && abs(dx) > abs(dy)) {
                             if (dx < 0px) { swipe-next(); }
                             else { swipe-prev(); }
                         }
                     }
                     if (event.kind == PointerEventKind.cancel) {
                         swipe-tracking = false;
+                        swipe-axis = 0;
                     }
                 }
             }
 
-            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            OverviewPage { visible: current-page == 0; x: 0px; y: 0px; width: 100%; height: 100%; }
+            MediaPage { visible: current-page == 1; x: 0px; y: 0px; width: 100%; height: 100%; }
+            agenda-page := AgendaPage {
+                visible: current-page == 2;
+                items: agenda-items;
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+            }
+            StatusPage { visible: current-page == 3; x: 0px; y: 0px; width: 100%; height: 100%; }
         }
     }
 }
