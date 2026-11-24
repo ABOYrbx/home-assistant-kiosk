@@ -119,6 +119,7 @@ export component DeparturesWidget inherits Rectangle {
             text: "Data unavailable";
             color: Theme.muted;
             font-size: Theme.text-sm;
+            overflow: elide;
         }
 
         if state == DeparturesState.empty : departures-empty := Text {

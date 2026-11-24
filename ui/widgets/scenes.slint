@@ -2,16 +2,20 @@ import { Theme } from "../theme.slint";
 
 export component ScenesRow inherits Rectangle {
     in property <[string]> items: [];
+    in property <int> item-columns: 2;
 
     background: Theme.bg;
     VerticalLayout {
         spacing: Theme.space-2;
-        Text { text: "Scenes"; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
-        HorizontalLayout {
+        Text { text: "Scenes"; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; overflow: elide; }
+        GridLayout {
             spacing: Theme.space-2;
-            for item in items : Rectangle {
+            for item[idx] in items : Rectangle {
+                row: idx / item-columns;
+                col: idx - (idx / item-columns) * item-columns;
                 min-width: Theme.touch-target;
                 min-height: Theme.touch-target;
+                horizontal-stretch: 1;
                 border-radius: Theme.radius-md;
                 border-width: 1px;
                 border-color: Theme.border;
@@ -22,6 +26,7 @@ export component ScenesRow inherits Rectangle {
                     font-size: Theme.text-sm;
                     horizontal-alignment: center;
                     vertical-alignment: center;
+                    overflow: elide;
                 }
             }
         }
