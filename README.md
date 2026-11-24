@@ -180,8 +180,8 @@ docs/
 │   └── implement-issue.md      implementation prompt template
 └── issues/                     subtask index, mapping, and wave epic drafts
 config.example.toml             safe, provider-neutral example configuration
-src/                            Rust application (once Wave 0 starts)
-ui/                             Slint UI files (once Wave 0 starts)
+src/                            Rust application
+ui/                             Slint UI files
 deploy/                         systemd unit and install scripts
 scripts/                        build, development, docs and repository helpers
 tests/                          integration and UI tests
@@ -246,10 +246,18 @@ cross build --release --target aarch64-unknown-linux-gnu \
   --no-default-features --features kiosk
 ```
 
+For release artifacts, use `scripts/build-all.sh`. It builds all three targets
+with the digest-pinned images from `Cross.toml`, writes
+`dist/ha-kiosk-<version>-<target>`, and generates `dist/SHA256SUMS`. The
+reproducibility rules, the glibc 2.35+ floor for cross-built binaries, and
+the native-build fallback on the Pi are documented in
+[`docs/release-builds.md`](docs/release-builds.md).
+
 Documentation checks run without a Rust toolchain:
 
 ```bash
 python3 scripts/check-docs.py
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
 
 The design reference prototype is a Vite app; `node_modules/` and its build output are ignored:
@@ -348,6 +356,9 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 ## Installation and operation
 
+The full deployment guide, including seat models, hardening, upgrade, rollback,
+logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).
+
 ### Release builds
 
 Reproducible builds for all supported targets:
@@ -394,15 +405,27 @@ sudo ./deploy/uninstall.sh --purge  # removes everything
 
 ### Display backends
 
-- LinuxKMS (primary): `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, `SLINT_DRM_OUTPUT`, `SLINT_DRM_MODE`. Requires `seatd` and the `video`/`input`/`render` groups.
+The kiosk resolves the display before it opens a window. If no backend is available it exits with an error that names the missing setting, so a service that cannot open the display fails visibly instead of showing a blank screen.
+
+- LinuxKMS (primary): `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, `SLINT_DRM_OUTPUT`, `SLINT_DRM_MODE`. Requires `seatd` and the `video`/`input`/`render` groups. No cursor or compositor is involved.
 - X11 fallback: build with the `desktop` feature, run under a minimal window manager (openbox/matchbox) with `unclutter`, `xset s off -dpms`. Without a window manager fullscreen may not cover the screen.
+- `display.rotation` accepts `0`, `90`, `180`, and `270` and is passed to Slint as `SLINT_KMS_ROTATION`. An explicit environment value wins.
+
+Rotation, DRM output selection, console blanking, touch calibration, fonts, and NTP are documented in [`docs/kiosk-display.md`](docs/kiosk-display.md).
 
 ### Troubleshooting
 
-- No display backend: verify `SLINT_BACKEND`, seatd, and group membership; check `journalctl`.
+- No display backend: verify `SLINT_BACKEND`, seatd, and group membership; check `journalctl -u ha-kiosk`.
 - Console blanking: ensure `consoleblank=0` is in `/boot/firmware/cmdline.txt` and reboot.
 - Touch rotation: set `SLINT_KMS_ROTATION`; calibrate per panel, do not hardcode a matrix.
 - Wrong clock: verify NTP (`timedatectl set-ntp true`) and the device timezone.
+- More display symptoms and fixes: [`docs/kiosk-display.md`](docs/kiosk-display.md#troubleshooting).
+
+## Assets
+
+- **Font:** the UI uses the system sans font and does not fetch a font at runtime. Install `fonts-dejavu-core` (DejaVu Fonts License, based on the Bitstream Vera license) or bundle a licensed font and record its license here.
+- **Icons:** weather and status icons are compiled into the binary from the source tree when they are added. No icon assets are bundled yet; their license and attribution must be recorded in this section before they ship.
+- **Prototype:** the Vite reference prototype in `index.html` and `styles.css` uses no third-party assets.
 
 ## Security
 
