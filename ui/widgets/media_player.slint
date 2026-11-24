@@ -1,210 +1,29 @@
-import { Slider } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
 
-export struct MediaPlayerData {
-    title: string,
-    artist: string,
-    album: string,
-    state-label: string,
-    volume-label: string,
-    art: image,
-    has-art: bool,
-    volume: float,
-    volume-step: float,
-    muted: bool,
-    playing: bool,
-    available: bool,
-    pending: bool,
-    can-play-pause: bool,
-    can-previous: bool,
-    can-next: bool,
-    can-set-volume: bool,
-    error: string,
-}
-
-export component TransportButton inherits Rectangle {
-    in property <string> label: "";
-    in property <bool> enabled: true;
-    callback clicked();
-
-    width: 72px;
-    height: Theme.touch-target;
-    accessible-role: button;
-    accessible-label: root.label;
-    accessible-enabled: root.enabled;
-    border-radius: Theme.radius-md;
-    background: root.enabled ? Theme.surface : Theme.surface-warm;
-    border-width: 1px;
-    border-color: Theme.border;
-
-    Text {
-        text: root.label;
-        color: root.enabled ? Theme.fg : Theme.muted;
-        font-size: Theme.text-sm;
-        font-weight: 500;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-
-    touch := TouchArea {
-        enabled: root.enabled;
-        clicked => { root.clicked(); }
-    }
-
-    states [
-        pressed when touch.pressed && root.enabled: {
-            background: Theme.border;
-        }
-    ]
-}
-
 export component MediaPlayerWidget inherits Rectangle {
-    in property <MediaPlayerData> data;
-    callback play-pause();
-    callback previous-track();
-    callback next-track();
-    callback volume-changed(float);
-    callback volume-released(float);
+    in property <string> title: "";
+    in property <string> artist: "";
+    in property <string> state: "";
+    in property <image> art;
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: Theme.border-width;
+    border-width: 1px;
     border-color: Theme.border;
-    min-height: 200px;
 
     HorizontalLayout {
-        padding: Theme.space-4;
-        spacing: Theme.space-4;
-
-        Rectangle {
-            width: 112px;
-            height: 112px;
-            border-radius: Theme.radius-sm;
-            background: Theme.surface-warm;
-            border-width: 1px;
-            border-color: Theme.border;
-
-            if root.data.has-art : Image {
-                source: root.data.art;
-                width: 100%;
-                height: 100%;
-                image-fit: contain;
-            }
-
-            if !root.data.has-art : Text {
-                text: "♪";
-                color: Theme.muted;
-                font-size: Theme.text-2xl;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
+        Image {
+            source: art;
+            width: 80px;
+            height: 80px;
         }
-
         VerticalLayout {
-            spacing: Theme.space-2;
-            vertical-stretch: 1;
-
-            Text {
-                text: root.data.title;
-                color: Theme.fg;
-                font-size: Theme.text-xl;
-                font-weight: 600;
-                overflow: elide;
-            }
-
-            Text {
-                text: root.data.artist;
-                color: Theme.fg-2;
-                font-size: Theme.text-base;
-                overflow: elide;
-            }
-
-            Text {
-                text: root.data.album;
-                color: Theme.muted;
-                font-size: Theme.text-sm;
-                overflow: elide;
-            }
-
-            HorizontalLayout {
-                spacing: Theme.space-2;
-                alignment: start;
-
-                Text {
-                    text: root.data.state-label;
-                    color: root.data.available ? Theme.muted : Theme.warn;
-                    font-size: Theme.text-sm;
-                    vertical-alignment: center;
-                }
-
-                Text {
-                    text: root.data.pending ? "Sending…" : "";
-                    color: Theme.muted;
-                    font-size: Theme.text-xs;
-                    vertical-alignment: center;
-                }
-            }
-
-            HorizontalLayout {
-                spacing: Theme.space-2;
-                alignment: start;
-
-                previous-button := TransportButton {
-                    label: "Prev";
-                    enabled: root.data.can-previous && !root.data.pending;
-                    clicked => { root.previous-track(); }
-                }
-
-                play-button := TransportButton {
-                    label: root.data.playing ? "Pause" : "Play";
-                    enabled: root.data.can-play-pause && !root.data.pending;
-                    clicked => { root.play-pause(); }
-                }
-
-                next-button := TransportButton {
-                    label: "Next";
-                    enabled: root.data.can-next && !root.data.pending;
-                    clicked => { root.next-track(); }
-                }
-            }
-
-            HorizontalLayout {
-                spacing: Theme.space-2;
-
-                Text {
-                    text: "Volume";
-                    color: root.data.can-set-volume ? Theme.fg-2 : Theme.muted;
-                    font-size: Theme.text-sm;
-                    vertical-alignment: center;
-                }
-
-                volume-slider := Slider {
-                    height: Theme.touch-target;
-                    minimum: 0;
-                    maximum: 1;
-                    step: root.data.volume-step;
-                    value: root.data.volume;
-                    enabled: root.data.can-set-volume && !root.data.pending;
-                    changed(value) => { root.volume-changed(value); }
-                    released(value) => { root.volume-released(value); }
-                }
-
-                Text {
-                    text: root.data.volume-label;
-                    color: Theme.muted;
-                    font-size: Theme.text-xs;
-                    vertical-alignment: center;
-                    min-width: 48px;
-                }
-            }
-
-            Text {
-                text: root.data.error;
-                color: Theme.danger;
-                font-size: Theme.text-xs;
-                overflow: elide;
-                visible: root.data.error != "";
-            }
+            spacing: Theme.space-1;
+            Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
+            Text { text: artist; color: Theme.muted; font-size: Theme.text-sm; }
+            Text { text: state; color: Theme.muted; font-size: Theme.text-xs; }
         }
     }
 }

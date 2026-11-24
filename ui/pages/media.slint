@@ -1,23 +1,7 @@
 import { Theme } from "../theme.slint";
-import { MediaPlayerWidget, MediaPlayerData } from "../widgets/media_player.slint";
+import { MediaPlayerWidget } from "../widgets/media_player.slint";
 
 export component MediaPage inherits Rectangle {
-    in property <float> slider-value: 50;
-    callback slider-changed(float);
-
     background: Theme.bg;
-
-    VerticalLayout {
-        padding: Theme.space-4;
-        alignment: start;
-
-        MediaPlayerWidget {
-            data: root.data;
-            play-pause => { root.play-pause(); }
-            previous-track => { root.previous-track(); }
-            next-track => { root.next-track(); }
-            volume-changed(value) => { root.volume-changed(value); }
-            volume-released(value) => { root.volume-released(value); }
-        }
-    }
+    MediaPlayerWidget { title: ""; artist: ""; state: ""; }
 }

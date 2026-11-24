@@ -1,138 +1,45 @@
-// Application shell: the window, the page host, and the tab bar.
-//
-// Navigation state lives in `current-page` so the Rust controller
-// (src/app.rs) and the UI testing backend drive the same property. The tab
-// bar is the reliable touch fallback; swipe gestures are surfaced through the
-// `swipe-next` / `swipe-prev` callbacks and end in the controller.
-
 import { Theme } from "theme.slint";
-import { TouchTarget } from "widgets/touch_target.slint";
 import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
-import { AgendaEntry } from "widgets/calendar.slint";
 import { StatusPage } from "pages/status.slint";
 import { ShopPage, ShopEntryView } from "pages/shop.slint";
 
-export component TabButton inherits TouchTarget {
+export component TabButton inherits Rectangle {
     in property <string> label: "";
     in property <bool> active: false;
+    callback clicked();
 
-    out property <bool> has-focus: focus-scope.has-focus;
-
+    min-width: Theme.touch-target;
+    min-height: Theme.touch-target;
     border-radius: Theme.radius-md;
     background: active ? Theme.accent : Theme.surface;
     border-width: 1px;
-    border-color: active ? Theme.accent : Theme.border;
-
-    accessible-role: tab;
-    accessible-label: root.label;
-    accessible-item-selectable: true;
-    accessible-item-selected: root.active;
-    accessible-action-default => { root.clicked(); }
-
-    // Pressed feedback sits between the background and the label so the fill
-    // darkens without changing the selected/active colour.
-    pressed-fill := Rectangle {
-        visible: root.pressed;
-        background: active ? Theme.accent-active : Theme.border;
-        border-radius: root.border-radius;
-    }
-
-    accessible-role: button;
-    accessible-label: label;
-    accessible-action-default => { root.clicked(); }
+    border-color: Theme.border;
 
     Text {
-        text: root.label;
-        color: root.active ? Theme.accent-on : Theme.fg;
+        text: label;
+        color: active ? Theme.accent-on : Theme.fg;
         font-size: Theme.text-sm;
-        font-weight: root.active ? Theme.weight-semibold : Theme.weight-medium;
         horizontal-alignment: center;
         vertical-alignment: center;
-        overflow: elide;
     }
 
-    focus-scope := FocusScope {
-        focus-on-click: false;
-        key-pressed(event) => {
-            if (event.text == Key.Space || event.text == Key.Return) {
-                root.clicked();
-                return accept;
-            }
-            return reject;
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    states [
+        pressed when ta.pressed: {
+            background: Theme.border;
         }
-    }
-
-    // Keyboard focus ring. Mouse clicks do not take focus, so the ring only
-    // appears for keyboard navigation in desktop development builds.
-    focus-outline := Rectangle {
-        visible: focus-scope.has-focus;
-        border-width: 2px;
-        border-color: active ? Theme.accent-on : Theme.accent;
-        border-radius: root.border-radius;
-    }
-
-    focus-scope := FocusScope {
-        x: 0px;
-        width: 0px;
-        focus-on-click: false;
-        key-pressed(event) => {
-            if (event.text == Key.Space || event.text == Key.Return) {
-                root.clicked();
-                return accept;
-            }
-            return reject;
-        }
-    }
-    forward-focus: focus-scope;
-}
-
-// Shows exactly one page and clips it so page content cannot paint over the
-// tab bar. Page sizing lives here; the pages themselves stay layout-free
-// placeholders until Wave 3 fills them in.
-export component PageHost inherits Rectangle {
-    in property <int> current-page: 0;
-
-    background: Theme.bg;
-    clip: true;
-
-    if current-page == 0 : OverviewPage {
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
-    }
-    if current-page == 1 : MediaPage {
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
-    }
-    if current-page == 2 : AgendaPage {
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
-    }
-    if current-page == 3 : StatusPage {
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
-    }
+    ]
 }
 
 export component MainWindow inherits Window {
     title: "Home Assistant Kiosk";
-    min-width: Theme.window-min-width;
-    min-height: Theme.window-min-height;
-    background: Theme.bg;
-
-    in-out property <int> page-count: 4;
-    // The threshold belongs to the page, not to the 16px edge zone that hosts
-    // the gesture, so every swipe area receives the same value.
-    property <length> page-swipe-threshold: max(Theme.swipe-threshold, root.width * Theme.swipe-threshold-fraction);
+    min-width: 320px;
+    min-height: 240px;
 
     in-out property <int> current-page: 0;
     // The Shop is a fifth page that only exists when extensions are enabled.
@@ -154,142 +61,45 @@ export component MainWindow inherits Window {
     callback shop-remove(string);
     callback shop-set-enabled(string, bool);
 
-    // Interaction state for the shell tests and for keyboard navigation.
-    out property <int> focused-tab:
-        tab-overview.has-focus ? 0
-        : tab-media.has-focus ? 1
-        : tab-agenda.has-focus ? 2
-        : tab-status.has-focus ? 3
-        : -1;
-    out property <bool> tab-pressed:
-        tab-overview.pressed
-        || tab-media.pressed
-        || tab-agenda.pressed
-        || tab-status.pressed;
+    // Swipe tracking
+    property <length> swipe-start-x: 0px;
+    property <length> swipe-start-y: 0px;
+    property <bool> swipe-tracking: false;
 
-    callback page-changed(int);
-
-    // Root of the shell. Its id is the stable entry point for the UI smoke
-    // test's touch-target audit.
-    app-root := VerticalLayout {
+    VerticalLayout {
         spacing: 0px;
 
-        // Tab bar. The padding is part of the bar height, so the 44 px target
-        // stays available inside the layout.
+        // Tab bar
         Rectangle {
-            height: Theme.touch-target + 2 * Theme.space-2;
+            height: Theme.touch-target + Theme.space-2;
             background: Theme.surface;
-            border-width: Theme.border-width;
-            border-color: Theme.border;
-
-            HorizontalLayout {
-                padding-left: Theme.space-3;
-                padding-right: Theme.space-3;
-                spacing: Theme.space-3;
-
-                top-bar-title := Text {
-                    text: "Home Assistant Kiosk";
-                    horizontal-stretch: 1;
-                    color: Theme.fg;
-                    font-family: Theme.font-body;
-                    font-size: Theme.text-base;
-                    font-weight: Theme.weight-semibold;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-
-                Rectangle {
-                    width: 112px;
-                    height: 28px;
-                    border-radius: Theme.radius-pill;
-                    background: Theme.surface-warm;
-                    border-width: Theme.border-width;
-                    border-color: Theme.border;
-
-                    HorizontalLayout {
-                        padding-left: Theme.space-2;
-                        padding-right: Theme.space-2;
-                        spacing: Theme.space-2;
-                        alignment: center;
-
-                        connection-dot := Rectangle {
-                            width: 8px;
-                            height: 8px;
-                            border-radius: Theme.radius-pill;
-                            background: root.connected
-                                ? Theme.success
-                                : (root.stale ? Theme.warn : Theme.muted);
-                        }
-
-                        Text {
-                            text: root.connection-text;
-                            color: Theme.fg-2;
-                            font-family: Theme.font-body;
-                            font-size: Theme.text-xs;
-                            vertical-alignment: center;
-                            overflow: elide;
-                            horizontal-stretch: 1;
-                        }
-                    }
-                }
-
-                Text {
-                    text: root.clock-text;
-                    color: Theme.fg;
-                    font-family: Theme.font-mono;
-                    font-size: Theme.text-sm;
-                    vertical-alignment: center;
-                }
-            }
-        }
-
-        // Tab bar: the reliable navigation fallback for every page.
-        tab-bar := Rectangle {
-            height: Theme.touch-target + Theme.space-4;
-            background: Theme.bg;
-            border-width: Theme.border-width;
+            border-width: 0px;
             border-color: Theme.border;
 
             HorizontalLayout {
                 padding: Theme.space-2;
                 spacing: Theme.space-2;
+                alignment: start;
 
                 tab-overview := TabButton {
                     label: "Overview";
-                    active: root.current-page == 0;
-                    clicked => {
-                        root.current-page = 0;
-                        root.page-changed(0);
-                    }
+                    active: current-page == 0;
+                    clicked => { current-page = 0; page-changed(0); }
                 }
                 tab-media := TabButton {
                     label: "Media";
-                    active: root.current-page == 1;
-                    clicked => {
-                        root.current-page = 1;
-                        root.page-changed(1);
-                    }
+                    active: current-page == 1;
+                    clicked => { current-page = 1; page-changed(1); }
                 }
                 tab-agenda := TabButton {
                     label: "Agenda";
-                    active: root.current-page == 2;
-                    clicked => {
-                        root.current-page = 2;
-                        root.page-changed(2);
-                    }
+                    active: current-page == 2;
+                    clicked => { current-page = 2; page-changed(2); }
                 }
                 tab-status := TabButton {
                     label: "Status";
-                    active: root.current-page == 3;
-                    clicked => {
-                        root.current-page = 3;
-                        root.page-changed(3);
-                    }
-                }
-                if extensions-enabled : tab-shop := TabButton {
-                    label: "Shop";
-                    active: current-page == 4;
-                    clicked => { current-page = 4; page-changed(4); }
+                    active: current-page == 3;
+                    clicked => { current-page = 3; page-changed(3); }
                 }
                 if extensions-enabled : tab-shop := TabButton {
                     label: "Shop";
@@ -299,41 +109,36 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Page host. The background swipe area is declared first so page
-        // content (Flickables, sliders, tiles, buttons) wins the hit test.
-        page-host := Rectangle {
-            vertical-stretch: 1;
+        // Page host with swipe TouchArea behind content
+        Rectangle {
             background: Theme.bg;
-            clip: true;
+            vertical-stretch: 1;
 
-            background-swipe := SwipeArea {
-                x: 0px;
-                y: 0px;
+            swipe-area := TouchArea {
                 width: 100%;
                 height: 100%;
-                threshold: root.page-swipe-threshold;
-                threshold-fraction: 0.0;
-
-                swiped(direction) => {
-                    if (direction < 0) {
-                        root.current-page = Math.mod(root.current-page + 1, root.page-count);
-                    } else {
-                        root.current-page = Math.mod(root.current-page + root.page-count - 1, root.page-count);
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down) {
+                        swipe-start-x = self.mouse-x;
+                        swipe-start-y = self.mouse-y;
+                        swipe-tracking = true;
                     }
-                    root.page-changed(root.current-page);
+                    if (event.kind == PointerEventKind.up && swipe-tracking) {
+                        let dx = self.mouse-x - swipe-start-x;
+                        let dy = self.mouse-y - swipe-start-y;
+                        swipe-tracking = false;
+                        if ((abs(dx) >= 60px) || (abs(dx) >= self.width / 5)) && abs(dx) > abs(dy) {
+                            if (dx < 0px) { swipe-next(); }
+                            else { swipe-prev(); }
+                        }
+                    }
+                    if (event.kind == PointerEventKind.cancel) {
+                        swipe-tracking = false;
+                    }
                 }
             }
 
-            if current-page == 0 : OverviewPage {
-                x: 0px;
-                y: 0px;
-                width: 100%;
-                height: 100%;
-                departures-visible: root.departures-visible;
-                departures-title: root.departures-title;
-                departures-state: root.departures-state;
-                departures-rows: root.departures-rows;
-            }
+            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 3 : StatusPage {

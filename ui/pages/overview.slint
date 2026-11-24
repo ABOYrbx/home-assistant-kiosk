@@ -1,105 +1,39 @@
 import { Theme } from "../theme.slint";
+import { ClockWidget } from "../widgets/clock.slint";
+import { WeatherWidget } from "../widgets/weather.slint";
 import { HeroLight } from "../widgets/hero_light.slint";
 import { ScenesRow } from "../widgets/scenes.slint";
 import { HaTile } from "../widgets/ha_tile.slint";
-import { DepartureRow, DeparturesState, DeparturesWidget } from "../widgets/departures.slint";
+import { DeparturesWidget } from "../widgets/departures.slint";
 
 export component OverviewPage inherits Rectangle {
-    in property <bool> tile-selected: false;
-    callback tile-activated();
-
     background: Theme.bg;
 
-    property <length> side-padding: compact ? Theme.space-3 : Theme.space-6;
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-3;
 
-    Rectangle {
-        x: (parent.width - self.width) / 2;
-        width: min(parent.width, Theme.content-max-width + 2 * side-padding);
-        height: parent.height;
-
+        // Top bar
         HorizontalLayout {
-            padding-left: side-padding;
-            padding-right: side-padding;
             spacing: Theme.space-3;
             alignment: space-between;
-
-            HorizontalLayout {
-                spacing: Theme.space-2;
-                alignment: start;
-
-                Rectangle {
-                    width: Theme.space-2;
-                    height: Theme.space-2;
-                    border-radius: Theme.radius-pill;
-                    background: Theme.accent;
-                }
-
-                Text {
-                    text: "Home";
-                    color: Theme.fg;
-                    font-size: compact ? Theme.text-base : Theme.text-lg;
-                    font-weight: 600;
-                    vertical-alignment: center;
-                }
-            }
-
-            HorizontalLayout {
-                spacing: compact ? Theme.space-2 : Theme.space-5;
-                alignment: end;
-
-                Rectangle {
-                    height: Theme.touch-target;
-                    border-radius: Theme.radius-pill;
-                    border-width: 1px;
-                    border-color: Theme.border;
-                    background: Theme.surface;
-
-                    HorizontalLayout {
-                        padding-left: Theme.space-2;
-                        padding-right: Theme.space-3;
-                        spacing: Theme.space-1;
-                        alignment: center;
-
-                        Rectangle {
-                            width: Theme.space-2;
-                            height: Theme.space-2;
-                            border-radius: Theme.radius-pill;
-                            background: connected ? Theme.success : Theme.warn;
-                        }
-
-                        Text {
-                            text: connection-label;
-                            color: Theme.fg-2;
-                            font-size: Theme.text-sm;
-                            overflow: elide;
-                        }
-                    }
-                }
-
-                VerticalLayout {
-                    spacing: 0px;
-                    alignment: center;
-
-                    Text {
-                        text: time;
-                        width: Theme.clock-width;
-                        horizontal-alignment: right;
-                        color: Theme.fg;
-                        font-size: compact ? Theme.text-lg : Theme.text-xl;
-                        font-weight: 600;
-                        overflow: elide;
-                    }
-
-                    Text {
-                        text: date;
-                        width: Theme.clock-width;
-                        horizontal-alignment: right;
-                        color: Theme.muted;
-                        font-size: Theme.text-xs;
-                        overflow: elide;
-                    }
-                }
-            }
+            Text { text: "Home"; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
+            ClockWidget { time: ""; date: ""; }
         }
+
+        // Hero light
+        HeroLight { name: ""; on: false; brightness: 0; color-temp: 0; }
+
+        // Scenes
+        ScenesRow { items: []; }
+
+        // Rooms / tiles
+        HorizontalLayout {
+            spacing: Theme.space-3;
+            HaTile { label: ""; state: ""; }
+        }
+
+        // Departures
+        DeparturesWidget { title: "Departures"; items: []; }
     }
 }

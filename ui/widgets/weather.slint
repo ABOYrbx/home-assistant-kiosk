@@ -6,33 +6,14 @@ export component WeatherWidget inherits Rectangle {
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: Theme.border-width;
+    border-width: 1px;
     border-color: Theme.border;
 
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-1;
-        Text {
-            text: "Weather";
-            color: Theme.muted;
-            font-family: Theme.font-body;
-            font-size: Theme.text-xs;
-            line-height-factor: Theme.leading-body;
-        }
-        Text {
-            text: temperature;
-            color: Theme.fg;
-            font-family: Theme.font-display;
-            font-size: Theme.text-xl;
-            font-weight: Theme.font-weight-semibold;
-            line-height-factor: Theme.leading-tight;
-        }
-        Text {
-            text: condition;
-            color: Theme.fg-2;
-            font-family: Theme.font-body;
-            font-size: Theme.text-sm;
-            line-height-factor: Theme.leading-body;
-        }
+        Text { text: "Weather"; color: Theme.muted; font-size: Theme.text-xs; }
+        Text { text: temperature; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
+        Text { text: condition; color: Theme.fg-2; font-size: Theme.text-sm; }
     }
 }

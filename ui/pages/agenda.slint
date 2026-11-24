@@ -1,28 +1,7 @@
 import { Theme } from "../theme.slint";
-import { AgendaEntry, CalendarWidget } from "../widgets/calendar.slint";
+import { CalendarWidget } from "../widgets/calendar.slint";
 
 export component AgendaPage inherits Rectangle {
-    in property <[AgendaEntry]> today: [];
-    in property <[AgendaEntry]> tomorrow: [];
-    in property <bool> loading: false;
-    in property <bool> empty: false;
-    in property <string> error: "";
-    in property <string> status: "";
-
     background: Theme.bg;
-
-    VerticalLayout {
-        padding: Theme.space-3;
-        spacing: Theme.space-3;
-
-        CalendarWidget {
-            vertical-stretch: 1;
-            today: root.today;
-            tomorrow: root.tomorrow;
-            loading: root.loading;
-            empty: root.empty;
-            error: root.error;
-            status: root.status;
-        }
-    }
+    CalendarWidget { items: []; }
 }

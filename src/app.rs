@@ -1,4 +1,3 @@
-use crate::Config;
 use crate::MainWindow;
 use crate::extensions::shop::{DEFAULT_SECRET_DIR, ShopAction, ShopView};
 use crate::extensions::{ExtensionManager, HttpsFetcher, ManagerOptions};
@@ -26,13 +25,13 @@ enum ShopTask {
 #[allow(dead_code)]
 pub struct AppController {
     window: MainWindow,
-    ui: Rc<RefCell<UiState>>,
+    state: AppState,
     config: Config,
     shop: SharedShop,
     page_count: usize,
     commands: mpsc::Sender<HaCommand>,
-    events_tx: mpsc::Sender<AppEvent>,
-    ui: Rc<RefCell<UiState>>,
+    last_redraw: Instant,
+    pending_redraw: bool,
     clock_timer: slint::Timer,
     shop_tasks: Option<std_mpsc::Sender<ShopTask>>,
     shop_timer: Option<slint::Timer>,
@@ -85,12 +84,11 @@ impl AppController {
 
         let mut ctrl = Self {
             window,
-            state,
+            state: AppState::default(),
             config,
             shop,
             page_count,
             commands,
-            departures,
             last_redraw: Instant::now(),
             pending_redraw: false,
             clock_timer: slint::Timer::default(),
@@ -141,9 +139,6 @@ impl AppController {
                 let _ = &weak_clock;
             },
         );
-
-        // Publish the initial state so the shell never shows blank defaults.
-        UiBridge::apply(&ctrl.window, &ctrl.state);
 
         ctrl
     }
@@ -224,42 +219,10 @@ impl AppController {
     }
 
     pub fn apply(&mut self, event: AppEvent) {
+        // Update state on the UI thread.
         match event {
             AppEvent::Ha(ha_event) => {
-                if let HaEvent::ServiceResult { request_id, result } = &ha_event {
-                    let result = result.as_ref().map_err(ToString::to_string);
-                    if self
-                        .calendar
-                        .accept(*request_id, result, self.state.time_zone)
-                        && let Some(view) = self.calendar.finish(Utc::now())
-                    {
-                        self.state.calendar = Some(view);
-                    }
-                }
-                if let HaEvent::Disconnected { reason } = &ha_event
-                    && let Some(errors) = self.calendar.abandon(&format!("disconnected: {reason}"))
-                {
-                    let mut view = self.state.calendar.clone().unwrap_or_default();
-                    view.errors = errors;
-                    view.stale = true;
-                    self.state.calendar = Some(view);
-                }
                 self.state.apply_ha_event(ha_event);
-                departures_dirty = true;
-            }
-            AppEvent::Shop(shop_event) => {
-                {
-                    let mut shop = self.shop.borrow_mut();
-                    match shop_event {
-                        ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
-                        ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
-                        ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
-                        ShopEvent::ActionResult { id, action, result } => {
-                            let _ = shop.complete(&id, action, result);
-                        }
-                    }
-                }
-                push_shop(&self.window, &self.shop.borrow());
             }
             AppEvent::Shop(shop_event) => {
                 {
@@ -280,132 +243,30 @@ impl AppController {
                     self.state.weather = Some(v);
                 }
             }
+            AppEvent::Media(m) => {
+                self.state.media = m;
+            }
             AppEvent::Departures(r) => {
                 if let Ok(v) = r {
                     self.state.departures = Some(v);
-                    departures_dirty = true;
                 }
             }
-            AppEvent::Calendar(r) => match r {
-                Ok(view) => self.state.calendar = Some(view),
-                Err(error) => {
-                    let mut view = self.state.calendar.clone().unwrap_or_default();
-                    view.errors.push(CalendarError {
-                        calendar_id: String::new(),
-                        message: error.0,
-                    });
-                    view.stale = true;
-                    self.state.calendar = Some(view);
+            AppEvent::Calendar(r) => {
+                if let Ok(v) = r {
+                    self.state.calendar = Some(v);
                 }
-            },
+            }
             AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
         }
-        self.schedule_redraw();
-    }
 
-        UiBridge::apply(&self.state, &self.window);
-
-        // Re-read the departures sensor whenever entity state or attributes
-        // change; the runtime suppresses unchanged views.
-        if self.config.widgets.departures.enabled {
-            let view = self.departures.borrow_mut().on_entities(
-                &self.state.entities,
-                self.state.time_zone,
-                Utc::now(),
-            );
-            if let Some(view) = view {
-                self.state.departures = Some(view);
-                departures_dirty = true;
-            }
-        }
-
-        if departures_dirty {
-            UiBridge::apply(
-                &self.state,
-                &self.window,
-                &self.config.widgets.departures.title,
-                self.config.widgets.departures.enabled,
-            );
-        }
-
-        // Re-read the departures sensor whenever entity state or attributes
-        // change; the runtime suppresses unchanged views.
-        if self.config.widgets.departures.enabled {
-            let view = self.departures.borrow_mut().on_entities(
-                &self.state.entities,
-                self.state.time_zone,
-                Utc::now(),
-            );
-            if let Some(view) = view {
-                self.state.departures = Some(view);
-                departures_dirty = true;
-            }
-        }
-
-        if departures_dirty {
-            UiBridge::apply(
-                &self.state,
-                &self.window,
-                &self.config.widgets.departures.title,
-                self.config.widgets.departures.enabled,
-            );
-        }
-
-        UiBridge::apply(&self.state, &self.window);
-
+        // Coalesce redraws: at most 4 per second.
         let now = Instant::now();
         if now.duration_since(self.last_redraw) >= Duration::from_millis(250) {
             self.last_redraw = now;
-            true
+            self.pending_redraw = false;
         } else {
-            false
+            self.pending_redraw = true;
         }
-    }
-
-    /// Send one `calendar.get_events` request per configured calendar.
-    ///
-    /// Returns false when calendars are disabled, none are configured, or a
-    /// refresh is already in flight.
-    pub fn refresh_calendar(&mut self, now: DateTime<Utc>) -> bool {
-        let calendar = &self.config.widgets.calendar;
-        if !calendar.enabled || calendar.entities.is_empty() || self.calendar.is_pending() {
-            return false;
-        }
-        let calls =
-            self.calendar
-                .begin(&calendar.entities, calendar.days, self.state.time_zone, now);
-        if calls.is_empty() {
-            self.calendar = CalendarRefresh::default();
-            return false;
-        }
-        for call in calls {
-            if self
-                .commands
-                .try_send(HaCommand::CallService(call))
-                .is_err()
-            {
-                self.calendar.abandon("command channel full");
-                return false;
-            }
-        }
-        true
-    }
-
-    pub fn calendar_refresh_due(&self, now: DateTime<Utc>) -> bool {
-        let calendar = &self.config.widgets.calendar;
-        if !calendar.enabled || calendar.entities.is_empty() || self.calendar.is_pending() {
-            return false;
-        }
-        let last_success = self
-            .state
-            .calendar
-            .as_ref()
-            .and_then(|view| view.last_success);
-        refresh_due(
-            last_success,
-            now,
-            Duration::from_secs(calendar.refresh_seconds),
-        )
     }
 
     pub fn next_page(&mut self) {
@@ -617,193 +478,4 @@ fn refresh_after_action<
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
     }
-}
-
-/// Publish the newest state once the limiter allows it.
-///
-/// The timer is single-shot: either it renders, or it re-arms itself for the
-/// remainder of the interval. It holds a weak window so a closed UI cannot keep
-/// the application alive.
-fn schedule_flush(
-    ui: Rc<RefCell<UiState>>,
-    window: slint::Weak<MainWindow>,
-    started: Instant,
-    delay: Duration,
-) {
-    slint::Timer::single_shot(delay, move || {
-        let Some(window) = window.upgrade() else {
-            return;
-        };
-        let next_delay = {
-            let mut ui = ui.borrow_mut();
-            ui.flush_pending = false;
-            if !ui.dirty {
-                return;
-            }
-            match ui.scheduler.request(started.elapsed()) {
-                RedrawSlot::Ready => {
-                    ui.render(&window);
-                    ui.dirty = false;
-                    return;
-                }
-                RedrawSlot::Deferred(delay) => {
-                    ui.flush_pending = true;
-                    delay
-                }
-            }
-        };
-        schedule_flush(ui, window.as_weak(), started, next_delay);
-    });
-}
-
-fn apply_event(state: &mut AppState, event: AppEvent) {
-    match event {
-        AppEvent::Ha(ha_event) => state.apply_ha_event(ha_event),
-        AppEvent::Weather(r) => {
-            if let Ok(v) = r {
-                state.weather = Some(v);
-            }
-        }
-        AppEvent::Media(m) => state.media = m,
-        AppEvent::Departures(r) => {
-            if let Ok(v) = r {
-                state.departures = Some(v);
-            }
-        }
-        AppEvent::Calendar(r) => {
-            if let Ok(items) = r {
-                state.calendar = items;
-            }
-        }
-        AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
-    }
-}
-
-fn wire_media_callbacks(
-    window: &MainWindow,
-    media_ui: &Rc<RefCell<MediaUi>>,
-    commands: &mpsc::Sender<HaCommand>,
-) {
-    let weak = window.as_weak();
-    let ui = Rc::clone(media_ui);
-    let tx = commands.clone();
-    window.on_media_play_pause(move || {
-        dispatch_transport(
-            &ui,
-            &tx,
-            &weak,
-            media::can_play_pause,
-            media::play_pause_call,
-        );
-    });
-
-    let weak = window.as_weak();
-    let ui = Rc::clone(media_ui);
-    let tx = commands.clone();
-    window.on_media_previous_track(move || {
-        dispatch_transport(
-            &ui,
-            &tx,
-            &weak,
-            media::can_previous,
-            media::previous_track_call,
-        );
-    });
-
-    let weak = window.as_weak();
-    let ui = Rc::clone(media_ui);
-    let tx = commands.clone();
-    window.on_media_next_track(move || {
-        dispatch_transport(&ui, &tx, &weak, media::can_next, media::next_track_call);
-    });
-
-    let weak = window.as_weak();
-    let ui = Rc::clone(media_ui);
-    let tx = commands.clone();
-    window.on_media_volume_changed(move |value| {
-        let mut state = ui.borrow_mut();
-        let Some(view) = state.view.clone() else {
-            return;
-        };
-        if !media::can_set_volume(&view) {
-            return;
-        }
-        let Some(volume) = state.volume.on_change(value, Instant::now()) else {
-            return;
-        };
-        state.next_request_id += 1;
-        let call = media::volume_call(state.next_request_id, &view.entity_id, volume);
-        if tx.try_send(HaCommand::CallService(call)).is_err() {
-            state.error = Some("Home Assistant is not connected".to_string());
-        }
-        drop(state);
-        refresh(&weak, &ui);
-    });
-
-    let weak = window.as_weak();
-    let ui = Rc::clone(media_ui);
-    let tx = commands.clone();
-    window.on_media_volume_released(move |value| {
-        let mut state = ui.borrow_mut();
-        let Some(view) = state.view.clone() else {
-            return;
-        };
-        if !media::can_set_volume(&view) {
-            return;
-        }
-        let volume = state.volume.on_release(value, Instant::now());
-        state.next_request_id += 1;
-        let call = media::volume_call(state.next_request_id, &view.entity_id, volume);
-        if tx.try_send(HaCommand::CallService(call)).is_err() {
-            state.error = Some("Home Assistant is not connected".to_string());
-        }
-        drop(state);
-        refresh(&weak, &ui);
-    });
-}
-
-fn dispatch_transport(
-    ui: &Rc<RefCell<MediaUi>>,
-    commands: &mpsc::Sender<HaCommand>,
-    weak: &slint::Weak<MainWindow>,
-    allowed: fn(&MediaView) -> bool,
-    build: fn(u64, &str) -> ServiceCall,
-) {
-    let mut state = ui.borrow_mut();
-    if state.pending_request.is_some() {
-        return;
-    }
-    let Some(view) = state.view.clone() else {
-        return;
-    };
-    if !allowed(&view) {
-        return;
-    }
-    state.next_request_id += 1;
-    let request_id = state.next_request_id;
-    let call = build(request_id, &view.entity_id);
-    match commands.try_send(HaCommand::CallService(call)) {
-        Ok(()) => {
-            state.pending_request = Some(request_id);
-            state.error = None;
-        }
-        Err(_) => state.error = Some("Home Assistant is not connected".to_string()),
-    }
-    drop(state);
-    refresh(weak, ui);
-}
-
-fn refresh(window: &slint::Weak<MainWindow>, media_ui: &Rc<RefCell<MediaUi>>) {
-    let Some(window) = window.upgrade() else {
-        return;
-    };
-    let ui = media_ui.borrow();
-    bridge::apply_media(
-        &window,
-        ui.view.as_ref(),
-        &ui.art,
-        ui.pending_request.is_some(),
-        ui.error.as_deref(),
-        ui.volume_step,
-    );
 }

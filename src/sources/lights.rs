@@ -39,7 +39,7 @@ pub fn parse_light_entity(
         None => attribute_u64(entity, "brightness").is_some(),
     };
     let color_temp_supported = match &modes {
-        Some(modes) => modes.iter().any(|mode| *mode == "color_temp"),
+        Some(modes) => modes.contains(&"color_temp"),
         None => has_color_temp_attributes,
     };
 
