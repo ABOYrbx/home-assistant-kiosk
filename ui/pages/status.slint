@@ -1,10 +1,85 @@
 import { Theme } from "../theme.slint";
 
 export component StatusPage inherits Rectangle {
+    in property <string> connection-status: "Disconnected";
+    in property <bool> stale: true;
+    in property <string> ha-version: "";
+    in property <int> entity-count: 0;
+    in property <string> last-success: "";
+
     background: Theme.bg;
-    Text {
-        text: "Status";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-6;
+        spacing: Theme.space-3;
+        alignment: start;
+
+        Text {
+            text: "Status";
+            color: Theme.fg;
+            font-size: Theme.text-xl;
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Text {
+                text: "Connection:";
+                color: Theme.muted;
+                font-size: Theme.text-base;
+            }
+            Text {
+                text: connection-status;
+                color: Theme.fg-2;
+                font-size: Theme.text-base;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Text {
+                text: "Home Assistant:";
+                color: Theme.muted;
+                font-size: Theme.text-base;
+            }
+            Text {
+                text: ha-version == "" ? "unknown" : ha-version;
+                color: Theme.fg-2;
+                font-size: Theme.text-base;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Text {
+                text: "Entities:";
+                color: Theme.muted;
+                font-size: Theme.text-base;
+            }
+            Text {
+                text: "\{entity-count}";
+                color: Theme.fg-2;
+                font-size: Theme.text-base;
+            }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.space-2;
+            Text {
+                text: "Last update:";
+                color: Theme.muted;
+                font-size: Theme.text-base;
+            }
+            Text {
+                text: last-success == "" ? "never" : last-success;
+                color: Theme.fg-2;
+                font-size: Theme.text-base;
+            }
+        }
+
+        Text {
+            text: stale ? "Showing cached data" : "Live";
+            color: stale ? Theme.warn : Theme.success;
+            font-size: Theme.text-base;
+        }
     }
 }

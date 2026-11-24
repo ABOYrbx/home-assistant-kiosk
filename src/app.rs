@@ -1,4 +1,5 @@
 use crate::MainWindow;
+use crate::ui::bridge::UiBridge;
 use crate::{AppEvent, AppState, Config, HaCommand};
 use slint::ComponentHandle;
 use std::time::{Duration, Instant};
@@ -57,9 +58,14 @@ impl AppController {
             },
         );
 
+        // Publish the initial state so the shell never shows blank defaults.
+        UiBridge::apply(&ctrl.window, &ctrl.state);
+
         ctrl
     }
 
+    /// Applies one background event. Call this only from the Slint UI thread;
+    /// `AppController` owns the window and is not `Send`.
     pub fn apply(&mut self, event: AppEvent) {
         // Update state on the UI thread.
         match event {
@@ -86,6 +92,11 @@ impl AppController {
             }
             AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
         }
+
+        // Publish state to Slint properties/models while we are on the UI
+        // thread. Wave 2 has no data widgets, but the shell status and entity
+        // model must still track the event stream honestly.
+        UiBridge::apply(&self.window, &self.state);
 
         // Coalesce redraws: at most 4 per second.
         let now = Instant::now();
