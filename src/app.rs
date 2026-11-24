@@ -81,7 +81,7 @@ impl AppController {
             }
             AppEvent::Calendar(r) => {
                 if let Ok(v) = r {
-                    self.state.calendar = v;
+                    self.state.calendar = Some(v);
                 }
             }
             AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
