@@ -26,7 +26,7 @@ enum ShopTask {
 #[allow(dead_code)]
 pub struct AppController {
     window: MainWindow,
-    state: AppState,
+    ui: Rc<RefCell<UiState>>,
     config: Config,
     shop: SharedShop,
     page_count: usize,
@@ -286,6 +286,8 @@ impl AppController {
             },
             AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
         }
+        self.schedule_redraw();
+    }
 
         UiBridge::apply(&self.state, &self.window);
 
@@ -553,5 +555,65 @@ fn refresh_after_action<
     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
+    }
+}
+
+/// Publish the newest state once the limiter allows it.
+///
+/// The timer is single-shot: either it renders, or it re-arms itself for the
+/// remainder of the interval. It holds a weak window so a closed UI cannot keep
+/// the application alive.
+fn schedule_flush(
+    ui: Rc<RefCell<UiState>>,
+    window: slint::Weak<MainWindow>,
+    started: Instant,
+    delay: Duration,
+) {
+    slint::Timer::single_shot(delay, move || {
+        let Some(window) = window.upgrade() else {
+            return;
+        };
+        let next_delay = {
+            let mut ui = ui.borrow_mut();
+            ui.flush_pending = false;
+            if !ui.dirty {
+                return;
+            }
+            match ui.scheduler.request(started.elapsed()) {
+                RedrawSlot::Ready => {
+                    ui.render(&window);
+                    ui.dirty = false;
+                    return;
+                }
+                RedrawSlot::Deferred(delay) => {
+                    ui.flush_pending = true;
+                    delay
+                }
+            }
+        };
+        schedule_flush(ui, window.as_weak(), started, next_delay);
+    });
+}
+
+fn apply_event(state: &mut AppState, event: AppEvent) {
+    match event {
+        AppEvent::Ha(ha_event) => state.apply_ha_event(ha_event),
+        AppEvent::Weather(r) => {
+            if let Ok(v) = r {
+                state.weather = Some(v);
+            }
+        }
+        AppEvent::Media(m) => state.media = m,
+        AppEvent::Departures(r) => {
+            if let Ok(v) = r {
+                state.departures = Some(v);
+            }
+        }
+        AppEvent::Calendar(r) => {
+            if let Ok(items) = r {
+                state.calendar = items;
+            }
+        }
+        AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
     }
 }
