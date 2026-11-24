@@ -75,6 +75,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 ├── CONTRIBUTING.md
 ├── PLAN.md                      # implementation plan and source of truth
 ├── README.md                    # operator-facing overview
+├── CHANGELOG.md                 # release history and unreleased changes
 ├── SECURITY.md
 ├── herdr.sh                     # interactive Herdr agent dispatcher
 ├── DESIGN.md                    # adopted design system (authoritative)
@@ -95,6 +96,8 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
 │   ├── github-rules.md          # repository and branch policy
 │   ├── herdr-agent.md           # Herdr dispatch guide
+│   ├── troubleshooting.md       # operator troubleshooting guide
+│   ├── release-checklist.md     # release gates, artifacts, and sign-off
 │   ├── agent-prompts/
 │   │   └── implement-issue.md   # implementation prompt template
 │   └── issues/                  # subtask index, mapping, and wave epic drafts
