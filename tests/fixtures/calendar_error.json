@@ -1,0 +1,8 @@
+{
+  "calendar.family": {
+    "error": {
+      "code": "calendar_unavailable",
+      "message": "calendar entity is unavailable"
+    }
+  }
+}

@@ -103,7 +103,7 @@ pub enum AppEvent {
     Weather(Result<crate::state::WeatherView, SourceError>),
     Media(Option<crate::state::MediaView>),
     Departures(Result<crate::state::DeparturesView, SourceError>),
-    Calendar(Result<Vec<crate::state::CalendarItem>, SourceError>),
+    Calendar(Result<crate::state::CalendarView, SourceError>),
     AlbumArt {
         entity_id: EntityId,
         image: slint::SharedPixelBuffer<slint::Rgba8Pixel>,

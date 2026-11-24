@@ -1,3 +1,4 @@
+use crate::Config;
 use crate::MainWindow;
 use crate::extensions::shop::{DEFAULT_SECRET_DIR, ShopAction, ShopView};
 use crate::extensions::{ExtensionManager, HttpsFetcher, ManagerOptions};
@@ -84,7 +85,7 @@ impl AppController {
 
         let mut ctrl = Self {
             window,
-            state: AppState::default(),
+            state,
             config,
             shop,
             page_count,
@@ -219,9 +220,26 @@ impl AppController {
     }
 
     pub fn apply(&mut self, event: AppEvent) {
-        // Update state on the UI thread.
         match event {
             AppEvent::Ha(ha_event) => {
+                if let HaEvent::ServiceResult { request_id, result } = &ha_event {
+                    let result = result.as_ref().map_err(ToString::to_string);
+                    if self
+                        .calendar
+                        .accept(*request_id, result, self.state.time_zone)
+                        && let Some(view) = self.calendar.finish(Utc::now())
+                    {
+                        self.state.calendar = Some(view);
+                    }
+                }
+                if let HaEvent::Disconnected { reason } = &ha_event
+                    && let Some(errors) = self.calendar.abandon(&format!("disconnected: {reason}"))
+                {
+                    let mut view = self.state.calendar.clone().unwrap_or_default();
+                    view.errors = errors;
+                    view.stale = true;
+                    self.state.calendar = Some(view);
+                }
                 self.state.apply_ha_event(ha_event);
             }
             AppEvent::Shop(shop_event) => {
@@ -251,13 +269,22 @@ impl AppController {
                     self.state.departures = Some(v);
                 }
             }
-            AppEvent::Calendar(r) => {
-                if let Ok(v) = r {
-                    self.state.calendar = v;
+            AppEvent::Calendar(r) => match r {
+                Ok(view) => self.state.calendar = Some(view),
+                Err(error) => {
+                    let mut view = self.state.calendar.clone().unwrap_or_default();
+                    view.errors.push(CalendarError {
+                        calendar_id: String::new(),
+                        message: error.0,
+                    });
+                    view.stale = true;
+                    self.state.calendar = Some(view);
                 }
-            }
+            },
             AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
         }
+
+        UiBridge::apply(&self.state, &self.window);
 
         // Coalesce redraws: at most 4 per second.
         let now = Instant::now();
@@ -267,6 +294,52 @@ impl AppController {
         } else {
             self.pending_redraw = true;
         }
+    }
+
+    /// Send one `calendar.get_events` request per configured calendar.
+    ///
+    /// Returns false when calendars are disabled, none are configured, or a
+    /// refresh is already in flight.
+    pub fn refresh_calendar(&mut self, now: DateTime<Utc>) -> bool {
+        let calendar = &self.config.widgets.calendar;
+        if !calendar.enabled || calendar.entities.is_empty() || self.calendar.is_pending() {
+            return false;
+        }
+        let calls =
+            self.calendar
+                .begin(&calendar.entities, calendar.days, self.state.time_zone, now);
+        if calls.is_empty() {
+            self.calendar = CalendarRefresh::default();
+            return false;
+        }
+        for call in calls {
+            if self
+                .commands
+                .try_send(HaCommand::CallService(call))
+                .is_err()
+            {
+                self.calendar.abandon("command channel full");
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn calendar_refresh_due(&self, now: DateTime<Utc>) -> bool {
+        let calendar = &self.config.widgets.calendar;
+        if !calendar.enabled || calendar.entities.is_empty() || self.calendar.is_pending() {
+            return false;
+        }
+        let last_success = self
+            .state
+            .calendar
+            .as_ref()
+            .and_then(|view| view.last_success);
+        refresh_due(
+            last_success,
+            now,
+            Duration::from_secs(calendar.refresh_seconds),
+        )
     }
 
     pub fn next_page(&mut self) {
