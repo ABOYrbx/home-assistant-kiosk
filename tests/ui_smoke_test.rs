@@ -1,3 +1,4 @@
+use ha_kiosk::{AppController, Config, MainWindow};
 use i_slint_backend_testing::ElementHandle;
 use slint::LogicalSize;
 use slint::language::AccessibleRole;
@@ -100,6 +101,32 @@ fn is_interactive_role(role: AccessibleRole) -> bool {
 
 fn meets_minimum_touch_target(size: LogicalSize) -> bool {
     size.width >= MIN_TOUCH_TARGET && size.height >= MIN_TOUCH_TARGET
+}
+
+/// Drag the pointer from the centre of the page host by the given logical delta.
+async fn drag_page(app: &MainWindow, dx: f32, dy: f32) {
+    let swipe = ElementHandle::find_by_element_id(app, "MainWindow::swipe-area")
+        .next()
+        .unwrap();
+    let pos = swipe.absolute_position();
+    let size = swipe.size();
+    let start = slint::LogicalPosition::new(pos.x + size.width / 2.0, pos.y + size.height / 2.0);
+    let target = slint::LogicalPosition::new(start.x + dx, start.y + dy);
+    swipe.drag(target, PointerEventButton::Left).await;
+}
+
+fn test_config() -> Config {
+    toml::from_str(
+        r#"
+[ha]
+url = "http://127.0.0.1:8123"
+token = "test-token"
+
+[cache]
+path = "/tmp/ha-kiosk-ui-smoke-cache.json"
+"#,
+    )
+    .unwrap()
 }
 
 #[test]
