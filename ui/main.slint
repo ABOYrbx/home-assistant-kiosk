@@ -1,27 +1,45 @@
+// Application shell: the window, the page host, and the tab bar.
+//
+// Navigation state lives in `current-page` so the Rust controller
+// (src/app.rs) and the UI testing backend drive the same property. The tab
+// bar is the reliable touch fallback; swipe gestures are surfaced through the
+// `swipe-next` / `swipe-prev` callbacks and end in the controller.
+
 import { Theme } from "theme.slint";
 import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
 import { StatusPage } from "pages/status.slint";
 
+// Page indices, in tab-bar order. `current-page` remains an int because the
+// generated Rust bindings and the controller use the index.
+//   0 = Overview, 1 = Media, 2 = Agenda, 3 = Status
+
 export component TabButton inherits Rectangle {
     in property <string> label: "";
     in property <bool> active: false;
     callback clicked();
 
+    accessible-role: tab;
+    accessible-label: label;
+
+    // A tab shares the bar width evenly but never drops below the 44 px
+    // touch-target minimum from DESIGN.md.
     min-width: Theme.touch-target;
     min-height: Theme.touch-target;
+    horizontal-stretch: 1;
     border-radius: Theme.radius-md;
     background: active ? Theme.accent : Theme.surface;
     border-width: 1px;
-    border-color: Theme.border;
+    border-color: active ? Theme.accent : Theme.border;
 
     Text {
         text: label;
-        color: active ? Theme.accent-on : Theme.fg;
+        color: active ? Theme.accent-on : Theme.fg-2;
         font-size: Theme.text-sm;
         horizontal-alignment: center;
         vertical-alignment: center;
+        overflow: elide;
     }
 
     ta := TouchArea {
@@ -30,22 +48,63 @@ export component TabButton inherits Rectangle {
 
     states [
         pressed when ta.pressed: {
-            background: Theme.border;
+            background: root.active ? Theme.fg-2 : Theme.border;
+            border-color: root.active ? Theme.fg-2 : Theme.border;
         }
     ]
 }
 
+// Shows exactly one page and clips it so page content cannot paint over the
+// tab bar. Page sizing lives here; the pages themselves stay layout-free
+// placeholders until Wave 3 fills them in.
+export component PageHost inherits Rectangle {
+    in property <int> current-page: 0;
+
+    background: Theme.bg;
+    clip: true;
+
+    if current-page == 0 : OverviewPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    if current-page == 1 : MediaPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    if current-page == 2 : AgendaPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    if current-page == 3 : StatusPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+}
+
 export component MainWindow inherits Window {
     title: "Home Assistant Kiosk";
-    min-width: 320px;
-    min-height: 240px;
+    // 800 x 480 is the smallest supported kiosk panel. The preferred size is
+    // the desktop development window; the kiosk build is fullscreen.
+    min-width: 800px;
+    min-height: 480px;
+    preferred-width: 1024px;
+    preferred-height: 600px;
+    background: Theme.bg;
 
     in-out property <int> current-page: 0;
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
 
-    // Swipe tracking
+    // Swipe tracking for the page host.
     property <length> swipe-start-x: 0px;
     property <length> swipe-start-y: 0px;
     property <bool> swipe-tracking: false;
@@ -53,45 +112,13 @@ export component MainWindow inherits Window {
     VerticalLayout {
         spacing: 0px;
 
-        // Tab bar
+        // The page host stretches to fill everything above the tab bar. The
+        // swipe TouchArea is declared before the pages so interactive page
+        // content (sliders, lists, buttons) receives gestures first.
         Rectangle {
-            height: Theme.touch-target + Theme.space-2;
-            background: Theme.surface;
-            border-width: 0px;
-            border-color: Theme.border;
-
-            HorizontalLayout {
-                padding: Theme.space-2;
-                spacing: Theme.space-2;
-                alignment: start;
-
-                tab-overview := TabButton {
-                    label: "Overview";
-                    active: current-page == 0;
-                    clicked => { current-page = 0; page-changed(0); }
-                }
-                tab-media := TabButton {
-                    label: "Media";
-                    active: current-page == 1;
-                    clicked => { current-page = 1; page-changed(1); }
-                }
-                tab-agenda := TabButton {
-                    label: "Agenda";
-                    active: current-page == 2;
-                    clicked => { current-page = 2; page-changed(2); }
-                }
-                tab-status := TabButton {
-                    label: "Status";
-                    active: current-page == 3;
-                    clicked => { current-page = 3; page-changed(3); }
-                }
-            }
-        }
-
-        // Page host with swipe TouchArea behind content
-        Rectangle {
-            background: Theme.bg;
             vertical-stretch: 1;
+            background: Theme.bg;
+            clip: true;
 
             swipe-area := TouchArea {
                 width: 100%;
@@ -106,9 +133,14 @@ export component MainWindow inherits Window {
                         let dx = self.mouse-x - swipe-start-x;
                         let dy = self.mouse-y - swipe-start-y;
                         swipe-tracking = false;
-                        if ((abs(dx) >= 60px) || (abs(dx) >= self.width / 5)) && abs(dx) > abs(dy) {
-                            if (dx < 0px) { swipe-next(); }
-                            else { swipe-prev(); }
+                        // At least 20% of the width or 60 logical pixels, and
+                        // the horizontal axis must win.
+                        if (Math.abs(dx) >= 60px || Math.abs(dx) >= self.width / 5) && Math.abs(dx) > Math.abs(dy) {
+                            if (dx < 0px) {
+                                root.swipe-next();
+                            } else {
+                                root.swipe-prev();
+                            }
                         }
                     }
                     if (event.kind == PointerEventKind.cancel) {
@@ -117,10 +149,64 @@ export component MainWindow inherits Window {
                 }
             }
 
-            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            // The page sits above the swipe area.
+            page-host := PageHost {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                current-page: root.current-page;
+            }
+        }
+
+        // Tab bar. It stays at the bottom of the shell so it does not compete
+        // with the Overview top bar that Wave 3 adds inside the page.
+        Rectangle {
+            height: Theme.touch-target + Theme.space-4;
+            background: Theme.surface;
+
+            Rectangle {
+                height: 1px;
+                background: Theme.border;
+            }
+
+            HorizontalLayout {
+                padding: Theme.space-2;
+                spacing: Theme.space-2;
+
+                tab-overview := TabButton {
+                    label: "Overview";
+                    active: root.current-page == 0;
+                    clicked => {
+                        root.current-page = 0;
+                        root.page-changed(0);
+                    }
+                }
+                tab-media := TabButton {
+                    label: "Media";
+                    active: root.current-page == 1;
+                    clicked => {
+                        root.current-page = 1;
+                        root.page-changed(1);
+                    }
+                }
+                tab-agenda := TabButton {
+                    label: "Agenda";
+                    active: root.current-page == 2;
+                    clicked => {
+                        root.current-page = 2;
+                        root.page-changed(2);
+                    }
+                }
+                tab-status := TabButton {
+                    label: "Status";
+                    active: root.current-page == 3;
+                    clicked => {
+                        root.current-page = 3;
+                        root.page-changed(3);
+                    }
+                }
+            }
         }
     }
 }
