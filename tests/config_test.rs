@@ -207,3 +207,160 @@ fn env_token_overrides() {
         std::env::remove_var("HA_TOKEN");
     }
 }
+
+fn config_with_extensions(extra: &str) -> String {
+    base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false",
+        &format!("[extensions]\nenabled = true\n{extra}"),
+    )
+}
+
+#[test]
+fn config_records_the_source_path() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, base_config("token = \"t\"")).unwrap();
+    let cfg = Config::load(&path).unwrap();
+    assert_eq!(cfg.source_path.as_deref(), Some(path.as_path()));
+}
+
+#[test]
+fn extensions_enabled_requires_a_catalog_url() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        config_with_extensions("public_keys = [\"RWQexample\"]"),
+    )
+    .unwrap();
+    let res = Config::load(&path);
+    assert!(res.is_err());
+}
+
+#[test]
+fn extensions_reject_http_catalog_without_dev_mode() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        config_with_extensions(
+            "catalog_url = \"http://example.test/index.json\"\npublic_keys = [\"RWQexample\"]",
+        ),
+    )
+    .unwrap();
+    let res = Config::load(&path);
+    assert!(res.is_err());
+}
+
+#[test]
+fn extensions_accept_a_signed_https_catalog() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        config_with_extensions(
+            "catalog_url = \"https://example.test/index.json\"\npublic_keys = [\"RWQexample\"]",
+        ),
+    )
+    .unwrap();
+    let cfg = Config::load(&path).unwrap();
+    assert!(cfg.extensions.enabled);
+}
+
+#[test]
+fn unsigned_extensions_require_dev_mode() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        config_with_extensions(
+            "catalog_url = \"https://example.test/index.json\"\npublic_keys = [\"RWQexample\"]\nallow_unsigned = true",
+        ),
+    )
+    .unwrap();
+    let res = Config::load(&path);
+    assert!(res.is_err());
+}
+
+#[test]
+fn dev_mode_allows_http_and_unsigned_catalogs() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        config_with_extensions(
+            "catalog_url = \"http://127.0.0.1:8080/index.json\"\ndev_mode = true\nallow_unsigned = true",
+        ),
+    )
+    .unwrap();
+    let cfg = Config::load(&path).unwrap();
+    assert!(cfg.extensions.enabled);
+    assert!(cfg.extensions.dev_mode);
+}
+
+#[test]
+fn extensions_defaults_are_disabled_and_private() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, base_config("token = \"t\"")).unwrap();
+    let cfg = Config::load(&path).unwrap();
+    assert!(!cfg.extensions.enabled);
+    assert_eq!(
+        cfg.extensions.store_path,
+        std::path::PathBuf::from("/var/lib/ha-kiosk/extensions")
+    );
+    assert_eq!(
+        cfg.extensions.catalog_cache_path(),
+        std::path::PathBuf::from("/var/lib/ha-kiosk/extensions/catalog-cache.json")
+    );
+    let policy = cfg
+        .extensions
+        .catalog_policy(semver::Version::parse("0.6.0").unwrap());
+    assert!(!policy.allow_insecure());
+    assert_eq!(policy.max_catalog_bytes, 2 * 1024 * 1024);
+    assert_eq!(policy.max_package_bytes, 5 * 1024 * 1024);
+}
+
+#[test]
+fn relative_extension_store_path_rejected() {
+    let _lock = ENV_LOCK.lock().unwrap();
+    unsafe {
+        std::env::remove_var("HA_TOKEN");
+    }
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace(
+        "[extensions]\nenabled = false\n",
+        "[extensions]\nenabled = false\nstore_path = \"relative/extensions\"\n",
+    );
+    fs::write(&path, content).unwrap();
+    assert!(Config::load(&path).is_err());
+}

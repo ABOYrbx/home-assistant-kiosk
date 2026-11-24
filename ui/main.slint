@@ -3,6 +3,7 @@ import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
 import { StatusPage } from "pages/status.slint";
+import { ShopPage, ShopEntryView } from "pages/shop.slint";
 
 export component TabButton inherits Rectangle {
     in property <string> label: "";
@@ -41,9 +42,24 @@ export component MainWindow inherits Window {
     min-height: 240px;
 
     in-out property <int> current-page: 0;
+    // The Shop is a fifth page that only exists when extensions are enabled.
+    in property <bool> extensions-enabled: false;
+    in property <[ShopEntryView]> shop-installed: [];
+    in property <[ShopEntryView]> shop-available: [];
+    in property <bool> shop-catalog-online: true;
+    in property <string> shop-catalog-error: "";
+    in property <string> shop-config-path: "";
+    in property <string> shop-secret-dir: "";
+    in property <string> shop-pending-id: "";
+    in property <[string]> extension-errors: [];
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
+    callback shop-refresh();
+    callback shop-install(string);
+    callback shop-update(string);
+    callback shop-remove(string);
+    callback shop-set-enabled(string, bool);
 
     // Swipe tracking
     property <length> swipe-start-x: 0px;
@@ -85,6 +101,11 @@ export component MainWindow inherits Window {
                     active: current-page == 3;
                     clicked => { current-page = 3; page-changed(3); }
                 }
+                if extensions-enabled : tab-shop := TabButton {
+                    label: "Shop";
+                    active: current-page == 4;
+                    clicked => { current-page = 4; page-changed(4); }
+                }
             }
         }
 
@@ -120,7 +141,25 @@ export component MainWindow inherits Window {
             if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 3 : StatusPage {
+                x: 0px; y: 0px; width: 100%; height: 100%;
+                extension-errors: root.extension-errors;
+            }
+            if current-page == 4 && extensions-enabled : ShopPage {
+                x: 0px; y: 0px; width: 100%; height: 100%;
+                installed: root.shop-installed;
+                available: root.shop-available;
+                catalog-online: root.shop-catalog-online;
+                catalog-error: root.shop-catalog-error;
+                config-path: root.shop-config-path;
+                secret-dir: root.shop-secret-dir;
+                pending-id: root.shop-pending-id;
+                refresh() => { root.shop-refresh(); }
+                confirm-install(id) => { root.shop-install(id); }
+                update(id) => { root.shop-update(id); }
+                remove(id) => { root.shop-remove(id); }
+                set-enabled(id, on) => { root.shop-set-enabled(id, on); }
+            }
         }
     }
 }

@@ -4,6 +4,8 @@ The community catalog is a **separate, public GitHub repository**. The kiosk nev
 
 Proposed repository name: `home-assistant-kiosk-extensions` (provisional). The visibility must be public before community use; the private-key custody is an open decision (see `PLAN.md` section 12).
 
+See also: [Extension Author Guide](extensions.md) for the manifest, script API, output schema, configuration, packaging, and author checklist.
+
 ## Repository layout
 
 ```text
@@ -110,13 +112,76 @@ Verification rules:
 
 Key rotation: publish a new public key in the catalog repository and in a kiosk release/update first; sign the index with the new key; keep the old key in the config for a transition period; then remove it. A compromised key needs a revocation notice and a new release.
 
+### Signing key custody
+
+- Generate the Minisign key pair on an offline machine or hardware token; record the public key in the catalog README and in the kiosk configuration.
+- The private key never enters CI, the catalog repository, the kiosk repository, a pull request, an issue, or a log. Do not store it as a CI secret.
+- Keep one encrypted offline backup. A lost key is a rotation event, not a reason to reuse or weaken the old key.
+- Sign only an index whose package sources, checksums, and permissions a maintainer has reviewed.
+- If the private key is exposed, publish a revocation notice, rotate the key, and ship a kiosk configuration update.
+
 `allow_unsigned = true` exists only for local development. A production shop must reject unsigned catalogs and must show a persistent warning if the flag is on.
+
+## Kiosk trust configuration
+
+```toml
+[extensions]
+enabled = true
+catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
+public_keys = ["RWQ..."]
+allow_unsigned = false
+dev_mode = false
+max_catalog_bytes = 2097152
+max_package_bytes = 5242880
+store_path = "/var/lib/ha-kiosk/extensions"
+```
+
+- `catalog_url` must be HTTPS. HTTP is accepted only when `allow_unsigned` and `dev_mode` are both true.
+- `max_catalog_bytes` caps the index download; `max_package_bytes` caps both the signed `size_bytes` and the download.
+- `public_keys` lists Minisign public keys in base64. Verification succeeds when any configured key matches, so key rotation lists the old and the new key during the transition.
+- An unsigned catalog is accepted only when `allow_unsigned` and `dev_mode` are both true. Production configurations leave both false.
+- The last verified index is cached as `catalog-cache.json` (mode `0600`) next to the store and is used when a refresh fails.
+
+## Installed state
+
+The kiosk keeps installed extensions under `store_path`:
+
+```text
+/var/lib/ha-kiosk/extensions/
+├── installed.json                      # mode 0600
+├── catalog-cache.json                  # mode 0600, last verified index
+└── org.example.bus-departures/
+    ├── 1.0.0/                          # mode 0700, files 0600
+    └── 0.9.0/                          # one previous version for rollback
+```
+
+`installed.json`:
+
+```json
+{
+  "schema_version": 1,
+  "extensions": [
+    {
+      "id": "org.example.bus-departures",
+      "version": "1.0.0",
+      "enabled": true,
+      "manifest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "source_catalog": "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json",
+      "installed_at": "2026-11-23T12:00:00Z"
+    }
+  ]
+}
+```
+
+- Installation extracts into a staging directory inside the store and renames it into place, so a failed install never leaves a partial version.
+- Only the active version and one previous version are kept. Rollback switches the record back and removes the newer files.
+- The package manifest must match the signed catalog entry for id, version, provides, permissions, and config schema; a mismatch is rejected before anything is installed.
 
 ## Package format
 
 - Suffix: `.hkext`.
 - Format: gzipped tar (`tar -czf`).
-- Root: the extension directory.
+- Root: the archive contains `manifest.toml`, the entry script, `README.md`, and `LICENSE` at its root; no wrapping directory.
 - Required: `manifest.toml`, `entry` script, `README.md`, `LICENSE`.
 - Maximum compressed size: 5 MiB (configurable).
 - Maximum decompressed size: 20 MiB.
@@ -150,6 +215,22 @@ The catalog CI checks:
 - The example bus extension runs against a fixture in a sandbox test.
 - The index signature verifies with the public key.
 
+## Community review
+
+Every catalog pull request is reviewed by a maintainer before packaging and signing. The review covers:
+
+| Area | What is checked |
+| --- | --- |
+| License | An SPDX identifier is declared, the license text ships in the package, and redistribution is allowed. |
+| Permissions | `http_hosts` and `ha_entities` are minimal and match the script; no wildcard hosts, credentials, or unrelated entities. |
+| Secrets | No API keys, tokens, personal stop IDs, home addresses, or real provider URLs appear in the source, fixtures, README, or screenshots. |
+| Home Assistant access | `ha_state` reads only declared entities; the script never calls a service and never receives the HA token. |
+| UI | Output is data only: `departures`, `list`, or `key_value`. No native code, Slint files, HTML, images, or arbitrary UI. |
+| Tests | The extension has a test or a recorded test plan, and CI validates the schema, manifest, script, checksum, and fixture run. |
+| Removal | The README states how to disable or remove the extension, and the catalog entry can be withdrawn without breaking installed kiosks. |
+
+A reviewer may approve, request changes, or reject a submission. A maintainer never signs an index entry that has not passed review. Security removals follow the process below.
+
 ## Review checklist
 
 - [ ] Extension ID is reverse-DNS and version is semver.
@@ -157,8 +238,10 @@ The catalog CI checks:
 - [ ] Permissions are minimal (HTTP hosts and HA entities).
 - [ ] No Home Assistant service calls, filesystem, process, or environment access.
 - [ ] Output is `departures`, `list`, or `key_value` and within limits.
+- [ ] No native code, Slint files, HTML, images, or arbitrary UI.
 - [ ] No secrets, personal data, or real provider IDs in source, fixtures, or README.
 - [ ] Script handles API errors, missing fields, and empty lists.
+- [ ] Tests or a recorded test plan cover success, API error, and empty output.
 - [ ] Package checksum and size match.
 - [ ] README explains configuration and limitations.
 - [ ] Removal/deprecation plan is clear.

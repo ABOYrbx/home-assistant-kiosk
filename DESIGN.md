@@ -76,7 +76,7 @@ The clock is the only display element that may use the 48/64 px steps on the kio
 
 ## 5. Layout and breakpoints
 
-The prototype is a single Overview reference. The kiosk keeps four pages: Overview, Media, Agenda, Status.
+The prototype is a single Overview reference. The kiosk keeps four pages: Overview, Media, Agenda, Status. Wave 6 adds an optional fifth Shop page when `extensions.enabled = true`; it uses the same tokens and touch targets.
 
 | Width | Layout |
 | --- | --- |

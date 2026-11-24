@@ -158,6 +158,13 @@ max_bytes = 262144
 # ---------------------------------------------------------------------------
 
 [extensions]
+# When true, the kiosk adds a fifth Shop page. It lists installed and available
+# extensions, shows permissions, and installs, updates, removes, enables, or
+# disables them after a first-install trust confirmation. Installed extensions
+# stay usable while the catalog is offline.
+#
+# Enabling the shop requires catalog_url and public_keys. Unsigned or HTTP
+# catalogs are accepted only with allow_unsigned and dev_mode both true.
 enabled = false
 # HTTPS URL of the signed catalog index in the separate catalog repository.
 catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
@@ -171,6 +178,9 @@ refresh_hours = 24
 max_catalog_bytes = 2097152
 max_package_bytes = 5242880
 max_script_operations = 1000000
+# Installed extensions and the last verified catalog index (absolute path,
+# created with mode 0700; installed.json is mode 0600).
+store_path = "/var/lib/ha-kiosk/extensions"
 
 # Per-extension settings go here. The shop shows the required keys.
 # [extensions.settings."org.example.bus-departures"]
