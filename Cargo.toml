@@ -1,0 +1,53 @@
+[package]
+name = "ha-kiosk"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "A native Home Assistant kiosk dashboard"
+license = "UNSPECIFIED"
+
+[dependencies]
+slint = { version = "1.19", default-features = false, features = [
+  "compat-1-18", "std", "renderer-software",
+] }
+tokio = { version = "1.54", features = [
+  "rt-multi-thread", "macros", "sync", "time", "fs", "signal",
+] }
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1.2"
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+thiserror = "2"
+anyhow = "1"
+url = { version = "2.5", features = ["serde"] }
+secrecy = "0.10"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+[build-dependencies]
+slint-build = "1.19"
+
+[dev-dependencies]
+tempfile = "3"
+tokio-test = "0.4"
+i-slint-backend-testing = "1.19"
+
+[features]
+default = ["desktop"]
+desktop = ["slint/backend-winit"]
+kiosk = [
+  "slint/backend-linuxkms",
+  "slint/backend-linuxkms-libinput",
+  "slint/backend-linuxkms-libseat",
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"

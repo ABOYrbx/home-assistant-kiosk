@@ -1,0 +1,22 @@
+// Minimal window for the Wave 0 scaffold. Layout and widgets arrive in later
+// waves; this file only proves that Slint compiles at build time.
+
+export component AppWindow inherits Window {
+    title: "Home Assistant Kiosk";
+    width: 800px;
+    height: 480px;
+
+    Rectangle {
+        background: #101418;
+
+        Text {
+            width: 100%;
+            height: 100%;
+            text: "Home Assistant Kiosk";
+            color: #f2f4f8;
+            font-size: 24px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
