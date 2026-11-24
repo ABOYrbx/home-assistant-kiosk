@@ -1,8 +1,96 @@
 import { Theme } from "../theme.slint";
 
+export struct DepartureRow {
+    line: string,
+    destination: string,
+    time: string,
+    platform: string,
+    delay: string,
+    cancelled: bool,
+    remarks: string,
+}
+
+export enum DeparturesState {
+    loading,
+    unavailable,
+    empty,
+    populated,
+}
+
+component DepartureLine inherits Rectangle {
+    in property <DepartureRow> entry;
+
+    height: Theme.touch-target;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: Theme.space-2;
+        alignment: start;
+
+        Text {
+            text: entry.line;
+            min-width: Theme.space-8;
+            color: entry.cancelled ? Theme.danger : Theme.fg;
+            font-size: Theme.text-sm;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+
+        VerticalLayout {
+            spacing: 0px;
+            vertical-stretch: 1;
+
+            Text {
+                text: entry.destination;
+                color: entry.cancelled ? Theme.danger : Theme.fg-2;
+                font-size: Theme.text-sm;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+
+            if entry.remarks != "" : Text {
+                text: entry.remarks;
+                color: Theme.muted;
+                font-size: Theme.text-xs;
+                overflow: elide;
+            }
+        }
+
+        if entry.cancelled : Text {
+            text: "Cancelled";
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            vertical-alignment: center;
+        }
+
+        if entry.delay != "" : Text {
+            text: entry.delay;
+            color: Theme.warn;
+            font-size: Theme.text-xs;
+            vertical-alignment: center;
+        }
+
+        if entry.platform != "" : Text {
+            text: entry.platform;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: entry.time;
+            color: entry.cancelled ? Theme.danger : Theme.fg;
+            font-size: Theme.text-sm;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
 export component DeparturesWidget inherits Rectangle {
     in property <string> title: "Departures";
-    in property <[string]> items: [];
+    in property <DeparturesState> state: DeparturesState.loading;
+    in property <[DepartureRow]> rows: [];
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
@@ -12,11 +100,38 @@ export component DeparturesWidget inherits Rectangle {
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-2;
-        Text { text: title; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
-        for item in items : Text {
-            text: item;
-            color: Theme.fg-2;
+
+        Text {
+            text: title;
+            color: Theme.fg;
+            font-size: Theme.text-base;
+            font-weight: 600;
+        }
+
+        if state == DeparturesState.loading : departures-loading := Text {
+            text: "Connecting…";
+            color: Theme.muted;
             font-size: Theme.text-sm;
+        }
+
+        if state == DeparturesState.unavailable : departures-unavailable := Text {
+            text: "Data unavailable";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        if state == DeparturesState.empty : departures-empty := Text {
+            text: "No departures";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        if state == DeparturesState.populated : departures-rows := VerticalLayout {
+            spacing: 0px;
+
+            for item in rows : DepartureLine {
+                entry: item;
+            }
         }
     }
 }

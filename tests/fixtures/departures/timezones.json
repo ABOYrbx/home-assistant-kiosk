@@ -1,0 +1,19 @@
+{
+  "departures": [
+    {
+      "line": "A",
+      "destination": "Naive Berlin",
+      "departure": "2026-11-22 22:10:00"
+    },
+    {
+      "line": "B",
+      "destination": "Offset UTC",
+      "departure": "2026-11-22T20:30:00Z"
+    },
+    {
+      "line": "C",
+      "destination": "Offset New York",
+      "departure": "2026-11-22T16:00:00-05:00"
+    }
+  ]
+}

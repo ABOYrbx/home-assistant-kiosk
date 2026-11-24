@@ -90,6 +90,7 @@ impl AppController {
             shop,
             page_count,
             commands,
+            departures,
             last_redraw: Instant::now(),
             pending_redraw: false,
             clock_timer: slint::Timer::default(),
@@ -244,6 +245,7 @@ impl AppController {
                     self.state.calendar = Some(view);
                 }
                 self.state.apply_ha_event(ha_event);
+                departures_dirty = true;
             }
             AppEvent::Shop(shop_event) => {
                 {
@@ -270,6 +272,7 @@ impl AppController {
             AppEvent::Departures(r) => {
                 if let Ok(v) = r {
                     self.state.departures = Some(v);
+                    departures_dirty = true;
                 }
             }
             AppEvent::Calendar(r) => match r {
@@ -290,6 +293,29 @@ impl AppController {
     }
 
         UiBridge::apply(&self.state, &self.window);
+
+        // Re-read the departures sensor whenever entity state or attributes
+        // change; the runtime suppresses unchanged views.
+        if self.config.widgets.departures.enabled {
+            let view = self.departures.borrow_mut().on_entities(
+                &self.state.entities,
+                self.state.time_zone,
+                Utc::now(),
+            );
+            if let Some(view) = view {
+                self.state.departures = Some(view);
+                departures_dirty = true;
+            }
+        }
+
+        if departures_dirty {
+            UiBridge::apply(
+                &self.state,
+                &self.window,
+                &self.config.widgets.departures.title,
+                self.config.widgets.departures.enabled,
+            );
+        }
 
         // Coalesce redraws: at most 4 per second.
         let now = Instant::now();
