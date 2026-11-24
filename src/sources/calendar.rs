@@ -1,4 +1,6 @@
+use crate::events::ServiceCall;
 use crate::state::CalendarItem;
+use chrono::{DateTime, Duration as ChronoDuration, TimeZone, Utc};
 
 pub fn parse_calendar_events(
     value: &serde_json::Value,
@@ -95,6 +97,43 @@ fn convert_dt(s: &str, ha_tz: chrono_tz::Tz, device_tz: chrono_tz::Tz) -> String
         }
     }
     s.to_string()
+}
+
+/// Build one `calendar.get_events` call per configured calendar.
+///
+/// The range starts at the beginning of today in the Home Assistant timezone
+/// and covers `days` whole days, so an event that started earlier today and is
+/// still running is included.
+pub fn build_calendar_calls(
+    calendar_ids: &[crate::events::EntityId],
+    days: u32,
+    ha_tz: chrono_tz::Tz,
+    now: DateTime<Utc>,
+) -> Vec<ServiceCall> {
+    let start = now
+        .with_timezone(&ha_tz)
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .and_then(|naive| ha_tz.from_local_datetime(&naive).earliest());
+    let Some(start) = start else {
+        return Vec::new();
+    };
+    let end = start + ChronoDuration::days(i64::from(days.max(1)));
+
+    calendar_ids
+        .iter()
+        .map(|id| ServiceCall {
+            request_id: crate::ha::client::next_request_id(),
+            domain: "calendar".to_string(),
+            service: "get_events".to_string(),
+            target: Some(serde_json::json!({ "entity_id": id })),
+            data: serde_json::json!({
+                "start_date_time": start.to_rfc3339(),
+                "end_date_time": end.to_rfc3339(),
+            }),
+            return_response: true,
+        })
+        .collect()
 }
 
 pub fn merge_and_sort(items: &mut [CalendarItem]) {
