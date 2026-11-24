@@ -45,10 +45,15 @@ export component MainWindow inherits Window {
     callback swipe-next();
     callback swipe-prev();
 
-    // Swipe tracking
+    // Swipe tracking. The threshold is at least 20% of the window width and
+    // never less than 60 logical pixels. The first movement past the slop
+    // locks the gesture to one axis so a vertical scroll cannot change pages.
+    property <length> swipe-threshold: max(60px, self.width / 5);
+    property <length> swipe-slop: 12px;
     property <length> swipe-start-x: 0px;
     property <length> swipe-start-y: 0px;
     property <bool> swipe-tracking: false;
+    property <int> swipe-axis: 0; // 0 = undecided, 1 = horizontal, 2 = vertical
 
     VerticalLayout {
         spacing: 0px;
@@ -101,18 +106,31 @@ export component MainWindow inherits Window {
                         swipe-start-x = self.mouse-x;
                         swipe-start-y = self.mouse-y;
                         swipe-tracking = true;
-                    }
-                    if (event.kind == PointerEventKind.up && swipe-tracking) {
+                        swipe-axis = 0;
+                    } else if (event.kind == PointerEventKind.move && swipe-tracking) {
+                        if (swipe-axis == 0) {
+                            let dx = abs(self.mouse-x - swipe-start-x);
+                            let dy = abs(self.mouse-y - swipe-start-y);
+                            if (max(dx, dy) >= swipe-slop) {
+                                swipe-axis = (dx > dy) ? 1 : 2;
+                            }
+                        }
+                    } else if (event.kind == PointerEventKind.up && swipe-tracking) {
                         let dx = self.mouse-x - swipe-start-x;
                         let dy = self.mouse-y - swipe-start-y;
                         swipe-tracking = false;
-                        if ((abs(dx) >= 60px) || (abs(dx) >= self.width / 5)) && abs(dx) > abs(dy) {
+                        if (swipe-axis == 0 && max(abs(dx), abs(dy)) >= swipe-slop) {
+                            // Synthetic events may not include intermediate moves.
+                            swipe-axis = (abs(dx) > abs(dy)) ? 1 : 2;
+                        }
+                        if (swipe-axis == 1 && abs(dx) >= swipe-threshold) {
                             if (dx < 0px) { swipe-next(); }
                             else { swipe-prev(); }
                         }
-                    }
-                    if (event.kind == PointerEventKind.cancel) {
+                        swipe-axis = 0;
+                    } else if (event.kind == PointerEventKind.cancel) {
                         swipe-tracking = false;
+                        swipe-axis = 0;
                     }
                 }
             }
