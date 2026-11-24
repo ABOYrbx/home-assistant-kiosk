@@ -57,6 +57,9 @@ pub enum PendingAction {
     ToggleTile { entity_id: EntityId },
     MediaTransport { entity_id: EntityId },
     MediaVolume { entity_id: EntityId },
+    HeroToggle { entity_id: EntityId },
+    HeroBrightness { entity_id: EntityId },
+    HeroColorTemp { entity_id: EntityId },
 }
 
 #[derive(Debug, Clone)]

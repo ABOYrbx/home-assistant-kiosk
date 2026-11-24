@@ -24,6 +24,7 @@ fullscreen = true
 theme = "dark"
 
 [pages.overview]
+title = "Home"
 widgets = ["clock", "weather", "tiles"]
 
 [pages.media]
@@ -37,6 +38,13 @@ widgets = ["status"]
 
 [widgets.clock]
 enabled = true
+
+[widgets.hero_light]
+enabled = true
+entity = "light.hero_example"
+name = "Example hero lamp"
+min_kelvin = 2700
+max_kelvin = 6500
 
 [widgets.weather]
 enabled = true
@@ -86,6 +94,34 @@ fn valid_config_with_literal_token() {
     let cfg = Config::load(&path).unwrap();
     assert_eq!(cfg.ha.url.as_str(), "http://homeassistant.local:8123/");
     assert!(cfg.subscribed_entity_ids().len() >= 3);
+    assert!(
+        cfg.subscribed_entity_ids()
+            .contains(&"light.hero_example".to_string())
+    );
+    assert_eq!(cfg.pages.overview.title, "Home");
+}
+
+#[test]
+fn hero_light_kelvin_range_must_be_ordered() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace("max_kelvin = 6500", "max_kelvin = 2000");
+    fs::write(&path, content).unwrap();
+    let res = Config::load(&path);
+    assert!(res.is_err());
+}
+
+#[test]
+fn hero_light_entity_is_validated() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    let content = base_config("token = \"t\"").replace(
+        "entity = \"light.hero_example\"",
+        "entity = \"not-an-entity\"",
+    );
+    fs::write(&path, content).unwrap();
+    let res = Config::load(&path);
+    assert!(res.is_err());
 }
 
 #[test]

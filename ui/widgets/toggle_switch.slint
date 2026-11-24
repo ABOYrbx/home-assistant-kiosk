@@ -1,0 +1,39 @@
+import { Theme } from "../theme.slint";
+
+export component ToggleSwitch inherits Rectangle {
+    in property <bool> checked: false;
+    in property <bool> enabled: true;
+
+    callback toggled();
+
+    width: 48px;
+    height: Theme.touch-target;
+    opacity: enabled ? 1.0 : 0.45;
+
+    Rectangle {
+        x: 0px;
+        y: (root.height - 28px) / 2;
+        width: 48px;
+        height: 28px;
+        border-radius: Theme.radius-pill;
+        background: root.checked ? Theme.accent : Theme.border;
+    }
+
+    Rectangle {
+        x: root.checked ? 48px - 3px - 22px : 3px;
+        y: (root.height - 22px) / 2;
+        width: 22px;
+        height: 22px;
+        border-radius: Theme.radius-pill;
+        background: Theme.bg;
+        border-width: 1px;
+        border-color: Theme.border;
+    }
+
+    ta := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: root.enabled;
+        clicked => { root.toggled(); }
+    }
+}

@@ -272,6 +272,8 @@ npm run dev
 
 [`config.example.toml`](config.example.toml) contains placeholders only. Copy it to `/etc/ha-kiosk/config.toml`, set the Home Assistant URL and token file, and choose real entity IDs for your installation. Do not commit the resulting file. The default path is `/etc/ha-kiosk/config.toml`; `--config <path>` overrides it.
 
+The Overview top bar shows the configured page title, the Home Assistant connection state, and the local clock. The hero card controls the `light.*` entity in `[widgets.hero_light]`: the switch calls `light.toggle`, and the brightness and colour-temperature sliders call `light.turn_on` with `brightness_pct` and `color_temp_kelvin`. Slider updates are limited to one service call per 100 ms while dragging, with the final value sent on release. The card shows loading, empty, unavailable, and error states instead of a fake "on" state.
+
 Create the token in Home Assistant under **Profile → Security → Long-lived access tokens**. The token is shown once. Prefer a dedicated Home Assistant user with only the entities and actions the kiosk needs; some actions may require an admin user.
 
 The token source order is `HA_TOKEN`, then `ha.token_file`, then the development-only `ha.token`. The token file and the configuration file must be mode `0600` and owned by the service user; startup rejects a world-readable token file. The cache directory is `0700` and the cache file `0600`. The permission commands are in [Installation](#installation).

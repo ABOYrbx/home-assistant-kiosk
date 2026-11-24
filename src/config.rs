@@ -79,6 +79,8 @@ fn default_theme() -> String {
 #[serde(deny_unknown_fields)]
 pub struct PageConfig {
     #[serde(default)]
+    pub title: String,
+    #[serde(default)]
     pub widgets: Vec<String>,
 }
 
@@ -149,6 +151,40 @@ impl Default for WeatherWidgetConfig {
             forecast_type: "daily".to_string(),
             forecast_count: 3,
             refresh_seconds: 900,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeroLightConfig {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub entity: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default = "default_min_kelvin")]
+    pub min_kelvin: u16,
+    #[serde(default = "default_max_kelvin")]
+    pub max_kelvin: u16,
+}
+
+fn default_min_kelvin() -> u16 {
+    2700
+}
+fn default_max_kelvin() -> u16 {
+    6500
+}
+
+impl Default for HeroLightConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            entity: String::new(),
+            name: String::new(),
+            min_kelvin: default_min_kelvin(),
+            max_kelvin: default_max_kelvin(),
         }
     }
 }
@@ -254,6 +290,8 @@ impl Default for CalendarWidgetConfig {
 pub struct WidgetsConfig {
     #[serde(default)]
     pub clock: ClockWidgetConfig,
+    #[serde(default)]
+    pub hero_light: HeroLightConfig,
     #[serde(default)]
     pub weather: WeatherWidgetConfig,
     #[serde(default)]
@@ -449,6 +487,9 @@ impl Config {
         if self.widgets.weather.enabled {
             push(&self.widgets.weather.entity);
         }
+        if self.widgets.hero_light.enabled {
+            push(&self.widgets.hero_light.entity);
+        }
         if self.widgets.media.enabled {
             push(&self.widgets.media.entity);
         }
@@ -607,6 +648,29 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
             "invalid entity id: {}",
             config.widgets.weather.entity
         )));
+    }
+    if config.widgets.hero_light.enabled
+        && !config.widgets.hero_light.entity.is_empty()
+        && !validate_entity_id(&config.widgets.hero_light.entity)
+    {
+        return Err(ConfigError::Validation(format!(
+            "invalid entity id: {}",
+            config.widgets.hero_light.entity
+        )));
+    }
+    if config.widgets.hero_light.enabled {
+        if config.widgets.hero_light.min_kelvin >= config.widgets.hero_light.max_kelvin {
+            return Err(ConfigError::Validation(
+                "widgets.hero_light.min_kelvin must be lower than max_kelvin".into(),
+            ));
+        }
+        if config.widgets.hero_light.min_kelvin < 1000
+            || config.widgets.hero_light.max_kelvin > 10000
+        {
+            return Err(ConfigError::Validation(
+                "widgets.hero_light colour temperature must stay between 1000 K and 10000 K".into(),
+            ));
+        }
     }
     if config.widgets.media.enabled
         && !config.widgets.media.entity.is_empty()
