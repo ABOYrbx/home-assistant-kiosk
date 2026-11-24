@@ -21,9 +21,7 @@ fn main() -> Result<()> {
     if let Some(path) = config_path {
         match Config::load(std::path::Path::new(&path)) {
             Ok(cfg) => {
-                if cfg.display.fullscreen {
-                    kiosk::set_fullscreen(ui.window());
-                }
+                kiosk::apply_display(ui.window(), &cfg.display);
                 let (tx, _rx) = tokio::sync::mpsc::channel(1);
                 let controller = AppController::new(ui, cfg, tx);
                 return controller
