@@ -1,0 +1,76 @@
+import { Theme } from "../theme.slint";
+
+// Horizontal page-swipe gesture zone.
+//
+// This is a gesture surface, never a control. Place it *behind* page content:
+// Slint delivers a pointer press to the topmost interactive item (slider,
+// flickable list, button, tile), so a gesture that starts on one of those
+// never reaches this area. Only a press on non-interactive background falls
+// through and starts the page swipe.
+//
+// The same component backs the narrow edge zones at the screen border. Edge
+// zones sit above the page content on purpose, next to the reserved page
+// margin, so they never cover a control either.
+export component SwipeArea inherits TouchArea {
+    // A disabled zone ignores presses entirely.
+    in property <bool> swipe-enabled: true;
+    // Width of the page used for the relative threshold. An edge strip is only
+    // one touch target wide, so the fraction must be taken from the page, not
+    // from the strip. Zero falls back to this zone's own width.
+    in property <length> page-width: 0px;
+    // Movement below this value keeps the axis undecided.
+    in property <length> axis-lock-slop: Theme.space-2;
+    // A horizontal swipe needs at least 60 logical pixels or 20 % of the page
+    // width, whichever is larger.
+    in property <length> min-distance: 60px;
+    in property <float> distance-fraction: 0.2;
+
+    callback swipe-next();
+    callback swipe-prev();
+
+    enabled: swipe-enabled;
+
+    private property <length> start-x: 0px;
+    private property <length> start-y: 0px;
+    private property <bool> tracking: false;
+    // 0 = undecided, 1 = horizontal, 2 = vertical.
+    private property <int> axis: 0;
+
+    pointer-event(event) => {
+        if (event.kind == PointerEventKind.down) {
+            start-x = self.mouse-x;
+            start-y = self.mouse-y;
+            tracking = true;
+            axis = 0;
+        }
+        if (event.kind == PointerEventKind.move && tracking && axis == 0) {
+            let dx = abs(self.mouse-x - start-x);
+            let dy = abs(self.mouse-y - start-y);
+            // Axis lock: the first clear direction wins for the whole gesture,
+            // so a vertical scroll never turns into a page change.
+            if (dx >= axis-lock-slop || dy >= axis-lock-slop) {
+                axis = dx > dy ? 1 : 2;
+            }
+        }
+        if (event.kind == PointerEventKind.up && tracking) {
+            let dx = self.mouse-x - start-x;
+            let dy = self.mouse-y - start-y;
+            let reference = page-width > 0px ? page-width : self.width;
+            let threshold = Math.max(min-distance, reference * distance-fraction);
+            let horizontal = axis == 1 || (axis == 0 && abs(dx) > abs(dy));
+            tracking = false;
+            axis = 0;
+            if (horizontal && abs(dx) >= threshold && abs(dx) > abs(dy)) {
+                if (dx < 0px) {
+                    swipe-next();
+                } else {
+                    swipe-prev();
+                }
+            }
+        }
+        if (event.kind == PointerEventKind.cancel) {
+            tracking = false;
+            axis = 0;
+        }
+    }
+}
