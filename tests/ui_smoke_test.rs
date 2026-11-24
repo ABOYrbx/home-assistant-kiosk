@@ -150,12 +150,67 @@ fn shell_navigation_gestures_targets_and_layouts() {
             "expected at least the four tab buttons in the audit, found {interactive}"
         );
 
-        // Tap on a tab changes the page.
-        let tab = ElementHandle::find_by_element_id(&app, "MainWindow::tab-media")
+        // The shell hosts exactly one page, and the page host has a non-zero
+        // layout area to draw into.
+        assert_eq!(
+            pages.iter().map(|name| page_count(name)).sum::<usize>(),
+            1,
+            "the page host shows exactly one page"
+        );
+        let page_host = ElementHandle::find_by_element_id(&app, "MainWindow::page-host")
             .next()
-            .unwrap();
-        tab.single_click(PointerEventButton::Left).await;
-        assert_eq!(app.get_current_page(), 1);
+            .expect("the shell exposes a page host");
+        assert!(page_host.size().width > 0.0 && page_host.size().height > 0.0);
+
+        // Every tab meets the 44 x 44 logical-pixel touch-target minimum.
+        for id in ["tab-overview", "tab-media", "tab-agenda", "tab-status"] {
+            let tab = ElementHandle::find_by_element_id(&app, &format!("MainWindow::{id}"))
+                .next()
+                .unwrap_or_else(|| panic!("{id} exists"));
+            assert!(
+                tab.size().width >= 44.0 && tab.size().height >= 44.0,
+                "{id} is smaller than the 44 x 44 touch target: {:?}",
+                tab.size()
+            );
+        }
+
+        // Tapping a tab selects its page and shows only that page.
+        for (id, expected_page) in [
+            ("tab-overview", 0usize),
+            ("tab-media", 1),
+            ("tab-agenda", 2),
+            ("tab-status", 3),
+        ] {
+            let tab = ElementHandle::find_by_element_id(&app, &format!("MainWindow::{id}"))
+                .next()
+                .unwrap();
+            tab.single_click(PointerEventButton::Left).await;
+            assert_eq!(
+                app.get_current_page() as usize,
+                expected_page,
+                "{id} selects its page"
+            );
+            for (index, name) in pages.iter().enumerate() {
+                assert_eq!(
+                    page_count(name),
+                    usize::from(index == expected_page),
+                    "{name} visibility after tapping {id}"
+                );
+            }
+        }
+
+        // The controller owns page changes for swipes: the shell reports the
+        // gesture through the callbacks, so record them here.
+        let next = Rc::new(Cell::new(0));
+        let prev = Rc::new(Cell::new(0));
+        {
+            let next = next.clone();
+            app.on_swipe_next(move || next.set(next.get() + 1));
+        }
+        {
+            let prev = prev.clone();
+            app.on_swipe_prev(move || prev.set(prev.get() + 1));
+        }
 
         // A gesture that starts on a slider changes the value, not the page.
         let slider = find(&app, "media-slider");

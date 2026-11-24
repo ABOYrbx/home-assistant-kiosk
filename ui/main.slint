@@ -1,3 +1,10 @@
+// Application shell: the window, the page host, and the tab bar.
+//
+// Navigation state lives in `current-page` so the Rust controller
+// (src/app.rs) and the UI testing backend drive the same property. The tab
+// bar is the reliable touch fallback; swipe gestures are surfaced through the
+// `swipe-next` / `swipe-prev` callbacks and end in the controller.
+
 import { Theme } from "theme.slint";
 import { TouchTarget } from "widgets/touch_target.slint";
 import { OverviewPage } from "pages/overview.slint";
@@ -75,6 +82,41 @@ export component TabButton inherits TouchTarget {
         }
     }
     forward-focus: focus-scope;
+}
+
+// Shows exactly one page and clips it so page content cannot paint over the
+// tab bar. Page sizing lives here; the pages themselves stay layout-free
+// placeholders until Wave 3 fills them in.
+export component PageHost inherits Rectangle {
+    in property <int> current-page: 0;
+
+    background: Theme.bg;
+    clip: true;
+
+    if current-page == 0 : OverviewPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    if current-page == 1 : MediaPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    if current-page == 2 : AgendaPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
+    if current-page == 3 : StatusPage {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+    }
 }
 
 export component MainWindow inherits Window {
