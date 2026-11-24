@@ -2,6 +2,7 @@ import { Theme } from "theme.slint";
 import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
+import { AgendaEntry } from "widgets/calendar.slint";
 import { StatusPage } from "pages/status.slint";
 
 export component TabButton inherits Rectangle {
@@ -41,6 +42,12 @@ export component MainWindow inherits Window {
     min-height: 240px;
 
     in-out property <int> current-page: 0;
+    in-out property <[AgendaEntry]> agenda-today: [];
+    in-out property <[AgendaEntry]> agenda-tomorrow: [];
+    in-out property <bool> agenda-loading: true;
+    in-out property <bool> agenda-empty: false;
+    in-out property <string> agenda-error: "";
+    in-out property <string> agenda-status: "";
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
@@ -119,7 +126,18 @@ export component MainWindow inherits Window {
 
             if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 2 : AgendaPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                today: root.agenda-today;
+                tomorrow: root.agenda-tomorrow;
+                loading: root.agenda-loading;
+                empty: root.agenda-empty;
+                error: root.agenda-error;
+                status: root.agenda-status;
+            }
             if current-page == 3 : StatusPage { x: 0px; y: 0px; width: 100%; height: 100%; }
         }
     }
