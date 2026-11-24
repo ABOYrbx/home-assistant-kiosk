@@ -317,6 +317,29 @@ impl AppController {
             );
         }
 
+        // Re-read the departures sensor whenever entity state or attributes
+        // change; the runtime suppresses unchanged views.
+        if self.config.widgets.departures.enabled {
+            let view = self.departures.borrow_mut().on_entities(
+                &self.state.entities,
+                self.state.time_zone,
+                Utc::now(),
+            );
+            if let Some(view) = view {
+                self.state.departures = Some(view);
+                departures_dirty = true;
+            }
+        }
+
+        if departures_dirty {
+            UiBridge::apply(
+                &self.state,
+                &self.window,
+                &self.config.widgets.departures.title,
+                self.config.widgets.departures.enabled,
+            );
+        }
+
         // Coalesce redraws: at most 4 per second.
         let now = Instant::now();
         if now.duration_since(self.last_redraw) >= Duration::from_millis(250) {
