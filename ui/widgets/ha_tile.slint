@@ -1,0 +1,64 @@
+import { Theme } from "../theme.slint";
+
+// A tile is a large, touch-first surface for a Home Assistant entity.
+//
+// This component owns only the interaction: a tap is reported through
+// `tapped` when the pointer is released inside the tile. Read-only and pending
+// tiles swallow taps so the Wave 3 action layer cannot send an unsupported or
+// duplicate service call.
+//
+// Long-press is intentionally not wired. There is no long-press timer,
+// callback, or hidden service action; it is reserved for a future task.
+export component HaTile inherits Rectangle {
+    in property <string> label: "";
+    in property <string> state: "";
+    in property <bool> read-only: false;
+    in property <bool> pending: false;
+
+    callback tapped();
+
+    min-width: Theme.touch-target;
+    min-height: Theme.touch-target;
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: read-only ? Theme.border-soft : Theme.border;
+
+    accessible-role: button;
+    accessible-label: label;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-1;
+
+        Text {
+            text: label;
+            color: Theme.fg;
+            font-size: Theme.text-sm;
+            font-weight: 500;
+            overflow: elide;
+        }
+
+        Text {
+            text: pending ? "…" : state;
+            color: read-only ? Theme.muted : Theme.fg-2;
+            font-size: Theme.text-sm;
+            overflow: elide;
+        }
+    }
+
+    tile-touch := TouchArea {
+        clicked => {
+            if !root.read-only && !root.pending {
+                root.tapped();
+            }
+        }
+    }
+
+    states [
+        pressed when tile-touch.pressed && !read-only && !pending: {
+            background: Theme.surface-warm;
+            border-color: Theme.accent;
+        }
+    ]
+}

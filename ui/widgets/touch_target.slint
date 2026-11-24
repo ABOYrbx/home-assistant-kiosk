@@ -1,0 +1,22 @@
+// A reusable minimum touch target.
+//
+// DESIGN.md and PLAN.md require every interactive element to expose at least
+// 44 x 44 logical pixels, even when the visual is smaller (an icon, a switch
+// track, or a row of text). Controls build on this component so the minimum hit
+// area is defined once and cannot silently regress.
+import { Theme } from "../theme.slint";
+
+export component TouchTarget inherits Rectangle {
+    in property <bool> enabled: true;
+    out property <bool> pressed: ta.pressed;
+    callback clicked();
+
+    min-width: Theme.touch-target;
+    min-height: Theme.touch-target;
+    background: transparent;
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
