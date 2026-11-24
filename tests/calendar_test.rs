@@ -89,7 +89,10 @@ fn a_calendar_without_events_is_valid_and_empty() {
 fn all_day_events_are_kept_at_midnight_utc() {
     let value: Value = serde_json::from_str(MULTI).unwrap();
     let items = parse_calendar_events(&value, "calendar.family", berlin()).unwrap();
-    let holiday = items.iter().find(|i| i.summary == "School holiday").unwrap();
+    let holiday = items
+        .iter()
+        .find(|i| i.summary == "School holiday")
+        .unwrap();
     assert!(holiday.all_day);
     assert_eq!(
         holiday.start,
@@ -107,7 +110,11 @@ fn multiple_calendars_with_one_failing_calendar_in_a_single_round() {
     assert!(family.is_ok());
     let items = family.unwrap();
     assert_eq!(items.len(), 2);
-    assert!(items.iter().any(|i| i.summary == "School holiday" && i.all_day));
+    assert!(
+        items
+            .iter()
+            .any(|i| i.summary == "School holiday" && i.all_day)
+    );
 
     let err = work.unwrap_err();
     assert!(err.0.contains("calendar.work"));
@@ -164,7 +171,8 @@ fn failing_calendar_does_not_hide_the_others_via_refresh() {
             "events": [{ "summary": "Dinner", "start": { "dateTime": "2026-11-23T18:00:00+01:00" } }]
         }
     });
-    let bad = serde_json::json!({ "calendar.work": { "error": { "message": "calendar unavailable" } } });
+    let bad =
+        serde_json::json!({ "calendar.work": { "error": { "message": "calendar unavailable" } } });
 
     let mut refresh = CalendarRefresh::default();
     let calls = refresh.begin(
@@ -265,8 +273,14 @@ fn builds_queries_for_multiple_calendars() {
         now(),
     );
     assert_eq!(calls.len(), 2);
-    assert_eq!(calls[0].target.as_ref().unwrap()["entity_id"], "calendar.family");
-    assert_eq!(calls[1].target.as_ref().unwrap()["entity_id"], "calendar.work");
+    assert_eq!(
+        calls[0].target.as_ref().unwrap()["entity_id"],
+        "calendar.family"
+    );
+    assert_eq!(
+        calls[1].target.as_ref().unwrap()["entity_id"],
+        "calendar.work"
+    );
     for call in &calls {
         assert_eq!(call.domain, "calendar");
         assert_eq!(call.service, "get_events");
