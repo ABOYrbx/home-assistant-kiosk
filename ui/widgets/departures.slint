@@ -94,7 +94,7 @@ export component DeparturesWidget inherits Rectangle {
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
 
     VerticalLayout {
@@ -112,6 +112,7 @@ export component DeparturesWidget inherits Rectangle {
             text: "Connecting…";
             color: Theme.muted;
             font-size: Theme.text-sm;
+            line-height-factor: Theme.leading-body;
         }
 
         if state == DeparturesState.unavailable : departures-unavailable := Text {

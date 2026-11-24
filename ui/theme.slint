@@ -1,4 +1,10 @@
-// Design tokens ported from tokens.css / DESIGN.md.
+// Design tokens ported from tokens.css and DESIGN.md.
+//
+// tokens.css is authoritative. This global mirrors every token so components
+// can use the design system without a literal colour, spacing, type size,
+// radius, duration, or font value. Literal values are allowed only in this
+// file. If tokens.css changes, update this file in the same change.
+
 export global Theme {
     // Colors
     in-out property <color> bg: #ffffff;
@@ -7,11 +13,16 @@ export global Theme {
     in-out property <color> fg: #111111;
     in-out property <color> fg-2: #3a3a3a;
     in-out property <color> muted: #6b6b6b;
+    in-out property <color> meta: #111111;
     in-out property <color> border: #e2e2e2;
     in-out property <color> border-soft: #eeeeee;
     in-out property <color> accent: #111111;
     in-out property <color> accent-active: #0e0e0e;
     in-out property <color> accent-on: #ffffff;
+    // oklab mix of accent with 8% black (CSS color-mix is not available in Slint).
+    in-out property <color> accent-hover: #0e0e0e;
+    // oklab mix of accent with 14% black.
+    in-out property <color> accent-active: #0c0c0c;
     in-out property <color> success: #0f7a3a;
     in-out property <color> warn: #8a5a12;
     in-out property <color> danger: #c53030;
@@ -35,6 +46,9 @@ export global Theme {
     in-out property <length> space-6: 24px;
     in-out property <length> space-8: 32px;
     in-out property <length> space-12: 48px;
+    in-out property <length> section-y-desktop: 112px;
+    in-out property <length> section-y-tablet: 80px;
+    in-out property <length> section-y-phone: 56px;
 
     // Radius
     in-out property <length> radius-sm: 2px;
