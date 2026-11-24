@@ -340,6 +340,8 @@ impl AppController {
             );
         }
 
+        UiBridge::apply(&self.state, &self.window);
+
         // Coalesce redraws: at most 4 per second.
         let now = Instant::now();
         if now.duration_since(self.last_redraw) >= Duration::from_millis(250) {
