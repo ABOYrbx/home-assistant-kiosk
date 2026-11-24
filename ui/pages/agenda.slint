@@ -1,10 +1,66 @@
 import { Theme } from "../theme.slint";
+import { PageHeader } from "../components/page_header.slint";
 
 export component AgendaPage inherits Rectangle {
+    in property <length> scroll-y: 0px;
+    in property <int> row-count: 16;
+    callback scroll-changed(length);
+
     background: Theme.bg;
-    Text {
-        text: "Agenda";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-4;
+
+        PageHeader {
+            title: "Agenda";
+            subtitle: "A vertical Flickable owns gestures inside this region. Page swipes stay in the gutters.";
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: Theme.surface;
+            border-radius: Theme.radius-lg;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            clip: true;
+
+            Flickable {
+                agenda-list := Flickable {
+                    width: 100%;
+                    height: 100%;
+                    content-width: self.width;
+                    content-height: list-content.height;
+                    content-y: root.scroll-y;
+                    interactive: true;
+                    changed content-y => { root.scroll-changed(self.content-y); }
+
+                    list-content := VerticalLayout {
+                        width: parent.width;
+                        height: self.preferred-height;
+                        padding: Theme.space-3;
+                        spacing: Theme.space-2;
+
+                        for row in root.row-count: Rectangle {
+                            height: 52px;
+                            background: Theme.surface-warm;
+                            border-radius: Theme.radius-md;
+
+                            Text {
+                                x: Theme.space-3;
+                                width: parent.width - Theme.space-6;
+                                height: 100%;
+                                vertical-alignment: center;
+                                text: "Placeholder agenda row";
+                                color: Theme.fg-2;
+                                font-family: Theme.font-body;
+                                font-size: Theme.text-base;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

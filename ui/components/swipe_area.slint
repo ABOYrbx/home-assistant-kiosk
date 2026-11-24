@@ -1,0 +1,77 @@
+import { Theme } from "../theme.slint";
+
+// A horizontal page-swipe zone with an axis lock and a distance threshold.
+//
+// The component only emits `swiped` after a gesture has clearly locked to the
+// horizontal axis and travelled at least max(60px, 20% of the zone width).
+// Vertical gestures are ignored here so a Flickable or a slider can keep the
+// gesture. Place instances behind page content and in non-interactive edge
+// gutters; never on top of a slider, list, button, or tile.
+export component SwipeArea inherits Rectangle {
+    callback swiped(int);
+
+    in property <length> threshold: Theme.swipe-threshold;
+    in property <float> threshold-fraction: Theme.swipe-threshold-fraction;
+    in property <length> lock-distance: Theme.swipe-lock-distance;
+
+    background: transparent;
+
+    property <length> start-x: 0px;
+    property <length> start-y: 0px;
+    property <length> delta-x: 0px;
+    property <bool> tracking: false;
+    property <bool> horizontal-locked: false;
+    property <bool> vertical-locked: false;
+
+    ta := TouchArea {
+        width: 100%;
+        height: 100%;
+
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down) {
+                root.start-x = self.mouse-x;
+                root.start-y = self.mouse-y;
+                root.delta-x = 0px;
+                root.tracking = true;
+                root.horizontal-locked = false;
+                root.vertical-locked = false;
+            } else if (event.kind == PointerEventKind.move && root.tracking) {
+                let dx = self.mouse-x - root.start-x;
+                let dy = self.mouse-y - root.start-y;
+                if (!root.horizontal-locked && !root.vertical-locked) {
+                    if (abs(dx) >= root.lock-distance || abs(dy) >= root.lock-distance) {
+                        if (abs(dx) >= abs(dy)) {
+                            root.horizontal-locked = true;
+                        } else {
+                            root.vertical-locked = true;
+                        }
+                    }
+                }
+                if (root.horizontal-locked) {
+                    root.delta-x = dx;
+                }
+            } else if (event.kind == PointerEventKind.up && root.tracking) {
+                let dx = self.mouse-x - root.start-x;
+                let dy = self.mouse-y - root.start-y;
+                let required = max(root.threshold, root.width * root.threshold-fraction);
+                if (root.horizontal-locked && abs(dx) >= required && abs(dx) > abs(dy)) {
+                    // Negative dx is a left swipe (next page); positive is right.
+                    if (dx < 0px) {
+                        root.swiped(-1);
+                    } else {
+                        root.swiped(1);
+                    }
+                }
+                root.tracking = false;
+                root.horizontal-locked = false;
+                root.vertical-locked = false;
+                root.delta-x = 0px;
+            } else if (event.kind == PointerEventKind.cancel) {
+                root.tracking = false;
+                root.horizontal-locked = false;
+                root.vertical-locked = false;
+                root.delta-x = 0px;
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+// Bundled weather-condition icons. Every asset is part of the application
+// binary; nothing is downloaded at runtime. Home Assistant condition strings
+// are mapped to the closest local icon, and unknown values get a neutral icon.
+export component WeatherIcon inherits Image {
+    in property <string> condition: "unknown";
+    in property <length> icon-size: 28px;
+
+    width: icon-size;
+    height: icon-size;
+    image-fit: contain;
+
+    source: condition == "sunny" || condition == "clear"
+        ? @image-url("../icons/weather-clear-day.svg")
+        : condition == "clear-night"
+            ? @image-url("../icons/weather-clear-night.svg")
+            : condition == "partlycloudy"
+                ? @image-url("../icons/weather-partly-cloudy-day.svg")
+                : condition == "partlycloudy-night"
+                    ? @image-url("../icons/weather-partly-cloudy-night.svg")
+                    : condition == "cloudy"
+                        ? @image-url("../icons/weather-cloudy.svg")
+                        : condition == "rainy" || condition == "pouring" || condition == "hail"
+                            ? @image-url("../icons/weather-rainy.svg")
+                            : condition == "snowy" || condition == "snowy-rainy"
+                                ? @image-url("../icons/weather-snowy.svg")
+                                : condition == "fog"
+                                    ? @image-url("../icons/weather-fog.svg")
+                                    : condition == "lightning" || condition == "lightning-rainy"
+                                        ? @image-url("../icons/weather-thunderstorm.svg")
+                                        : condition == "windy" || condition == "windy-variant"
+                                            ? @image-url("../icons/weather-windy.svg")
+                                            : @image-url("../icons/weather-unknown.svg");
+}

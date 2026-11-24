@@ -1,10 +1,63 @@
 import { Theme } from "../theme.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { Slider } from "std-widgets.slint";
 
 export component MediaPage inherits Rectangle {
+    in property <float> slider-value: 50;
+    callback slider-changed(float);
+
     background: Theme.bg;
-    Text {
-        text: "Media";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-4;
+
+        PageHeader {
+            title: "Media";
+            subtitle: "Shell placeholder. No media player data or controls are implemented yet.";
+        }
+
+        Rectangle {
+            height: 128px;
+            background: Theme.surface;
+            border-radius: Theme.radius-lg;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+
+            VerticalLayout {
+                padding: Theme.space-4;
+                spacing: Theme.space-2;
+
+                Text {
+                    text: "Control placeholder";
+                    color: Theme.fg;
+                    font-family: Theme.font-body;
+                    font-size: Theme.text-lg;
+                    font-weight: Theme.weight-medium;
+                }
+
+                media-slider := Slider {
+                    minimum: 0;
+                    maximum: 100;
+                    value: root.slider-value;
+                    height: Theme.touch-target;
+                    accessible-label: "Placeholder volume";
+                    changed(value) => { root.slider-changed(value); }
+                }
+
+                Text {
+                    text: "Value is exposed to the shell controller";
+                    color: Theme.muted;
+                    font-family: Theme.font-body;
+                    font-size: Theme.text-sm;
+                    overflow: elide;
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: transparent;
+        }
     }
 }

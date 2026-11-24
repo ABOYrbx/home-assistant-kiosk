@@ -1,0 +1,66 @@
+import { Theme } from "../theme.slint";
+
+// A touch-first shell tile. It has no Home Assistant data yet; the only state
+// is the local selected flag used to demonstrate tap detection.
+export component PlaceholderTile inherits Rectangle {
+    in property <string> title: "";
+    in property <string> detail: "";
+    in property <bool> selected: false;
+    callback clicked();
+
+    min-width: Theme.touch-target;
+    height: 96px;
+    border-radius: Theme.radius-lg;
+    background: ta.pressed ? Theme.surface-warm : Theme.surface;
+    border-width: root.selected || focus-scope.has-focus ? Theme.focus-ring-width : Theme.border-width;
+    border-color: focus-scope.has-focus ? Theme.focus-ring : (root.selected ? Theme.accent : Theme.border);
+
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.clicked(); }
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-1;
+        alignment: start;
+
+        Text {
+            text: root.title;
+            color: Theme.fg;
+            font-family: Theme.font-body;
+            font-size: Theme.text-lg;
+            font-weight: Theme.weight-medium;
+            overflow: elide;
+        }
+
+        Text {
+            text: root.detail;
+            color: Theme.muted;
+            font-family: Theme.font-body;
+            font-size: Theme.text-sm;
+            overflow: elide;
+        }
+    }
+
+    focus-scope := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    ta := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            focus-scope.focus();
+            root.clicked();
+        }
+    }
+}

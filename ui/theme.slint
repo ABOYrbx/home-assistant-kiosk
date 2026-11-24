@@ -1,44 +1,125 @@
-// Design tokens ported from tokens.css / DESIGN.md.
+// Wave 2 placeholder theme tokens.
+//
+// Dark is the first, fully specified palette for the shell. The light palette
+// has the same shape and is ready for the adopted design port in Wave 3, but it
+// is not polished yet. Components must use these tokens instead of literals.
+//
+// Contrast pairs are checked by tests/theme_contrast_test.rs. Keep the two
+// palette blocks in the form below so the checker can read them.
+
+export global ThemeDark {
+    out property <color> bg: #0b0c0f;
+    out property <color> surface: #15171c;
+    out property <color> surface-warm: #1c1f26;
+    out property <color> fg: #f3f5f8;
+    out property <color> fg-2: #c6ccd6;
+    out property <color> muted: #9aa3af;
+    out property <color> meta: #c6ccd6;
+    out property <color> border: #3f4652;
+    out property <color> border-soft: #262b33;
+    out property <color> accent: #f3f5f8;
+    out property <color> accent-on: #0b0c0f;
+    out property <color> accent-hover: #ffffff;
+    out property <color> accent-active: #dfe3ea;
+    out property <color> success: #5ee39a;
+    out property <color> warn: #f4c95d;
+    out property <color> danger: #ff8a8a;
+    out property <color> focus-ring: #7aa2ff;
+    out property <color> overlay: rgba(255, 255, 255, 0.06);
+}
+
+export global ThemeLight {
+    out property <color> bg: #ffffff;
+    out property <color> surface: #fafafa;
+    out property <color> surface-warm: #f5f5f5;
+    out property <color> fg: #111111;
+    out property <color> fg-2: #3a3a3a;
+    out property <color> muted: #6b6b6b;
+    out property <color> meta: #111111;
+    out property <color> border: #e2e2e2;
+    out property <color> border-soft: #eeeeee;
+    out property <color> accent: #111111;
+    out property <color> accent-on: #ffffff;
+    out property <color> accent-hover: #0e0e0e;
+    out property <color> accent-active: #0c0c0c;
+    out property <color> success: #0f7a3a;
+    out property <color> warn: #8a5a12;
+    out property <color> danger: #c53030;
+    out property <color> focus-ring: #1a4fd6;
+    out property <color> overlay: rgba(0, 0, 0, 0.04);
+}
+
 export global Theme {
-    in-out property <color> bg: #ffffff;
-    in-out property <color> surface: #fafafa;
-    in-out property <color> surface-warm: #f5f5f5;
-    in-out property <color> fg: #111111;
-    in-out property <color> fg-2: #3a3a3a;
-    in-out property <color> muted: #6b6b6b;
-    in-out property <color> border: #e2e2e2;
-    in-out property <color> border-soft: #eeeeee;
-    in-out property <color> accent: #111111;
-    in-out property <color> accent-on: #ffffff;
-    in-out property <color> success: #0f7a3a;
-    in-out property <color> warn: #8a5a12;
-    in-out property <color> danger: #c53030;
+    // Set from Config.display.theme. Dark is the Wave 2 placeholder default.
+    in-out property <bool> dark-mode: true;
 
-    in-out property <length> text-xs: 12px;
-    in-out property <length> text-sm: 14px;
-    in-out property <length> text-base: 16px;
-    in-out property <length> text-lg: 18px;
-    in-out property <length> text-xl: 22px;
-    in-out property <length> text-2xl: 32px;
-    in-out property <length> text-3xl: 48px;
-    in-out property <length> text-4xl: 64px;
+    // Colour
+    out property <color> bg: dark-mode ? ThemeDark.bg : ThemeLight.bg;
+    out property <color> surface: dark-mode ? ThemeDark.surface : ThemeLight.surface;
+    out property <color> surface-warm: dark-mode ? ThemeDark.surface-warm : ThemeLight.surface-warm;
+    out property <color> fg: dark-mode ? ThemeDark.fg : ThemeLight.fg;
+    out property <color> fg-2: dark-mode ? ThemeDark.fg-2 : ThemeLight.fg-2;
+    out property <color> muted: dark-mode ? ThemeDark.muted : ThemeLight.muted;
+    out property <color> meta: dark-mode ? ThemeDark.meta : ThemeLight.meta;
+    out property <color> border: dark-mode ? ThemeDark.border : ThemeLight.border;
+    out property <color> border-soft: dark-mode ? ThemeDark.border-soft : ThemeLight.border-soft;
+    out property <color> accent: dark-mode ? ThemeDark.accent : ThemeLight.accent;
+    out property <color> accent-on: dark-mode ? ThemeDark.accent-on : ThemeLight.accent-on;
+    out property <color> accent-hover: dark-mode ? ThemeDark.accent-hover : ThemeLight.accent-hover;
+    out property <color> accent-active: dark-mode ? ThemeDark.accent-active : ThemeLight.accent-active;
+    out property <color> success: dark-mode ? ThemeDark.success : ThemeLight.success;
+    out property <color> warn: dark-mode ? ThemeDark.warn : ThemeLight.warn;
+    out property <color> danger: dark-mode ? ThemeDark.danger : ThemeLight.danger;
+    out property <color> focus-ring: dark-mode ? ThemeDark.focus-ring : ThemeLight.focus-ring;
+    out property <color> overlay: dark-mode ? ThemeDark.overlay : ThemeLight.overlay;
 
-    in-out property <length> space-1: 4px;
-    in-out property <length> space-2: 8px;
-    in-out property <length> space-3: 12px;
-    in-out property <length> space-4: 16px;
-    in-out property <length> space-5: 20px;
-    in-out property <length> space-6: 24px;
-    in-out property <length> space-8: 32px;
-    in-out property <length> space-12: 48px;
+    // Typography. Slint falls back to the platform sans when Inter is absent;
+    // the font is never downloaded at runtime.
+    out property <string> font-body: "Inter";
+    out property <string> font-mono: "Menlo";
+    out property <int> weight-regular: 400;
+    out property <int> weight-medium: 500;
+    out property <int> weight-semibold: 600;
 
-    in-out property <length> radius-sm: 2px;
-    in-out property <length> radius-md: 4px;
-    in-out property <length> radius-lg: 8px;
-    in-out property <length> radius-pill: 9999px;
+    out property <length> text-xs: 12px;
+    out property <length> text-sm: 14px;
+    out property <length> text-base: 16px;
+    out property <length> text-lg: 18px;
+    out property <length> text-xl: 22px;
+    out property <length> text-2xl: 32px;
+    out property <length> text-3xl: 48px;
+    out property <length> text-4xl: 64px;
 
-    in-out property <length> touch-target: 44px;
+    // Space
+    out property <length> space-1: 4px;
+    out property <length> space-2: 8px;
+    out property <length> space-3: 12px;
+    out property <length> space-4: 16px;
+    out property <length> space-5: 20px;
+    out property <length> space-6: 24px;
+    out property <length> space-8: 32px;
+    out property <length> space-12: 48px;
 
-    in-out property <duration> motion-fast: 140ms;
-    in-out property <duration> motion-base: 220ms;
+    // Radius
+    out property <length> radius-sm: 2px;
+    out property <length> radius-md: 4px;
+    out property <length> radius-lg: 8px;
+    out property <length> radius-pill: 9999px;
+
+    // Interaction
+    out property <length> touch-target: 44px;
+    out property <length> border-width: 1px;
+    out property <length> focus-ring-width: 2px;
+    out property <length> swipe-threshold: 60px;
+    out property <float> swipe-threshold-fraction: 0.2;
+    out property <length> swipe-lock-distance: 10px;
+
+    // Motion. Timings document the design system; the shell uses no continuous
+    // animations because the Pi Zero 2 W target is a software renderer.
+    out property <duration> motion-fast: 140ms;
+    out property <duration> motion-base: 220ms;
+
+    // Window constraints
+    out property <length> window-min-width: 320px;
+    out property <length> window-min-height: 240px;
 }

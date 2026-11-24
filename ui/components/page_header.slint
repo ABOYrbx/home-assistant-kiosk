@@ -1,0 +1,28 @@
+import { Theme } from "../theme.slint";
+
+export component PageHeader inherits VerticalLayout {
+    in property <string> title: "";
+    in property <string> subtitle: "";
+
+    spacing: Theme.space-1;
+
+    Text {
+        text: root.title;
+        color: Theme.fg;
+        font-family: Theme.font-body;
+        font-size: Theme.text-2xl;
+        font-weight: Theme.weight-semibold;
+        overflow: elide;
+        vertical-alignment: center;
+    }
+
+    Text {
+        text: root.subtitle;
+        color: Theme.muted;
+        font-family: Theme.font-body;
+        font-size: Theme.text-sm;
+        wrap: word-wrap;
+        overflow: elide;
+        max-lines: 2;
+    }
+}

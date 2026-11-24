@@ -1,10 +1,76 @@
 import { Theme } from "../theme.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { WeatherIcon } from "../components/weather_icon.slint";
 
 export component StatusPage inherits Rectangle {
+    in property <[string]> conditions: [
+        "sunny",
+        "clear-night",
+        "partlycloudy",
+        "partlycloudy-night",
+        "cloudy",
+        "rainy",
+        "pouring",
+        "snowy",
+        "fog",
+        "lightning",
+        "windy",
+        "exceptional",
+    ];
+
     background: Theme.bg;
-    Text {
-        text: "Status";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-4;
+
+        PageHeader {
+            title: "Status";
+            subtitle: "Bundled weather condition icons. No runtime downloads and no Home Assistant data yet.";
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: Theme.surface;
+            border-radius: Theme.radius-lg;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            clip: true;
+
+            Flickable {
+                status-list := Flickable {
+                    width: 100%;
+                    height: 100%;
+                    content-width: self.width;
+                    content-height: icon-grid.height;
+                    interactive: true;
+
+                    icon-grid := FlexboxLayout {
+                        width: parent.width;
+                        height: self.preferred-height;
+                        padding: Theme.space-3;
+                        spacing: Theme.space-3;
+
+                        for condition in root.conditions: VerticalLayout {
+                            width: 76px;
+                            spacing: Theme.space-1;
+
+                            WeatherIcon {
+                                condition: condition;
+                                icon-size: 28px;
+                            }
+
+                            Text {
+                                text: condition;
+                                color: Theme.muted;
+                                font-family: Theme.font-body;
+                                font-size: Theme.text-xs;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

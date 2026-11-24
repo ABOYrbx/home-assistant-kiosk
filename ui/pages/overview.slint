@@ -1,10 +1,32 @@
 import { Theme } from "../theme.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { PlaceholderTile } from "../components/tile.slint";
 
 export component OverviewPage inherits Rectangle {
+    in property <bool> tile-selected: false;
+    callback tile-activated();
+
     background: Theme.bg;
-    Text {
-        text: "Overview";
-        color: Theme.fg;
-        font-size: Theme.text-xl;
+
+    VerticalLayout {
+        padding: Theme.space-4;
+        spacing: Theme.space-4;
+
+        PageHeader {
+            title: "Overview";
+            subtitle: "Shell placeholder. Home Assistant data widgets arrive in a later wave.";
+        }
+
+        overview-tile := PlaceholderTile {
+            title: "Tile placeholder";
+            detail: "Tap toggles local selected state";
+            selected: root.tile-selected;
+            clicked => { root.tile-activated(); }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: transparent;
+        }
     }
 }
