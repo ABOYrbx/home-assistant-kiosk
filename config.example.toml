@@ -97,10 +97,16 @@ show_album_art = true
 volume_step = 0.05
 
 [widgets.departures]
+# One sensor that exposes a `departures` attribute; the shape is documented in
+# docs/departures-entity-contract.md. Any transit integration works through a
+# template sensor, so no provider URL or stop ID appears here.
 enabled = true
 entity = "sensor.departures"
 title = "Departures"
+# 1-20. The widget renders at most this many future entries.
 max_items = 6
+# Safety refresh in seconds (minimum 10). Entity updates still arrive through
+# the subscription; this refresh only drops expired entries and re-reads state.
 refresh_seconds = 60
 
 [widgets.calendar]
