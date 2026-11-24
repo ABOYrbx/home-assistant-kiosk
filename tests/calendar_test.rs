@@ -71,6 +71,7 @@ fn converts_ha_local_times_to_the_device_timezone() {
 
 #[test]
 fn a_failing_calendar_reports_an_error_without_events() {
+    // Compatibility coverage: normal WebSocket service failures arrive as Err.
     let value: Value = fixture(ERROR);
     let error = parse_calendar_events(&value, "calendar.family", berlin()).unwrap_err();
     assert!(error.0.contains("calendar.family"));
@@ -85,22 +86,39 @@ fn a_calendar_without_events_is_valid_and_empty() {
 }
 
 #[test]
-fn all_day_events_are_kept_at_midnight_utc() {
+fn all_day_service_event_stays_on_its_calendar_date() {
     let value: Value = fixture(MULTI);
     let items = parse_calendar_events(&value, "calendar.family", berlin()).unwrap();
     let holiday = items
         .iter()
-        .find(|i| i.summary == "School holiday")
+        .find(|item| item.summary == "School holiday")
         .unwrap();
     assert!(holiday.all_day);
     assert_eq!(
         holiday.start,
         Utc.with_ymd_and_hms(2026, 11, 24, 0, 0, 0).unwrap()
     );
+
+    let device_tz: chrono_tz::Tz = "America/Los_Angeles".parse().unwrap();
+    let device_now = Utc.with_ymd_and_hms(2026, 11, 23, 12, 0, 0).unwrap();
+    let agenda = group_agenda(&items, &device_tz, device_now);
+    assert!(
+        !agenda
+            .today
+            .iter()
+            .any(|item| item.summary == "School holiday")
+    );
+    assert!(
+        agenda
+            .tomorrow
+            .iter()
+            .any(|item| item.summary == "School holiday")
+    );
 }
 
 #[test]
 fn mixed_fixture_parses_each_calendar_independently() {
+    // Compatibility coverage for a nested per-calendar error in a successful response.
     let value: Value = fixture(MIXED);
     let family = parse_calendar_events(&value, "calendar.family", berlin()).unwrap();
     let work = parse_calendar_events(&value, "calendar.work", berlin()).unwrap_err();
@@ -128,13 +146,10 @@ fn refresh_round_keeps_fixture_events_when_one_calendar_fails() {
     );
     assert_eq!(calls.len(), 2);
 
-    // Responses may arrive in either order; each request keeps its own calendar.
-    let failed_data = serde_json::json!({
-        "calendar.work": mixed.get("calendar.work").cloned().unwrap()
-    });
+    // The failed WebSocket service result arrives first; each request keeps its own calendar.
     assert!(refresh.accept(
         calls[1].request_id,
-        Ok(&ServiceResponse { data: failed_data }),
+        Err("calendar entity is unavailable".to_string()),
         berlin()
     ));
 
@@ -164,59 +179,25 @@ fn refresh_round_keeps_fixture_events_when_one_calendar_fails() {
 }
 
 #[test]
-fn failing_calendar_does_not_hide_the_others_via_refresh() {
-    let good = serde_json::json!({
-        "calendar.family": {
-            "events": [{ "summary": "Dinner", "start": { "dateTime": "2026-11-23T18:00:00+01:00" } }]
-        }
-    });
-    let bad =
-        serde_json::json!({ "calendar.work": { "error": { "message": "calendar unavailable" } } });
-
-    let mut refresh = CalendarRefresh::default();
-    let calls = refresh.begin(
-        &["calendar.family".into(), "calendar.work".into()],
-        2,
-        berlin(),
-        now(),
-    );
-    assert!(refresh.accept(
-        calls[0].request_id,
-        Ok(&ServiceResponse { data: good }),
-        berlin()
-    ));
-    assert!(refresh.accept(
-        calls[1].request_id,
-        Ok(&ServiceResponse { data: bad }),
-        berlin()
-    ));
-
-    let view = refresh.finish(now()).unwrap();
-    assert_eq!(view.items.len(), 1);
-    assert_eq!(view.items[0].summary, "Dinner");
-    assert_eq!(view.errors.len(), 1);
-    assert_eq!(view.errors[0].calendar_id, "calendar.work");
-}
-
-#[test]
 fn refresh_round_reports_error_when_a_request_fails() {
     let mut refresh = CalendarRefresh::default();
     let calls = refresh.begin(
-        &["calendar.family".into(), "calendar.work".into()],
+        &[
+            "calendar.work".into(),
+            "calendar.school".into(),
+            "calendar.family".into(),
+        ],
         2,
         berlin(),
         now(),
     );
-    assert!(refresh.accept(
-        calls[0].request_id,
-        Err("connection lost".to_string()),
-        berlin()
-    ));
-    assert!(refresh.accept(
-        calls[1].request_id,
-        Err("connection lost".to_string()),
-        berlin()
-    ));
+    for call in &calls {
+        assert!(refresh.accept(
+            call.request_id,
+            Err("connection lost".to_string()),
+            berlin()
+        ));
+    }
     let view = refresh.finish(now()).unwrap();
     assert!(view.items.is_empty());
     let error_ids: Vec<_> = view
@@ -224,7 +205,10 @@ fn refresh_round_reports_error_when_a_request_fails() {
         .iter()
         .map(|error| error.calendar_id.as_str())
         .collect();
-    assert_eq!(error_ids, vec!["calendar.family", "calendar.work"]);
+    assert_eq!(
+        error_ids,
+        vec!["calendar.family", "calendar.school", "calendar.work"]
+    );
     assert_eq!(view.last_success, None);
 }
 
@@ -233,20 +217,22 @@ fn refresh_abandon_reports_pending_errors() {
     let mut refresh = CalendarRefresh::default();
     let calls = refresh.begin(
         &[
-            "calendar.family".into(),
             "calendar.work".into(),
             "calendar.school".into(),
+            "calendar.other".into(),
+            "calendar.family".into(),
         ],
         2,
         berlin(),
         now(),
     );
-    // Answer only the first; abandon the round.
+    // Answer only the last request; abandon the three pending calendars.
+    let multi = fixture(MULTI);
     let good = serde_json::json!({
-        "calendar.family": { "events": [{ "summary": "Dinner", "start": { "dateTime": "2026-11-23T18:00:00+01:00" } }] }
+        "calendar.family": multi.get("calendar.family").cloned().unwrap()
     });
     assert!(refresh.accept(
-        calls[0].request_id,
+        calls[3].request_id,
         Ok(&ServiceResponse { data: good }),
         berlin()
     ));
@@ -255,7 +241,10 @@ fn refresh_abandon_reports_pending_errors() {
         .iter()
         .map(|error| error.calendar_id.as_str())
         .collect();
-    assert_eq!(error_ids, vec!["calendar.school", "calendar.work"]);
+    assert_eq!(
+        error_ids,
+        vec!["calendar.other", "calendar.school", "calendar.work"]
+    );
     assert!(refresh.finish(now()).is_none());
 }
 
@@ -316,7 +305,8 @@ fn sort_items_puts_all_day_first_then_by_start() {
         CalendarItem {
             calendar_id: "c".into(),
             summary: "All day".into(),
-            start: Utc.with_ymd_and_hms(2026, 11, 23, 0, 0, 0).unwrap(),
+            // A later all-day date still sorts before earlier timed events.
+            start: Utc.with_ymd_and_hms(2026, 11, 24, 0, 0, 0).unwrap(),
             end: None,
             all_day: true,
             location: None,
@@ -340,9 +330,9 @@ fn group_agenda_keeps_ongoing_events_today() {
     // Use a combined single-calendar payload with an ongoing event.
     let payload = serde_json::json!({
         "calendar.family": { "events": [
-            { "summary": "Ongoing", "start": { "dateTime": "2026-11-22T20:00:00+01:00" }, "end": { "dateTime": "2026-11-23T20:00:00+01:00" } },
-            { "summary": "Tomorrow", "start": { "dateTime": "2026-11-24T09:00:00+01:00" } },
-            { "summary": "Too late", "start": { "dateTime": "2026-11-25T09:00:00+01:00" } }
+            { "summary": "Ongoing", "start": "2026-11-22T20:00:00+01:00", "end": "2026-11-23T20:00:00+01:00" },
+            { "summary": "Tomorrow", "start": "2026-11-24T09:00:00+01:00" },
+            { "summary": "Too late", "start": "2026-11-25T09:00:00+01:00" }
         ]}
     });
     let items = parse_calendar_events(&payload, "calendar.family", berlin()).unwrap();
@@ -358,8 +348,8 @@ fn converts_naive_timestamps_in_ha_timezone() {
     let payload = serde_json::json!({
         "calendar.family": { "events": [{
             "summary": "Late",
-            "start": { "dateTime": "2026-11-23T23:30:00" },
-            "end": { "dateTime": "2026-11-24T00:30:00" }
+            "start": "2026-11-23T23:30:00",
+            "end": "2026-11-24T00:30:00"
         }]}
     });
     let items = parse_calendar_events(&payload, "calendar.family", berlin()).unwrap();
@@ -383,7 +373,7 @@ fn interprets_error_as_string() {
 #[test]
 fn parses_response_without_calendar_wrapper() {
     let payload = serde_json::json!({
-        "events": [{ "summary": "Solo", "start": { "dateTime": "2026-11-23T10:00:00+01:00" } }]
+        "events": [{ "summary": "Solo", "start": "2026-11-23T10:00:00+01:00" }]
     });
     let items = parse_calendar_events(&payload, "calendar.solo", berlin()).unwrap();
     assert_eq!(items.len(), 1);
@@ -393,7 +383,7 @@ fn parses_response_without_calendar_wrapper() {
 #[test]
 fn parses_array_response() {
     let payload = serde_json::json!([
-        { "summary": "Solo", "start": { "dateTime": "2026-11-23T10:00:00+01:00" } }
+        { "summary": "Solo", "start": "2026-11-23T10:00:00+01:00" }
     ]);
     let items = parse_calendar_events(&payload, "calendar.solo", berlin()).unwrap();
     assert_eq!(items.len(), 1);
