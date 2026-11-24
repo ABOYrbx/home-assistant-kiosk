@@ -3,7 +3,7 @@ use crate::state::{CalendarError, CalendarItem, CalendarView};
 use chrono::{DateTime, Duration as ChronoDuration, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 /// Home Assistant refreshes calendar events every five minutes by default.
@@ -180,10 +180,7 @@ fn parse_datetime(raw: &str, ha_tz: Tz) -> Option<DateTime<Utc>> {
                 .map(|local| local.with_timezone(&Utc));
         }
     }
-    NaiveDate::parse_from_str(raw, "%Y-%m-%d")
-        .ok()
-        .and_then(|date| date.and_hms_opt(0, 0, 0))
-        .map(|midnight| midnight.and_utc())
+    None
 }
 
 /// All-day events first, then by start, then by title. The calendar id breaks
@@ -290,7 +287,11 @@ impl CalendarRefresh {
         self.requested_at = Some(now);
 
         let mut calls = Vec::with_capacity(calendar_ids.len());
+        let mut seen = BTreeSet::new();
         for id in calendar_ids {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
             let mut call = build_calendar_calls(std::slice::from_ref(id), days, ha_tz, now);
             if let Some(call) = call.pop() {
                 self.pending.insert(call.request_id, id.clone());

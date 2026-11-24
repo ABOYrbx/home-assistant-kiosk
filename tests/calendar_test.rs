@@ -179,6 +179,47 @@ fn refresh_round_keeps_fixture_events_when_one_calendar_fails() {
 }
 
 #[test]
+fn refresh_round_deduplicates_repeated_calendar_ids() {
+    let mixed: Value = fixture(MIXED);
+    let mut refresh = CalendarRefresh::default();
+    let calls = refresh.begin(
+        &[
+            "calendar.family".into(),
+            "calendar.family".into(),
+            "calendar.work".into(),
+        ],
+        2,
+        berlin(),
+        now(),
+    );
+    assert_eq!(calls.len(), 2);
+
+    assert!(refresh.accept(
+        calls[1].request_id,
+        Err("calendar entity is unavailable".to_string()),
+        berlin()
+    ));
+    let family_data = serde_json::json!({
+        "calendar.family": mixed.get("calendar.family").cloned().unwrap()
+    });
+    assert!(refresh.accept(
+        calls[0].request_id,
+        Ok(&ServiceResponse { data: family_data }),
+        berlin()
+    ));
+
+    let view = refresh.finish(now()).unwrap();
+    let summaries: Vec<_> = view
+        .items
+        .iter()
+        .map(|item| item.summary.as_str())
+        .collect();
+    assert_eq!(summaries, vec!["School holiday", "Breakfast"]);
+    assert_eq!(view.errors.len(), 1);
+    assert_eq!(view.errors[0].calendar_id, "calendar.work");
+}
+
+#[test]
 fn refresh_round_reports_error_when_a_request_fails() {
     let mut refresh = CalendarRefresh::default();
     let calls = refresh.begin(
