@@ -1,0 +1,71 @@
+import { Theme } from "../theme.slint";
+
+// A vertical, single-column list for content that can outgrow the viewport
+// (calendar events, departures). The Flickable owns presses inside the list, so
+// the shell's page swipe never competes with list scrolling. Horizontal
+// movement inside the list scrolls nothing and does not change the page.
+export component ScrollableList inherits Rectangle {
+    in property <[string]> items: [];
+    in property <string> empty-text: "Nothing to show";
+    in property <length> row-height: Theme.touch-target;
+    in property <bool> interactive: true;
+
+    // Current vertical scroll offset; exposed for tests and future indicators.
+    out property <length> scroll-y: list.content-y;
+
+    clip: true;
+    background: transparent;
+
+    list := Flickable {
+        width: 100%;
+        height: 100%;
+        interactive: root.interactive;
+        // Let mouse drags scroll too, so desktop development matches touch.
+        mouse-drag-pan-enabled: true;
+        content-width: self.width;
+        content-height: Math.max(root.height, rows.preferred-height);
+
+        rows := VerticalLayout {
+            width: 100%;
+            spacing: 0px;
+
+            for item in root.items : Rectangle {
+                height: root.row-height;
+                background: transparent;
+
+                Text {
+                    x: Theme.space-3;
+                    y: 0px;
+                    width: parent.width - 2 * Theme.space-3;
+                    height: 100%;
+                    text: item;
+                    color: Theme.fg-2;
+                    font-size: Theme.text-sm;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                Rectangle {
+                    x: Theme.space-3;
+                    y: parent.height - 1px;
+                    width: parent.width - 2 * Theme.space-3;
+                    height: 1px;
+                    background: Theme.border-soft;
+                }
+            }
+        }
+    }
+
+    if root.items.length == 0 : Text {
+        text: root.empty-text;
+        color: Theme.muted;
+        font-size: Theme.text-sm;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        x: Theme.space-3;
+        y: 0px;
+        width: parent.width - 2 * Theme.space-3;
+        height: 100%;
+        overflow: elide;
+    }
+}
