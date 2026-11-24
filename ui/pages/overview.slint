@@ -7,6 +7,9 @@ import { HaTile } from "../widgets/ha_tile.slint";
 import { DeparturesWidget } from "../widgets/departures.slint";
 
 export component OverviewPage inherits Rectangle {
+    in property <bool> tile-selected: false;
+    callback tile-activated();
+
     background: Theme.bg;
 
     VerticalLayout {

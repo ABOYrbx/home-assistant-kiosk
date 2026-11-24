@@ -2,6 +2,9 @@ import { Theme } from "../theme.slint";
 import { MediaPlayerWidget } from "../widgets/media_player.slint";
 
 export component MediaPage inherits Rectangle {
+    in property <float> slider-value: 50;
+    callback slider-changed(float);
+
     background: Theme.bg;
     MediaPlayerWidget { title: ""; artist: ""; state: ""; }
 }

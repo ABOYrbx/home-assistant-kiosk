@@ -1,6 +1,23 @@
 import { Theme } from "../theme.slint";
+import { PageHeader } from "../components/page_header.slint";
+import { WeatherIcon } from "../components/weather_icon.slint";
 
 export component StatusPage inherits Rectangle {
+    in property <[string]> conditions: [
+        "sunny",
+        "clear-night",
+        "partlycloudy",
+        "partlycloudy-night",
+        "cloudy",
+        "rainy",
+        "pouring",
+        "snowy",
+        "fog",
+        "lightning",
+        "windy",
+        "exceptional",
+    ];
+
     background: Theme.bg;
 
     in property <[string]> extension-errors: [];
