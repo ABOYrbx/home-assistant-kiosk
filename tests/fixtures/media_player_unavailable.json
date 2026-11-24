@@ -1,0 +1,10 @@
+{
+  "entity_id": "media_player.example",
+  "state": "unavailable",
+  "attributes": {
+    "supported_features": 16437,
+    "volume_level": 0.5
+  },
+  "last_changed": "2026-11-23T10:00:00+00:00",
+  "last_updated": "2026-11-23T10:00:00+00:00"
+}

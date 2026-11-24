@@ -7,7 +7,18 @@ use slint::{ModelRc, SharedString, VecModel};
 use std::path::Path;
 use std::rc::Rc;
 
-pub struct UiBridge;
+pub fn apply_media(
+    window: &MainWindow,
+    view: Option<&MediaView>,
+    art: &AlbumArtState,
+    pending: bool,
+    error: Option<&str>,
+    volume_step: f32,
+) {
+    let Some(view) = view else {
+        window.set_media(empty_media(volume_step));
+        return;
+    };
 
 impl UiBridge {
     pub fn apply(_state: &AppState) {

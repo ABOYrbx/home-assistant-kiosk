@@ -33,7 +33,11 @@ pub struct MediaView {
     pub album: Option<String>,
     pub entity_picture: Option<String>,
     pub volume_level: Option<f64>,
+    #[serde(default)]
+    pub is_volume_muted: bool,
     pub supported_features: u64,
+    #[serde(default = "default_true_bool")]
+    pub available: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

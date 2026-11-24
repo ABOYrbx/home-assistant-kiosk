@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use ha_kiosk::{AppController, Config, MainWindow, kiosk};
 use slint::ComponentHandle;
+use std::cell::RefCell;
 use std::env;
 use std::path::PathBuf;
 

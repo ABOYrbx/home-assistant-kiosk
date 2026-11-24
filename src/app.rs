@@ -266,9 +266,6 @@ impl AppController {
                     self.state.weather = Some(v);
                 }
             }
-            AppEvent::Media(m) => {
-                self.state.media = m;
-            }
             AppEvent::Departures(r) => {
                 if let Ok(v) = r {
                     self.state.departures = Some(v);
@@ -667,4 +664,133 @@ fn apply_event(state: &mut AppState, event: AppEvent) {
         }
         AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
     }
+}
+
+fn wire_media_callbacks(
+    window: &MainWindow,
+    media_ui: &Rc<RefCell<MediaUi>>,
+    commands: &mpsc::Sender<HaCommand>,
+) {
+    let weak = window.as_weak();
+    let ui = Rc::clone(media_ui);
+    let tx = commands.clone();
+    window.on_media_play_pause(move || {
+        dispatch_transport(
+            &ui,
+            &tx,
+            &weak,
+            media::can_play_pause,
+            media::play_pause_call,
+        );
+    });
+
+    let weak = window.as_weak();
+    let ui = Rc::clone(media_ui);
+    let tx = commands.clone();
+    window.on_media_previous_track(move || {
+        dispatch_transport(
+            &ui,
+            &tx,
+            &weak,
+            media::can_previous,
+            media::previous_track_call,
+        );
+    });
+
+    let weak = window.as_weak();
+    let ui = Rc::clone(media_ui);
+    let tx = commands.clone();
+    window.on_media_next_track(move || {
+        dispatch_transport(&ui, &tx, &weak, media::can_next, media::next_track_call);
+    });
+
+    let weak = window.as_weak();
+    let ui = Rc::clone(media_ui);
+    let tx = commands.clone();
+    window.on_media_volume_changed(move |value| {
+        let mut state = ui.borrow_mut();
+        let Some(view) = state.view.clone() else {
+            return;
+        };
+        if !media::can_set_volume(&view) {
+            return;
+        }
+        let Some(volume) = state.volume.on_change(value, Instant::now()) else {
+            return;
+        };
+        state.next_request_id += 1;
+        let call = media::volume_call(state.next_request_id, &view.entity_id, volume);
+        if tx.try_send(HaCommand::CallService(call)).is_err() {
+            state.error = Some("Home Assistant is not connected".to_string());
+        }
+        drop(state);
+        refresh(&weak, &ui);
+    });
+
+    let weak = window.as_weak();
+    let ui = Rc::clone(media_ui);
+    let tx = commands.clone();
+    window.on_media_volume_released(move |value| {
+        let mut state = ui.borrow_mut();
+        let Some(view) = state.view.clone() else {
+            return;
+        };
+        if !media::can_set_volume(&view) {
+            return;
+        }
+        let volume = state.volume.on_release(value, Instant::now());
+        state.next_request_id += 1;
+        let call = media::volume_call(state.next_request_id, &view.entity_id, volume);
+        if tx.try_send(HaCommand::CallService(call)).is_err() {
+            state.error = Some("Home Assistant is not connected".to_string());
+        }
+        drop(state);
+        refresh(&weak, &ui);
+    });
+}
+
+fn dispatch_transport(
+    ui: &Rc<RefCell<MediaUi>>,
+    commands: &mpsc::Sender<HaCommand>,
+    weak: &slint::Weak<MainWindow>,
+    allowed: fn(&MediaView) -> bool,
+    build: fn(u64, &str) -> ServiceCall,
+) {
+    let mut state = ui.borrow_mut();
+    if state.pending_request.is_some() {
+        return;
+    }
+    let Some(view) = state.view.clone() else {
+        return;
+    };
+    if !allowed(&view) {
+        return;
+    }
+    state.next_request_id += 1;
+    let request_id = state.next_request_id;
+    let call = build(request_id, &view.entity_id);
+    match commands.try_send(HaCommand::CallService(call)) {
+        Ok(()) => {
+            state.pending_request = Some(request_id);
+            state.error = None;
+        }
+        Err(_) => state.error = Some("Home Assistant is not connected".to_string()),
+    }
+    drop(state);
+    refresh(weak, ui);
+}
+
+fn refresh(window: &slint::Weak<MainWindow>, media_ui: &Rc<RefCell<MediaUi>>) {
+    let Some(window) = window.upgrade() else {
+        return;
+    };
+    let ui = media_ui.borrow();
+    bridge::apply_media(
+        &window,
+        ui.view.as_ref(),
+        &ui.art,
+        ui.pending_request.is_some(),
+        ui.error.as_deref(),
+        ui.volume_step,
+    );
 }
