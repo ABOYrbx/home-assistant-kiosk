@@ -261,6 +261,20 @@ impl AppController {
                 }
                 push_shop(&self.window, &self.shop.borrow());
             }
+            AppEvent::Shop(shop_event) => {
+                {
+                    let mut shop = self.shop.borrow_mut();
+                    match shop_event {
+                        ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
+                        ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
+                        ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
+                        ShopEvent::ActionResult { id, action, result } => {
+                            let _ = shop.complete(&id, action, result);
+                        }
+                    }
+                }
+                push_shop(&self.window, &self.shop.borrow());
+            }
             AppEvent::Weather(r) => {
                 if let Ok(v) = r {
                     self.state.weather = Some(v);

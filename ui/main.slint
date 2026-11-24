@@ -291,6 +291,11 @@ export component MainWindow inherits Window {
                     active: current-page == 4;
                     clicked => { current-page = 4; page-changed(4); }
                 }
+                if extensions-enabled : tab-shop := TabButton {
+                    label: "Shop";
+                    active: current-page == 4;
+                    clicked => { current-page = 4; page-changed(4); }
+                }
             }
         }
 
