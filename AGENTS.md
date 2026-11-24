@@ -92,6 +92,7 @@ Read [`PLAN.md`](PLAN.md) for the full specification. This file is the short ope
 ├── docs/
 │   ├── plan-review.md           # fact-check findings and corrections
 │   ├── departures-entity-contract.md
+│   ├── deployment.md            # install, seat models, upgrade, rollback
 │   ├── extensions.md            # Wave 6 author guide
 │   ├── extension-catalog.md     # Wave 6 catalog/signing spec
 │   ├── github-rules.md          # repository and branch policy

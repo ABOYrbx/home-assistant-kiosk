@@ -170,6 +170,7 @@ package-lock.json
 docs/
 ├── plan-review.md              fact-check findings and corrections
 ├── departures-entity-contract.md
+├── deployment.md               kiosk install, seat models, upgrade, rollback
 ├── extensions.md               Wave 6 author guide (post-v1)
 ├── extension-catalog.md        Wave 6 catalog and signing spec
 ├── github-rules.md             repository and branch policy
@@ -184,7 +185,7 @@ src/                            Rust application
 ui/                             Slint UI files
 deploy/                         systemd unit and install scripts
 scripts/                        build, development, docs and repository helpers
-tests/                          integration and UI tests
+tests/                          integration, UI, and deployment script tests
 ```
 
 ## Roadmap
