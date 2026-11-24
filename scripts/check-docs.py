@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED_FILES = [
     "AGENTS.md",
+    "CHANGELOG.md",
     "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "DESIGN.md",
@@ -43,6 +44,8 @@ REQUIRED_FILES = [
     "docs/issues/index.md",
     "docs/performance.md",
     "docs/plan-review.md",
+    "docs/release-checklist.md",
+    "docs/troubleshooting.md",
     "scripts/apply-github-settings.sh",
     "scripts/create-subtask-issues.py",
     "scripts/perf-budget.py",
@@ -58,6 +61,35 @@ RELEASE_PROFILE = {
 }
 
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]
+
+REQUIRED_README_SECTIONS = [
+    "## Installation",
+    "### Configuration reference",
+    "## Troubleshooting",
+    "## Security",
+    "## Releases and changelog",
+    "## License",
+]
+
+REQUIRED_TROUBLESHOOTING_TOPICS = [
+    "glibc",
+    "SLINT_BACKEND",
+    "rotation",
+    "0600",
+    "2023.9",
+    "cross",
+]
+
+REQUIRED_RELEASE_CHECKLIST_ITEMS = [
+    "cargo fmt --check",
+    "cargo clippy --all-targets -- -D warnings",
+    "cargo test",
+    "cargo audit",
+    "SHA256SUMS",
+    "CHANGELOG.md",
+    "Known limitations",
+    "Rollback",
+]
 
 FORBIDDEN = [
     "Dohlenweg",
@@ -110,6 +142,39 @@ def check_toml() -> None:
             errors.append("config.example.toml must ship with extensions.enabled = false")
     except Exception as exc:  # noqa: BLE001 - report the parser error as-is
         errors.append(f"config.example.toml is not valid TOML: {exc}")
+
+
+def config_paths(value: object, prefix: str = "") -> list[str]:
+    paths: list[str] = []
+    if not isinstance(value, dict):
+        return [prefix] if prefix else paths
+    for key, child in value.items():
+        path = f"{prefix}.{key}" if prefix else key
+        if isinstance(child, dict):
+            paths.extend(config_paths(child, path))
+        elif isinstance(child, list) and child and isinstance(child[0], dict):
+            paths.extend(config_paths(child[0], f"{path}[]"))
+        else:
+            paths.append(path)
+    return paths
+
+
+def check_config_reference() -> None:
+    path = ROOT / "config.example.toml"
+    if not path.is_file():
+        return
+    try:
+        data = load_toml(path)
+    except Exception:  # noqa: BLE001 - check_toml already reports this
+        return
+    if not isinstance(data, dict):
+        return
+    readme = read(ROOT / "README.md")
+    for path in config_paths(data):
+        if path.startswith("pages.") and path.endswith(".widgets"):
+            path = "pages.<name>.widgets"
+        if path not in readme:
+            errors.append(f"README.md configuration reference is missing: {path}")
 
 
 def check_cargo_profile() -> None:
@@ -197,6 +262,20 @@ def check_content() -> None:
     readme = read(ROOT / "README.md")
     if "Repository rules" not in readme:
         errors.append("README.md is missing the repository rules section")
+    for section in REQUIRED_README_SECTIONS:
+        if section not in readme:
+            errors.append(f"README.md is missing the section: {section}")
+    troubleshooting = read(ROOT / "docs/troubleshooting.md")
+    for topic in REQUIRED_TROUBLESHOOTING_TOPICS:
+        if topic not in troubleshooting:
+            errors.append(f"docs/troubleshooting.md is missing the topic: {topic}")
+    checklist = read(ROOT / "docs/release-checklist.md")
+    for item in REQUIRED_RELEASE_CHECKLIST_ITEMS:
+        if item not in checklist:
+            errors.append(f"docs/release-checklist.md is missing the item: {item}")
+    changelog = read(ROOT / "CHANGELOG.md")
+    if "## [Unreleased]" not in changelog:
+        errors.append("CHANGELOG.md is missing an Unreleased section")
     design = read(ROOT / "DESIGN.md")
     if "Status: adopted" not in design:
         errors.append("DESIGN.md is missing its adopted status")
@@ -232,6 +311,7 @@ def check_forbidden() -> None:
 def main() -> int:
     check_required()
     check_toml()
+    check_config_reference()
     check_cargo_profile()
     check_performance_doc()
     check_markdown()
