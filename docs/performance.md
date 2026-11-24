@@ -57,30 +57,42 @@ has different accounting and a different environment. The first-frame trace
 below needs a fresh process start and the DRM device for itself, so stop the
 service for that measurement and start it again afterwards.
 
-### Resident set size
+### Resident set size and cgroup memory
 
 Wait ten minutes after the first frame so that startup allocations, the cache
-load, and the first Home Assistant snapshot have settled. Then read the service
-cgroup:
+load, and the first Home Assistant snapshot have settled. Then capture the
+service cgroup values as JSON evidence:
 
 ```bash
-systemctl show ha-kiosk -p MemoryCurrent -p MemoryPeak
+python3 scripts/perf-memory.py systemd --unit ha-kiosk \
+  --output /tmp/ha-kiosk-memory.json
 ```
 
-Both values are bytes; divide by 1048576 for MB. `MemoryCurrent` is the value
-for `rss_idle_mb`. `MemoryPeak` requires cgroup v2 with systemd 248 or newer,
-which Raspberry Pi OS Bookworm provides. On a Pi 3 with the legacy cgroup
-hierarchy, use the cross-check below instead.
+The helper runs `systemctl show` and records `MainPID`, `MemoryCurrent`, and
+`MemoryPeak`. The memory properties are bytes and are also reported in MiB.
+`MemoryPeak` requires cgroup v2 with systemd 248 or newer, which Raspberry Pi
+OS Bookworm provides. Missing properties, an unavailable value, or a stopped
+service fail instead of producing a misleading zero.
 
-Cross-check with GNU time, which reports the peak resident set at exit:
+`MemoryCurrent` is memory charged to the whole service cgroup. It can include
+page cache and is not identical to the process resident set size. Keep the
+`systemd-cgroup` method in the evidence and notes; do not silently relabel it
+as `rss_idle_mb` in the budget record.
+
+Cross-check process peak RSS with GNU time. The helper preserves the raw report
+and returns the profiled process's exit status:
 
 ```bash
-/usr/bin/time -v /usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
+python3 scripts/perf-memory.py time --output /tmp/ha-kiosk-time.json -- \
+  /usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
 ```
 
-The `Maximum resident set size (kbytes)` line is a peak, not an idle value. It
-must not be lower than `MemoryCurrent`; if it is, the service was not idle long
-enough or the measurement ran with a different configuration.
+GNU time writes its report only when the process exits, so stop the service
+before this direct measurement and start it again afterwards. The
+`Maximum resident set size (kbytes)` line is a peak over the entire run, not an
+idle value. It need not be lower than a later cgroup sample: the two methods
+cover different scopes and time windows. Record the method and duration with
+any value transferred into the performance record.
 
 ### First frame
 
