@@ -1,9 +1,15 @@
 # Performance budgets and Pi Zero 2 W record
 
 **Status: not verified on hardware.** No Raspberry Pi Zero 2 W measurement is
-recorded yet. The Wave 5 performance gate stays open until a device record is
-filled in below and accepted by [`scripts/perf-budget.py`](../scripts/perf-budget.py).
-Tracking issues: #161 (this record) and the parent epic #4.
+recorded yet. On 2026-11-25 the only reachable SBC was a Pi 3 Model B+ and it
+cannot run the kiosk: the HDMI connector reports `disconnected`, there is no X11
+or Wayland session, its distro Rust is 1.85 (the workspace requires 1.95), and
+`vcgencmd get_throttled` reports `0xd0000` from earlier boot conditions. A
+substitute device is not evidence for this gate, so the Wave 5 performance gate
+stays open until a device record is filled in below and accepted by
+[`scripts/perf-budget.py`](../scripts/perf-budget.py).
+Tracking issues: #109 and #110 (measurement and method), #161 (this record), and
+the parent epic #4.
 
 This file is the written test record for the performance part of the Wave 5
 gate. It defines the budgets, the measurement method, the soak procedure, and
@@ -193,6 +199,18 @@ buffers, decoded images, and JSON values from large snapshots. A hotspot that
 grows with uptime is a soak failure even if the 24-hour run stays under
 150 MB.
 
+The guarded runner builds a symbol-enabled copy, runs it under `heaptrack`, and
+keeps both the compressed report and a text summary under
+`target/heaptrack/runs/<timestamp>-*`:
+
+```bash
+scripts/perf-heaptrack.sh -- --config config.example.toml
+```
+
+It refuses a non-Linux or non-x86_64 host and a missing `heaptrack` before it
+compiles anything. Quit the kiosk normally after reproducing the workload so
+heaptrack flushes its report.
+
 ## Release profile
 
 The release profile in [`Cargo.toml`](../Cargo.toml) is part of the performance
@@ -232,7 +250,41 @@ record and requires a new one.
 | --- | --- | --- |
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
 | Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
+| Soak leak check runs against the real client, state, and cache | `tests/e2e_test.rs` ignored soak test | verified on the development host |
+| Raw evidence becomes a validated record | `scripts/perf-record.py` and `tests/test_perf_record.py` | verified by unit tests |
+| Memory evidence capture is method-separated | `scripts/perf-memory.py` and `tests/test_perf_memory.py` | verified by unit tests |
+| x86_64 allocation profiling is guarded and reproducible | `scripts/perf-heaptrack.sh` and `tests/test_perf_heaptrack.py` | verified with external-tool stubs |
 | Pi Zero 2 W RSS, first frame, idle CPU, soak | this record | not verified on hardware |
+
+### Pi 3 Model B+ check (not the release gate)
+
+On 2026-11-25 the only reachable single-board computer was a Pi 3 Model B+
+running Debian 13 (trixie), kernel 6.18, 905 MB RAM. It cannot produce any of the
+four measurements:
+
+```text
+$ cat /proc/device-tree/model
+Raspberry Pi 3 Model B Plus Rev 1.3
+$ cat /sys/class/drm/card0-HDMI-A-1/status
+disconnected
+$ systemctl list-units --type=service --state=running | grep -Ei 'x11|wayland|kiosk'
+(no output)
+$ rustc --version
+rustc 1.85.1
+$ vcgencmd get_throttled
+throttled=0xd0000
+```
+
+No connector means no DRM page flip, so there is no first frame to time. No X11
+or Wayland session means the `desktop` fallback cannot start either. The distro
+Rust is older than the workspace's `rust-version = 1.95`, so a native build is
+not possible without installing a newer toolchain. The throttling bits record
+earlier boot conditions, so they would fail the `throttled` gate even after a
+run.
+
+A Pi 3 is a supported target in its own right, but it is not evidence for the Pi
+Zero 2 W gate: its CPU is faster and its memory is larger, so a number from it
+would flatter the budget. The record stays unfilled and the gate stays open.
 
 ## Recording and checking a record
 
@@ -266,6 +318,45 @@ python3 scripts/perf-budget.py perf-record.json
 The command prints a table, exits 0 when every hard gate is met (warnings for a
 missed target), exits 1 when a gate is breached or the record is malformed, and
 exits 2 when the file cannot be read or is not JSON.
+
+### Build the record from raw evidence
+
+`scripts/perf-record.py` reads the evidence saved by the commands above, so a
+number is never copied by hand into the record. It keeps the soak metrics from a
+base record and replaces the three metrics measured here:
+
+```bash
+python3 scripts/perf-record.py \
+  --base-record docs/performance/2026-11-25-soak-base.json \
+  --rss /tmp/ha-kiosk-systemd.txt \
+  --first-frame /tmp/ha-kiosk-frames.log \
+  --idle-cpu /tmp/ha-kiosk-pidstat.txt \
+  --os /etc/os-release \
+  --device /proc/device-tree/model \
+  --output docs/performance/2026-11-25-raspberry-pi-zero-2-w.json
+```
+
+The collector refuses a base record that is not `release` with the `kiosk`
+feature set, fewer than ten one-minute `pidstat` samples, a missing process
+start or DRM presentation in the strace, and any device model that is not a
+Raspberry Pi Zero 2 W. It validates the result with `perf-budget.py` and writes
+nothing when validation fails.
+
+Capture the raw evidence with `scripts/perf-memory.py` for the memory value:
+
+```bash
+python3 scripts/perf-memory.py systemd --unit ha-kiosk \
+  --output /tmp/ha-kiosk-memory.json
+
+python3 scripts/perf-memory.py time --output /tmp/ha-kiosk-time.json -- \
+  /usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
+```
+
+`systemd` reads `MemoryCurrent`, `MemoryPeak`, and `MainPID` from the service
+cgroup; a stopped service or an unavailable `MemoryCurrent` is an error, not a
+zero. `time` runs the command under `/usr/bin/time -v` and reports the peak
+resident set at exit. Keep the two methods separate: a peak process RSS is not
+an idle cgroup value.
 
 The values above are a format example, not a measurement. An accepted record is
 committed as `docs/performance/<date>-<device>.json` and this table is updated

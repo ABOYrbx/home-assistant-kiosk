@@ -26,8 +26,15 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --locked --version 0.23.0
 
       - name: Audit dependencies
-        run: cargo audit
+        run: cargo audit --file Cargo.lock

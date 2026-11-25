@@ -174,6 +174,9 @@ impl AppState {
             }
             HaEvent::AuthFailed { .. } => {
                 self.connection = ConnectionState::AuthFailed;
+                // A rejected token means no live data can arrive; cached values
+                // must not keep looking current behind the error badge.
+                self.stale = true;
             }
             HaEvent::Disconnected { .. } => {
                 self.connection = ConnectionState::Disconnected;

@@ -40,6 +40,24 @@ fn connection_events_track_version_timezone_and_stale() {
 }
 
 #[test]
+fn authentication_failure_marks_cached_data_as_stale() {
+    let mut state = AppState {
+        stale: false,
+        ..AppState::default()
+    };
+
+    state.apply_ha_event(HaEvent::AuthFailed {
+        message: "bad token".to_string(),
+    });
+
+    assert_eq!(state.connection, ConnectionState::AuthFailed);
+    assert!(
+        state.stale,
+        "an authentication failure must not let cached data look live"
+    );
+}
+
+#[test]
 fn snapshot_replaces_all_entities_and_marks_fresh() {
     let mut state = AppState {
         stale: true,
