@@ -18,7 +18,7 @@ use super::manifest::Manifest;
 use super::output::ExtensionOutput;
 use super::runner::ExtensionRunner;
 use super::shop::{ConfigField, ExtensionPermissions, InstalledExtension, ShopEntry};
-use super::store::{ExtensionStore, StoreError};
+use super::store::{ExtensionStore, InstalledExtension as StoredExtension, StoreError};
 
 /// Everything the manager needs from `[extensions]`.
 #[derive(Debug, Clone)]
@@ -158,18 +158,9 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             if entries.iter().any(|entry| entry.id == record.id) {
                 continue;
             }
-            // An installed extension stays available when the catalog is
+            // An installed extension stays visible when the catalog is
             // offline or the entry was removed from the catalog.
-            let mut entry = placeholder_shop_entry(&record.id);
-            entry.version = record.version.to_string();
-            entry.installed_version = Some(record.version.to_string());
-            entry.enabled = record.enabled;
-            entry.configured = self.configured(&record.id);
-            entry.error = self
-                .health
-                .get(&record.id)
-                .and_then(|health| health.last_error.clone());
-            entries.push(entry);
+            entries.push(self.installed_shop_entry(record));
         }
         entries
     }
@@ -183,7 +174,9 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 id: record.id.clone(),
                 version: record.version.to_string(),
                 enabled: record.enabled,
-                configured: self.configured(&record.id),
+                configured: self
+                    .configuration(&record.id, &record.version)
+                    .unwrap_or(false),
                 error: self
                     .health
                     .get(&record.id)
@@ -356,27 +349,67 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             configured: false,
             error: None,
             available: true,
+            metadata_available: true,
         };
         if let Some(record) = installed {
             shop.installed_version = Some(record.version.to_string());
             shop.enabled = record.enabled;
-            shop.configured = self.configured(&entry.id);
-            shop.error = self
-                .health
-                .get(&entry.id)
-                .and_then(|health| health.last_error.clone());
+            match self.configuration(&entry.id, &record.version) {
+                Ok(configured) => shop.configured = configured,
+                Err(error) => {
+                    shop.error = Some(format!(
+                        "cannot read installed manifest or configuration: {error}"
+                    ))
+                }
+            }
+            if shop.error.is_none() {
+                shop.error = self
+                    .health
+                    .get(&entry.id)
+                    .and_then(|health| health.last_error.clone());
+            }
         }
         shop
     }
 
-    fn configured(&self, id: &str) -> bool {
-        settings_table(self.options.settings.get(id))
-            .map(|table| {
-                table
-                    .values()
-                    .any(|value| !value.as_str().unwrap_or_default().is_empty())
-            })
-            .unwrap_or(false)
+    fn installed_shop_entry(&self, record: &StoredExtension) -> ShopEntry {
+        let directory = self.store.extension_dir(&record.id, &record.version);
+        let manifest = match super::package::load_manifest(&directory) {
+            Ok(manifest) => manifest,
+            Err(error) => return installed_manifest_error(record, error),
+        };
+        if let Err(error) = manifest.validate(&self.options.app_version) {
+            return installed_manifest_error(record, error);
+        }
+
+        let mut entry = shop_entry_from_manifest(&manifest);
+        entry.installed_version = Some(record.version.to_string());
+        entry.enabled = record.enabled;
+        match self.configuration(&record.id, &record.version) {
+            Ok(configured) => entry.configured = configured,
+            Err(error) => {
+                entry.error = Some(format!(
+                    "cannot read installed manifest or configuration: {error}"
+                ))
+            }
+        }
+        if entry.error.is_none() {
+            entry.error = self
+                .health
+                .get(&record.id)
+                .and_then(|health| health.last_error.clone());
+        }
+        entry
+    }
+
+    fn configuration(&self, id: &str, version: &semver::Version) -> Result<bool, ManagerError> {
+        let directory = self.store.extension_dir(id, version);
+        let catalog_manifest = super::package::load_manifest(&directory)
+            .map_err(|error| ManagerError::Manifest(error.to_string()))?;
+        let manifest = host_manifest(&catalog_manifest)?;
+        let settings = self.settings_for(id);
+        let secrets = self.secrets_for(id)?;
+        Ok(manifest.build_config(&settings, &secrets).is_ok())
     }
 
     fn settings_for(&self, id: &str) -> BTreeMap<String, JsonValue> {
@@ -409,6 +442,47 @@ fn host_manifest(manifest: &ExtensionManifest) -> Result<Manifest, ManagerError>
     Manifest::parse(&text).map_err(|error| ManagerError::Manifest(error.to_string()))
 }
 
+fn shop_entry_from_manifest(manifest: &ExtensionManifest) -> ShopEntry {
+    ShopEntry {
+        id: manifest.id.clone(),
+        name: manifest.name.clone(),
+        version: manifest.version.to_string(),
+        author: manifest.author.clone(),
+        license: manifest.license.clone(),
+        description: manifest.description.clone(),
+        provides: kind_name(manifest.provides),
+        permissions: ExtensionPermissions {
+            http_hosts: manifest.permissions.http_hosts.clone(),
+            ha_entities: manifest.permissions.ha_entities.clone(),
+        },
+        config_schema: manifest
+            .config_schema
+            .iter()
+            .map(|field| ConfigField {
+                key: field.key.clone(),
+                label: field.label.clone(),
+                kind: field_type_name(field.field_type),
+                required: field.required,
+            })
+            .collect(),
+        installed_version: None,
+        enabled: false,
+        configured: false,
+        error: None,
+        available: false,
+        metadata_available: true,
+    }
+}
+
+fn installed_manifest_error(record: &StoredExtension, error: impl std::fmt::Display) -> ShopEntry {
+    let mut entry = placeholder_shop_entry(&record.id);
+    entry.version = record.version.to_string();
+    entry.installed_version = Some(record.version.to_string());
+    entry.enabled = record.enabled;
+    entry.error = Some(format!("cannot read installed manifest: {error}"));
+    entry
+}
+
 fn placeholder_shop_entry(id: &str) -> ShopEntry {
     ShopEntry {
         id: id.to_string(),
@@ -425,6 +499,7 @@ fn placeholder_shop_entry(id: &str) -> ShopEntry {
         configured: false,
         error: None,
         available: false,
+        metadata_available: false,
     }
 }
 

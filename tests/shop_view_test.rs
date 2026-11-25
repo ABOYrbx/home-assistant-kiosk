@@ -36,6 +36,7 @@ fn entry(id: &str, name: &str, version: &str) -> ShopEntry {
         configured: false,
         error: None,
         available: true,
+        metadata_available: true,
     }
 }
 
@@ -238,6 +239,26 @@ fn offline_catalog_keeps_installed_extensions_usable() {
 }
 
 #[test]
+fn offline_snapshot_retains_installed_metadata_without_offering_installs() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    let mut installed = entry("org.example.bus-departures", "Bus Departures", "1.0.0");
+    installed.installed_version = Some("1.0.0".to_string());
+    installed.enabled = true;
+    installed.configured = true;
+    installed.available = false;
+
+    view.apply_offline_snapshot(vec![installed], "network unreachable");
+
+    assert!(!view.catalog_online);
+    assert_eq!(view.catalog_error.as_deref(), Some("network unreachable"));
+    assert!(view.available_entries().is_empty());
+    let entry = view.entry("org.example.bus-departures").unwrap();
+    assert!(entry.metadata_available);
+    assert_eq!(entry.author, "Example Author");
+    assert_eq!(entry.configuration_status(), "Configured");
+}
+
+#[test]
 fn installed_extension_missing_from_the_catalog_stays_installed() {
     let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
     view.set_installed(vec![InstalledExtension {
@@ -275,6 +296,31 @@ fn permissions_and_config_keys_are_described_without_inventing_values() {
         "No network or Home Assistant access"
     );
     assert_eq!(empty.config_keys_summary(), "No configuration required");
+}
+
+#[test]
+fn configuration_status_distinguishes_required_configured_and_unavailable() {
+    let mut entry = entry("org.example.bus-departures", "Bus Departures", "1.0.0");
+    assert_eq!(entry.configuration_status(), "Configuration required");
+
+    entry.configured = true;
+    assert_eq!(entry.configuration_status(), "Configured");
+
+    entry.config_schema.clear();
+    assert_eq!(entry.configuration_status(), "No configuration required");
+
+    entry.metadata_available = false;
+    assert_eq!(entry.configuration_status(), "Configuration unavailable");
+}
+
+#[test]
+fn unavailable_metadata_does_not_claim_no_permissions() {
+    let entry = ShopEntry {
+        metadata_available: false,
+        permissions: ExtensionPermissions::default(),
+        ..entry("org.example.bus-departures", "Bus Departures", "1.0.0")
+    };
+    assert_eq!(entry.permissions_summary(), "Permissions unavailable");
 }
 
 #[test]
@@ -335,6 +381,20 @@ fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
     );
     assert!(!ui.installed);
     assert!(ui.available);
+}
+
+#[test]
+fn bridge_exposes_installed_version_and_configuration_status() {
+    let mut view = view_with_catalog();
+    let id = "org.example.bus-departures";
+    let mut entry = view.entry(id).unwrap().clone();
+    entry.installed_version = Some("0.9.0".to_string());
+    entry.configured = true;
+    view.entries[0] = entry;
+
+    let ui = ha_kiosk::ui::bridge::shop_entry_view(view.entry(id).unwrap(), &view);
+    assert_eq!(ui.installed_version.as_str(), "0.9.0");
+    assert_eq!(ui.config_status.as_str(), "Configured");
 }
 
 #[test]

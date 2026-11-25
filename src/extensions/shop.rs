@@ -128,6 +128,10 @@ pub struct ShopEntry {
     /// that disappeared from the catalog stay installed but are not available.
     #[serde(default)]
     pub available: bool,
+    /// True when name, author, license, description, permissions, and the
+    /// configuration schema came from a verified catalog or installed manifest.
+    #[serde(default)]
+    pub metadata_available: bool,
 }
 
 impl ShopEntry {
@@ -162,10 +166,29 @@ impl ShopEntry {
     }
 
     pub fn permissions_summary(&self) -> String {
-        self.permissions.summary()
+        if self.metadata_available {
+            self.permissions.summary()
+        } else {
+            "Permissions unavailable".to_string()
+        }
+    }
+
+    pub fn configuration_status(&self) -> &'static str {
+        if !self.metadata_available {
+            "Configuration unavailable"
+        } else if self.config_schema.is_empty() {
+            "No configuration required"
+        } else if self.configured {
+            "Configured"
+        } else {
+            "Configuration required"
+        }
     }
 
     pub fn config_keys_summary(&self) -> String {
+        if !self.metadata_available {
+            return "Configuration keys unavailable".to_string();
+        }
         if self.config_schema.is_empty() {
             return "No configuration required".to_string();
         }
@@ -296,6 +319,7 @@ impl ShopView {
         let mut merged: Vec<ShopEntry> = Vec::with_capacity(catalog.len() + self.entries.len());
         for mut incoming in catalog {
             incoming.available = true;
+            incoming.metadata_available = true;
             if let Some(existing) = self.entries.iter().find(|e| e.id == incoming.id) {
                 incoming.installed_version = existing.installed_version.clone();
                 incoming.enabled = existing.enabled;
@@ -314,6 +338,18 @@ impl ShopView {
         self.entries = merged;
         self.catalog_online = true;
         self.catalog_error = None;
+        self.sort();
+    }
+
+    /// Replace the visible snapshot while the catalog is offline. The manager
+    /// supplies complete installed entries, but none are offered for install.
+    pub fn apply_offline_snapshot(&mut self, entries: Vec<ShopEntry>, reason: impl Into<String>) {
+        self.entries = entries;
+        for entry in &mut self.entries {
+            entry.available = false;
+        }
+        self.catalog_online = false;
+        self.catalog_error = Some(reason.into());
         self.sort();
     }
 
@@ -498,6 +534,7 @@ impl ShopEntry {
             configured: false,
             error: None,
             available: false,
+            metadata_available: false,
         }
     }
 }

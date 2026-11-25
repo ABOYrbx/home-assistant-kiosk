@@ -183,9 +183,10 @@ max_bytes = 262144
 
 [extensions]
 # When true, the kiosk adds a fifth Shop page. It lists installed and available
-# extensions, shows permissions, and installs, updates, removes, enables, or
-# disables them after a first-install trust confirmation. Installed extensions
-# stay usable while the catalog is offline.
+# extensions with their metadata, permissions, configuration status, and errors.
+# It installs, updates, removes, enables, or disables them after a first-install
+# trust confirmation. Installed extensions keep their manifest metadata and stay
+# usable while the catalog is offline.
 #
 # Enabling the shop requires catalog_url and public_keys. Unsigned or HTTP
 # catalogs are accepted only with allow_unsigned and dev_mode both true.
@@ -206,7 +207,9 @@ max_script_operations = 1000000
 # created with mode 0700; installed.json is mode 0600).
 store_path = "/var/lib/ha-kiosk/extensions"
 
-# Per-extension settings go here. The shop shows the required keys.
+# Per-extension settings go here. The shop shows the required keys and reports
+# Configured, Configuration required, No configuration required, or
+# Configuration unavailable from the installed manifest.
 # [extensions.settings."org.example.bus-departures"]
 # stop_id = "REPLACE_ME"
 # limit = 6

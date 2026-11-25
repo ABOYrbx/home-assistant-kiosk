@@ -2,12 +2,12 @@
 
 use ha_kiosk::extensions::{
     CatalogCache, CatalogClient, CatalogEntry, CatalogError, CatalogFetcher, CatalogIndex,
-    CatalogPolicy, ExtensionKind, ExtensionManifest, ExtensionStore, FetchError, PackageError,
-    SignatureError, SignatureStatus, StoreError, extract_package, extract_package_with_limit,
-    sha256_hex, verify_package, verify_signature, verify_unsigned,
+    CatalogPolicy, ExtensionKind, ExtensionManager, ExtensionManifest, ExtensionStore, FetchError,
+    ManagerOptions, PackageError, SignatureError, SignatureStatus, StoreError, extract_package,
+    extract_package_with_limit, sha256_hex, verify_package, verify_signature, verify_unsigned,
 };
 use semver::Version;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -891,4 +891,168 @@ fn store_rejects_unsafe_ids() {
         store.remove("../../etc", false).unwrap_err(),
         StoreError::InvalidId(_)
     ));
+}
+
+// ---------------------------------------------------------------------------
+// Manager: Shop metadata and configuration status
+// ---------------------------------------------------------------------------
+
+fn manager_options(dir: &Path, settings: BTreeMap<String, toml::Value>) -> ManagerOptions {
+    ManagerOptions {
+        app_version: app_version(),
+        catalog_url: None,
+        public_keys: Vec::new(),
+        allow_unsigned: false,
+        dev_mode: false,
+        max_catalog_bytes: 2 * 1024 * 1024,
+        max_package_bytes: MAX_PACKAGE_BYTES,
+        store_path: dir.join("extensions"),
+        secret_dir: dir.join("secrets"),
+        settings,
+    }
+}
+
+fn installed_manager(
+    dir: &Path,
+    settings: BTreeMap<String, toml::Value>,
+) -> ExtensionManager<FakeFetcher, FakeFetcher> {
+    let (entry, package) = entry_and_package(ID, "1.0.0");
+    let mut store = ExtensionStore::open(dir.join("extensions")).unwrap();
+    store
+        .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+        .unwrap();
+    ExtensionManager::new(
+        manager_options(dir, settings),
+        FakeFetcher::default(),
+        FakeFetcher::default(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn installed_only_shop_entry_uses_the_installed_manifest_metadata() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut manager = installed_manager(dir.path(), BTreeMap::new());
+
+    let entries = manager.shop_entries();
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.name, "Bus Departures");
+    assert_eq!(entry.author, "Example Author");
+    assert_eq!(entry.license, "MIT");
+    assert_eq!(entry.description, "Shows upcoming bus departures.");
+    assert_eq!(entry.installed_version.as_deref(), Some("1.0.0"));
+    assert!(entry.metadata_available);
+    assert!(entry.configured);
+    assert_eq!(entry.configuration_status(), "No configuration required");
+    assert_eq!(
+        entry.permissions_summary(),
+        "Network: api.example.com; Home Assistant: sensor.example"
+    );
+}
+
+#[test]
+fn installed_configuration_requires_declared_settings_and_secrets() {
+    let dir = tempfile::tempdir().unwrap();
+    let settings: BTreeMap<String, toml::Value> = BTreeMap::from([(
+        ID.to_string(),
+        toml::from_str("stop_id = \"REPLACE_ME\"\nlimit = 0").unwrap(),
+    )]);
+    let mut manager = installed_manager(dir.path(), settings.clone());
+    let manifest_path = manager
+        .store()
+        .extension_dir(ID, &Version::parse("1.0.0").unwrap())
+        .join("manifest.toml");
+    let manifest = format!(
+        r#"{}
+[[config_schema]]
+key = "stop_id"
+label = "Stop ID"
+type = "string"
+required = true
+
+[[config_schema]]
+key = "api_key"
+label = "API key"
+type = "secret"
+required = true
+
+[[config_schema]]
+key = "limit"
+label = "Maximum departures"
+type = "integer"
+required = false
+"#,
+        manifest_toml(ID, "1.0.0")
+    );
+    fs::write(manifest_path, manifest).unwrap();
+
+    assert!(!manager.shop_entries()[0].configured);
+    assert_eq!(
+        manager.shop_entries()[0].configuration_status(),
+        "Configuration required"
+    );
+
+    fs::create_dir_all(dir.path().join("secrets")).unwrap();
+    fs::write(
+        dir.path().join("secrets").join(format!("{ID}.secret.toml")),
+        "api_key = \"test-secret\"\n",
+    )
+    .unwrap();
+    let mut manager = ExtensionManager::new(
+        manager_options(dir.path(), settings),
+        FakeFetcher::default(),
+        FakeFetcher::default(),
+    )
+    .unwrap();
+    assert!(manager.shop_entries()[0].configured);
+    assert_eq!(
+        manager.shop_entries()[0].configuration_status(),
+        "Configured"
+    );
+}
+
+#[test]
+fn missing_installed_manifest_is_shown_as_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut manager = installed_manager(dir.path(), BTreeMap::new());
+    let manifest_path = manager
+        .store()
+        .extension_dir(ID, &Version::parse("1.0.0").unwrap())
+        .join("manifest.toml");
+    fs::remove_file(manifest_path).unwrap();
+
+    let entry = &manager.shop_entries()[0];
+    assert!(!entry.metadata_available);
+    assert_eq!(entry.permissions_summary(), "Permissions unavailable");
+    assert_eq!(entry.configuration_status(), "Configuration unavailable");
+    assert!(
+        entry
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("manifest"))
+    );
+}
+
+#[test]
+fn invalid_installed_manifest_is_shown_as_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut manager = installed_manager(dir.path(), BTreeMap::new());
+    let manifest_path = manager
+        .store()
+        .extension_dir(ID, &Version::parse("1.0.0").unwrap())
+        .join("manifest.toml");
+    let invalid = manifest_toml(ID, "1.0.0").replace("\"Example Author\"", "\"\"");
+    fs::write(manifest_path, invalid).unwrap();
+
+    let entry = &manager.shop_entries()[0];
+    assert!(!entry.metadata_available);
+    assert_eq!(entry.permissions_summary(), "Permissions unavailable");
+    assert_eq!(entry.configuration_status(), "Configuration unavailable");
+    assert!(
+        entry
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("manifest"))
+    );
 }

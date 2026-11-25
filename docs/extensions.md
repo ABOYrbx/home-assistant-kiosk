@@ -27,11 +27,12 @@ An extension cannot:
 
 The Shop is a fifth page. It appears only when `extensions.enabled = true`; with the default configuration the kiosk keeps four pages.
 
-- **Installed** lists extensions recorded in `installed.json`, including ones that are no longer in the catalog.
-- **Available** lists catalog entries that are not installed. Each card shows the name, version, author, license, description, status, declared permissions, configuration keys, and the exact settings and secret file paths.
+- **Installed** lists extensions recorded in `installed.json`, including ones that are no longer in the catalog. Each card shows the name, installed version, latest catalog version when different, author, license, description, status, declared permissions, configuration keys, and the exact settings and secret file paths.
+- **Available** lists catalog entries that are not installed with the same metadata and permission details.
+- **Configuration status** is explicit: `Configured`, `Configuration required`, `No configuration required`, or `Configuration unavailable`. The manager checks the installed manifest's required fields, types, and secret placement; it does not treat an arbitrary non-empty setting as complete configuration.
 - **Actions:** Install, Update, Remove, and Enable/Disable. Install opens a first-install trust confirmation that repeats the warning and permissions; nothing is installed until the user confirms. Update is offered only when the catalog version differs from the installed version.
-- **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success.
-- **Offline:** installed extensions stay usable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
+- **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success. A missing installed manifest is also shown as an error, and unknown metadata/permissions are labelled unavailable rather than invented.
+- **Offline:** installed extensions stay usable and retain metadata from their installed manifests. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
 - **Errors** are also collected on the Status page.
 - **No on-screen keyboard:** the page shows the configuration keys and the exact TOML and secret file paths. Edit those files directly.
 

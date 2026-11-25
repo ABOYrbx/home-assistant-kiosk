@@ -1,5 +1,6 @@
 use i_slint_backend_testing::ElementHandle;
 use slint::ComponentHandle;
+use slint::language::{AccessibleLiveness, AccessibleRole};
 use slint::platform::PointerEventButton;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -25,12 +26,23 @@ fn entry_view(
             "Available".into()
         },
         permissions: "Network: api.example.com; Home Assistant: sensor.example".into(),
+        config_status: if installed {
+            "Configured".into()
+        } else {
+            "Configuration required".into()
+        },
         config_keys: "stop_id (required), limit".into(),
         config_path:
             "/etc/ha-kiosk/config.toml [extensions.settings.\"org.example.bus-departures\"]".into(),
         secret_path: "/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml".into(),
         error: error.into(),
         installed,
+        installed_version: if installed {
+            (if update_available { "1.0.0" } else { "1.1.0" }).into()
+        } else {
+            "".into()
+        },
+        metadata_available: true,
         enabled,
         update_available,
         available: true,
@@ -42,6 +54,23 @@ async fn click(app: &ha_kiosk::MainWindow, id: &str) {
         .next()
         .unwrap_or_else(|| panic!("element {id} not found"));
     element.single_click(PointerEventButton::Left).await;
+}
+
+fn element(app: &ha_kiosk::MainWindow, id: &str) -> ElementHandle {
+    ElementHandle::find_by_element_id(app, id)
+        .next()
+        .unwrap_or_else(|| panic!("element {id} not found"))
+}
+
+fn assert_inside_horizontally(element: &ElementHandle, width: f32, label: &str) {
+    let position = element.absolute_position();
+    let size = element.size();
+    assert!(
+        position.x >= -0.5 && position.x + size.width <= width + 0.5,
+        "{label} overflows {width}px: x={} width={}",
+        position.x,
+        size.width
+    );
 }
 
 #[test]
@@ -148,22 +177,64 @@ fn shop_page_navigation_actions_offline_and_error_states() {
                 .is_some()
         );
 
-        // Error state is rendered on the entry card.
-        app.set_shop_catalog_online(true);
-        app.set_shop_installed(
-            Rc::new(slint::VecModel::from(vec![entry_view(
-                true,
-                true,
-                false,
-                "checksum mismatch",
-            )]))
-            .into(),
-        );
-        assert!(
-            ElementHandle::find_by_element_id(&app, "ShopEntryCard::remove-button")
-                .next()
-                .is_some()
-        );
+        // Error state is rendered on the entry card and remains actionable offline.
+        app.set_shop_catalog_online(false);
+        app.set_shop_catalog_error("The catalog could not be reached.".into());
+        let mut installed = entry_view(true, true, true, "checksum mismatch");
+        installed.name = "Community transit departures with an exceptionally long display name".into();
+        installed.author = "Example community extension author".into();
+        installed.description = "Shows upcoming departures with detailed status remarks, platform changes, cancellations, and a long explanation that must wrap inside the card.".into();
+        installed.permissions = "Network: api.example.com; Home Assistant: sensor.example, sensor.example_secondary".into();
+        installed.config_keys = "stop_id (required), api_key (required), limit, platform_filter".into();
+        installed.config_path = "/etc/ha-kiosk/config.toml [extensions.settings.\"org.example.bus-departures\"]".into();
+        installed.secret_path = "/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml".into();
+        installed.error = "The package checksum did not match the signed catalog entry.".into();
+        app.set_shop_installed(Rc::new(slint::VecModel::from(vec![installed])).into());
+
+        for (width, height) in [
+            (375, 812),
+            (390, 844),
+            (800, 480),
+            (1024, 600),
+            (1280, 800),
+            (1440, 900),
+            (2048, 1200),
+        ] {
+            app.window()
+                .set_size(slint::PhysicalSize::new(width, height));
+            slint::platform::update_timers_and_animations();
+
+            let page = element(&app, "MainWindow::shop-page");
+            let scroll = element(&app, "ShopPage::shop-scroll");
+            let card = element(&app, "ShopPage::entry-card");
+            assert_inside_horizontally(&page, width as f32, "Shop page");
+            assert_inside_horizontally(&scroll, width as f32, "Shop scroll area");
+            assert_inside_horizontally(&card, width as f32, "extension card");
+            assert_inside_horizontally(
+                &element(&app, "ShopPage::refresh-button"),
+                width as f32,
+                "refresh button",
+            );
+            assert!(element(&app, "ShopEntryCard::entry-version").size().width > 0.0);
+            assert!(element(&app, "ShopEntryCard::entry-config-status").size().width > 0.0);
+            let error = element(&app, "ShopEntryCard::entry-error");
+            assert!(error.size().width > 0.0);
+            assert_eq!(
+                error.accessible_live_region(),
+                Some(AccessibleLiveness::Assertive)
+            );
+            for (id, label) in [
+                ("ShopPage::refresh-button", "Refresh"),
+                ("ShopEntryCard::update-button", "Update"),
+                ("ShopEntryCard::toggle-button", "Disable"),
+                ("ShopEntryCard::remove-button", "Remove"),
+            ] {
+                let button = element(&app, id);
+                assert_eq!(button.accessible_role(), Some(AccessibleRole::Button));
+                assert_eq!(button.accessible_label().as_deref(), Some(label));
+                assert!(button.size().width >= 44.0 && button.size().height >= 44.0);
+            }
+        }
 
         slint::quit_event_loop().unwrap();
     })

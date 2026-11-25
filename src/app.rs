@@ -230,7 +230,9 @@ impl AppController {
                     match shop_event {
                         ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
                         ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
-                        ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
+                        ShopEvent::CatalogOffline { reason, entries } => {
+                            shop.apply_offline_snapshot(entries, reason)
+                        }
                         ShopEvent::ActionResult { id, action, result } => {
                             let _ = shop.complete(&id, action, result);
                         }
@@ -356,7 +358,9 @@ fn apply_shop_event(shop: &mut ShopView, event: ShopEvent) {
     match event {
         ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
         ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
-        ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
+        ShopEvent::CatalogOffline { reason, entries } => {
+            shop.apply_offline_snapshot(entries, reason)
+        }
         ShopEvent::ActionResult { id, action, result } => {
             let _ = shop.complete(&id, action, result);
         }
@@ -393,6 +397,7 @@ fn run_shop_worker(
             Err(error) => {
                 let _ = events.send(ShopEvent::CatalogOffline {
                     reason: error.to_string(),
+                    entries: Vec::new(),
                 });
                 None
             }
@@ -400,6 +405,7 @@ fn run_shop_worker(
         Err(error) => {
             let _ = events.send(ShopEvent::CatalogOffline {
                 reason: format!("HTTP client: {error}"),
+                entries: Vec::new(),
             });
             None
         }
@@ -410,6 +416,7 @@ fn run_shop_worker(
         let Some(manager) = manager.as_mut() else {
             let _ = events.send(ShopEvent::CatalogOffline {
                 reason: "The extension store could not be opened.".to_string(),
+                entries: Vec::new(),
             });
             continue;
         };
@@ -424,8 +431,8 @@ fn run_shop_worker(
                     catalog_online = false;
                     let _ = events.send(ShopEvent::CatalogOffline {
                         reason: error.to_string(),
+                        entries: manager.shop_entries(),
                     });
-                    let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
                 }
             },
             ShopTask::Install(id) => {

@@ -91,6 +91,7 @@ pub enum ShopEvent {
     CatalogLoaded(Vec<crate::extensions::ShopEntry>),
     CatalogOffline {
         reason: String,
+        entries: Vec<crate::extensions::ShopEntry>,
     },
     ActionResult {
         id: String,
