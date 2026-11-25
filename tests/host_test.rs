@@ -589,6 +589,78 @@ fn ha_state_returns_a_fresh_snapshot_on_each_call() {
 }
 
 #[test]
+fn ha_state_exposes_only_state_and_attributes() {
+    let script = r#"fn refresh(config) {
+        let keys = ha_state("sensor.departures").keys();
+        #{ kind: "key_value", items: [
+            #{ label: "count", value: keys.len().to_string() },
+            #{ label: "state", value: keys.contains("state").to_string() },
+            #{ label: "attributes", value: keys.contains("attributes").to_string() },
+            #{ label: "entity_id", value: keys.contains("entity_id").to_string() },
+            #{ label: "context", value: keys.contains("context").to_string() },
+            #{ label: "token", value: keys.contains("token").to_string() }
+        ] }
+    }"#;
+    let mut config = key_value_config(script);
+    config.entities.insert(
+        "sensor.departures".into(),
+        EntitySnapshot {
+            state: "3".into(),
+            attributes: json!({"next": "12:05"}),
+        },
+    );
+
+    match ExtensionHost::new(config).unwrap().refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => {
+            let values: BTreeMap<_, _> = view
+                .items
+                .iter()
+                .map(|item| (item.label.as_str(), item.value.as_str()))
+                .collect();
+            assert_eq!(values["count"], "2");
+            assert_eq!(values["state"], "true");
+            assert_eq!(values["attributes"], "true");
+            assert_eq!(values["entity_id"], "false");
+            assert_eq!(values["context"], "false");
+            assert_eq!(values["token"], "false");
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn ha_state_allowlist_rejects_near_miss_entity_ids() {
+    for id in [
+        "sensor.departures.extra",
+        "sensor.departure",
+        "SENSOR.DEPARTURES",
+        "sensor.departures ",
+    ] {
+        let script = format!(
+            r#"fn refresh(config) {{
+                ha_state("{id}");
+                #{{ kind: "key_value", items: [] }}
+            }}"#
+        );
+        let mut config = key_value_config(&script);
+        config.entities.insert(
+            id.into(),
+            EntitySnapshot {
+                state: "leaked".into(),
+                attributes: json!({"secret": "leaked-attribute"}),
+            },
+        );
+        let error = ExtensionHost::new(config)
+            .unwrap()
+            .refresh()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("not declared"), "{id}: {error}");
+        assert!(!error.contains("leaked"), "{id}: {error}");
+    }
+}
+
+#[test]
 fn ha_state_returns_unit_for_a_declared_but_missing_entity() {
     let script = r#"fn refresh(config) {
         let value = if ha_state("sensor.departures") == () { "missing" } else { "present" };
