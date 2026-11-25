@@ -40,9 +40,9 @@ The shop view model is backed by `extensions::manager`. The manager refreshes th
 
 ### Refresh failures and recovery
 
-Every refresh first loads and validates the installed manifest, script, settings, and secrets, then executes the sandbox and validates its output. Any failure in that path is recorded against the installed extension. The manager retains the previous validated `ExtensionOutput` in `ExtensionHealth::last_good`; callers can keep rendering it while showing the error separately.
+Every refresh first loads and validates the installed manifest, script, settings, and secrets, then executes the sandbox and validates its output. Any failure in that path is recorded against the installed extension. The manager retains the previous validated `ExtensionOutput` in `ExtensionHealth::last_good`; callers can keep rendering it while showing the error separately. Errors shown in the Shop and Status pages never include secret-file contents or raw invalid output values.
 
-Failure state is per kiosk session and per installed version. Installing, updating, rolling back, or removing an extension clears its health record. Disabling an extension does not hide an existing runtime error. The Shop card and Status page show the latest error, and the card offers Update whenever the verified catalog has a newer version, even while the extension is degraded.
+Failure state is per kiosk session and per installed version. Installing, updating, rolling back, or removing an extension clears its health record. Updating preserves the operator's enabled/disabled choice. Disabling an extension does not hide an existing runtime error. The Shop card and Status page show the latest error, and the card offers Update whenever the verified catalog has a newer version, even while the extension is degraded.
 
 ## Package layout
 

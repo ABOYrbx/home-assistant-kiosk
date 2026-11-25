@@ -97,14 +97,17 @@ pub struct KeyValueItem {
 }
 
 /// Output validation errors.
+///
+/// These intentionally omit raw output values so a script cannot leak a
+/// configured secret through an error shown in the Shop or Status page.
 #[derive(Debug, Error, PartialEq)]
 pub enum OutputError {
     #[error("extension output must be a map")]
     NotAMap,
     #[error("extension output is missing the kind field")]
     MissingKind,
-    #[error("unknown extension output kind: {0}")]
-    UnknownKind(String),
+    #[error("unknown extension output kind")]
+    UnknownKind,
     #[error("extension output kind {found} does not match the declared {expected}")]
     KindMismatch {
         found: OutputKind,
@@ -125,8 +128,8 @@ pub fn validate_output(
 ) -> Result<ExtensionOutput, OutputError> {
     let object = value.as_object().ok_or(OutputError::NotAMap)?;
     let kind_value = object.get("kind").ok_or(OutputError::MissingKind)?;
-    let kind: OutputKind = serde_json::from_value(kind_value.clone())
-        .map_err(|_| OutputError::UnknownKind(truncate(&kind_value.to_string(), 32)))?;
+    let kind: OutputKind =
+        serde_json::from_value(kind_value.clone()).map_err(|_| OutputError::UnknownKind)?;
     if kind != expected {
         return Err(OutputError::KindMismatch {
             found: kind,
@@ -157,9 +160,9 @@ pub fn validate_output(
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(value: Value, kind: OutputKind) -> Result<T, OutputError> {
-    serde_json::from_value(value).map_err(|error| OutputError::Malformed {
+    serde_json::from_value(value).map_err(|_| OutputError::Malformed {
         kind,
-        reason: error.to_string(),
+        reason: "invalid field type or unknown field".to_string(),
     })
 }
 
@@ -213,8 +216,4 @@ fn malformed(kind: OutputKind, reason: &str) -> OutputError {
         kind,
         reason: reason.to_string(),
     }
-}
-
-fn truncate(text: &str, max: usize) -> String {
-    text.chars().take(max).collect()
 }

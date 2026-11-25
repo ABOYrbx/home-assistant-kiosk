@@ -494,9 +494,12 @@ impl ShopView {
                     entry.degraded = false;
                 }
                 match action {
-                    ShopAction::Install | ShopAction::Update => {
+                    ShopAction::Install => {
                         entry.installed_version = Some(entry.version.clone());
                         entry.enabled = true;
+                    }
+                    ShopAction::Update => {
+                        entry.installed_version = Some(entry.version.clone());
                     }
                     ShopAction::Remove => {
                         entry.installed_version = None;

@@ -147,6 +147,29 @@ fn update_flow_uses_the_catalog_version() {
 }
 
 #[test]
+fn updating_a_disabled_extension_preserves_disabled_state() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    let id = "org.example.bus-departures";
+    view.set_installed(vec![InstalledExtension {
+        id: id.to_string(),
+        version: "1.0.0".to_string(),
+        enabled: false,
+        configured: true,
+        error: None,
+        degraded: false,
+    }]);
+    view.apply_catalog(vec![entry(id, "Bus Departures", "1.1.0")]);
+
+    view.request(id, ShopAction::Update, true).unwrap();
+    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+
+    let updated = view.entry(id).unwrap();
+    assert_eq!(updated.installed_version.as_deref(), Some("1.1.0"));
+    assert!(!updated.enabled);
+    assert_eq!(updated.status(), ExtensionStatus::Disabled);
+}
+
+#[test]
 fn update_requires_an_installed_extension_with_a_newer_version() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";

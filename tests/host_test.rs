@@ -657,7 +657,7 @@ fn malformed_output_is_rejected() {
     let unknown_kind = r#"fn refresh(config) { #{ kind: "table", items: [] } }"#;
     assert!(matches!(
         refresh(unknown_kind).unwrap_err(),
-        ExtensionError::Output(OutputError::UnknownKind(_))
+        ExtensionError::Output(OutputError::UnknownKind)
     ));
 }
 

@@ -38,6 +38,12 @@ description = "Tests extension failure recovery."
 [permissions]
 http_hosts = []
 ha_entities = []
+
+[[config_schema]]
+key = "api_key"
+label = "API Key"
+type = "secret"
+required = false
 "#
     );
     let mut archive = Vec::new();
@@ -72,7 +78,12 @@ ha_entities = []
             "license": "MIT",
             "provides": "key_value",
             "permissions": {"http_hosts": [], "ha_entities": []},
-            "config_schema": [],
+            "config_schema": [{
+                "key": "api_key",
+                "label": "API Key",
+                "type": "secret",
+                "required": false
+            }],
             "package_url": "https://catalog.example.com/failure-test.hkext",
             "sha256": sha256_hex(&package),
             "size_bytes": package.len(),
@@ -94,6 +105,13 @@ ha_entities = []
 }
 
 fn installed_manager(script: &str) -> (TempDir, ExtensionManager<UnusedFetcher, UnusedFetcher>) {
+    installed_manager_with_settings(script, BTreeMap::new())
+}
+
+fn installed_manager_with_settings(
+    script: &str,
+    settings: BTreeMap<String, toml::Value>,
+) -> (TempDir, ExtensionManager<UnusedFetcher, UnusedFetcher>) {
     let temp = TempDir::new().unwrap();
     let store_path = temp.path().join("extensions");
     let (entry, package) = package(script);
@@ -118,7 +136,7 @@ fn installed_manager(script: &str) -> (TempDir, ExtensionManager<UnusedFetcher, 
         max_package_bytes: 1024 * 1024,
         store_path,
         secret_dir: temp.path().join("secrets"),
-        settings: BTreeMap::new(),
+        settings,
     };
     let manager = ExtensionManager::new(options, UnusedFetcher, UnusedFetcher).unwrap();
     (temp, manager)
@@ -138,6 +156,35 @@ fn run(
     manager: &mut ExtensionManager<UnusedFetcher, UnusedFetcher>,
 ) -> Result<ExtensionOutput, ha_kiosk::extensions::ManagerError> {
     manager.run(ID, BTreeMap::<String, EntitySnapshot>::new())
+}
+
+fn assert_errors_do_not_contain(
+    manager: &mut ExtensionManager<UnusedFetcher, UnusedFetcher>,
+    marker: &str,
+) {
+    let health_error = manager
+        .health(ID)
+        .and_then(|health| health.last_error.clone());
+    let mut messages = manager.errors();
+    messages.extend(health_error);
+    messages.extend(
+        manager
+            .shop_entries()
+            .first()
+            .and_then(|entry| entry.error.clone()),
+    );
+    messages.extend(
+        manager
+            .installed_entries()
+            .first()
+            .and_then(|entry| entry.error.clone()),
+    );
+    for message in messages {
+        assert!(
+            !message.contains(marker),
+            "secret leaked in error: {message}"
+        );
+    }
 }
 
 #[test]
@@ -188,6 +235,132 @@ fn manifest_and_secret_failures_update_health_without_replacing_last_good_data()
         assert!(!health.degraded);
         assert!(health.last_error.is_some());
     }
+}
+
+#[test]
+fn malformed_secret_errors_never_expose_secret_values_in_health_or_ui() {
+    let (temp, mut manager) = installed_manager(
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Status", value: "ok" }] } }"#,
+    );
+    let good = run(&mut manager).unwrap();
+    let marker = "secret-marker-7f3c2a";
+    let secret_dir = temp.path().join("secrets");
+    fs::create_dir_all(&secret_dir).unwrap();
+    fs::write(
+        secret_dir.join(format!("{ID}.secret.toml")),
+        format!("api_key = \"{marker}\" trailing\n"),
+    )
+    .unwrap();
+
+    let error = run(&mut manager).unwrap_err().to_string();
+    let health = manager.health(ID).unwrap();
+    assert_eq!(health.last_good.as_ref(), Some(&good));
+    assert_eq!(health.consecutive_failures, 1);
+    assert!(
+        !error.contains(marker),
+        "returned error leaked a secret: {error}"
+    );
+    assert_errors_do_not_contain(&mut manager, marker);
+}
+
+#[test]
+fn output_validation_errors_are_redacted_before_health_and_ui_exposure() {
+    let (temp, mut manager) = installed_manager(
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Status", value: "ok" }] } }"#,
+    );
+    let good = run(&mut manager).unwrap();
+    let marker = "secret-marker-7f3c2a";
+    let secret_dir = temp.path().join("secrets");
+    fs::create_dir_all(&secret_dir).unwrap();
+    fs::write(
+        secret_dir.join(format!("{ID}.secret.toml")),
+        format!("api_key = \"{marker}\"\n"),
+    )
+    .unwrap();
+    fs::write(
+        script_path(&manager),
+        r#"fn refresh(config) { #{ kind: config.api_key, items: [] } }"#,
+    )
+    .unwrap();
+
+    let error = run(&mut manager).unwrap_err().to_string();
+    let health = manager.health(ID).unwrap();
+    assert_eq!(health.last_good.as_ref(), Some(&good));
+    assert_eq!(health.consecutive_failures, 1);
+    assert!(
+        !error.contains(marker),
+        "returned error leaked a secret: {error}"
+    );
+    assert_errors_do_not_contain(&mut manager, marker);
+}
+
+#[test]
+fn malformed_output_errors_never_expose_secret_values_in_health_or_ui() {
+    let (temp, mut manager) = installed_manager(
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Status", value: "ok" }] } }"#,
+    );
+    let good = run(&mut manager).unwrap();
+    let marker = "secret-marker-7f3c2a";
+    let secret_dir = temp.path().join("secrets");
+    fs::create_dir_all(&secret_dir).unwrap();
+    fs::write(
+        secret_dir.join(format!("{ID}.secret.toml")),
+        format!("api_key = \"{marker}\"\n"),
+    )
+    .unwrap();
+    fs::write(
+        script_path(&manager),
+        r#"fn refresh(config) { #{ kind: "key_value", items: config.api_key } }"#,
+    )
+    .unwrap();
+
+    let error = run(&mut manager).unwrap_err().to_string();
+    let health = manager.health(ID).unwrap();
+    assert_eq!(health.last_good.as_ref(), Some(&good));
+    assert_eq!(health.consecutive_failures, 1);
+    assert!(
+        !error.contains(marker),
+        "returned error leaked a secret: {error}"
+    );
+    assert_errors_do_not_contain(&mut manager, marker);
+}
+
+#[test]
+fn non_table_settings_are_reported_as_a_run_failure() {
+    let mut settings = BTreeMap::new();
+    settings.insert(
+        ID.to_string(),
+        toml::Value::String("not a table".to_string()),
+    );
+    let (_temp, mut manager) = installed_manager_with_settings(
+        r#"fn refresh(config) { #{ kind: "key_value", items: [] } }"#,
+        settings,
+    );
+
+    assert!(run(&mut manager).is_err());
+    let health = manager.health(ID).expect("invalid settings update health");
+    assert_eq!(health.consecutive_failures, 1);
+    assert!(
+        health
+            .last_error
+            .as_deref()
+            .is_some_and(|error| error.contains("table"))
+    );
+}
+
+#[test]
+fn inaccessible_secret_paths_keep_last_good_data_and_update_health() {
+    let (temp, mut manager) = installed_manager(
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Status", value: "ok" }] } }"#,
+    );
+    let good = run(&mut manager).unwrap();
+    fs::write(temp.path().join("secrets"), b"not a directory").unwrap();
+
+    assert!(run(&mut manager).is_err());
+    let health = manager.health(ID).unwrap();
+    assert_eq!(health.last_good.as_ref(), Some(&good));
+    assert_eq!(health.consecutive_failures, 1);
+    assert!(health.last_error.is_some());
 }
 
 #[test]

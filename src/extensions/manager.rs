@@ -16,7 +16,7 @@ use super::client::{CatalogCache, CatalogClient, CatalogFetcher, FetchError};
 use super::host::{EntitySnapshot, ExtensionError, ExtensionHost, HostConfig};
 use super::manifest::Manifest;
 use super::output::ExtensionOutput;
-use super::runner::ExtensionRunner;
+use super::runner::{DEGRADED_AFTER_CONSECUTIVE_FAILURES, ExtensionRunner};
 use super::shop::{ConfigField, ExtensionPermissions, InstalledExtension, ShopEntry};
 use super::store::{ExtensionStore, StoreError};
 
@@ -58,10 +58,12 @@ pub enum ManagerError {
     Manifest(String),
     #[error("host: {0}")]
     Host(#[from] ExtensionError),
+    #[error("settings for extension {0} must be a table")]
+    Settings(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
-    #[error("toml: {0}")]
-    Toml(#[from] toml::de::Error),
+    #[error("invalid extension secret file")]
+    SecretFile,
 }
 
 /// Health of one extension after its last runs.
@@ -84,7 +86,7 @@ impl ExtensionHealth {
     pub fn mark_failure(&mut self, error: impl Into<String>) {
         self.last_error = Some(error.into());
         self.consecutive_failures = self.consecutive_failures.saturating_add(1);
-        self.degraded = self.consecutive_failures >= 3;
+        self.degraded = self.consecutive_failures >= DEGRADED_AFTER_CONSECUTIVE_FAILURES;
     }
 }
 
@@ -280,7 +282,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             let manifest = host_manifest(&catalog_manifest)?;
             let script_path = directory.join(&manifest.entry);
             let script = std::fs::read_to_string(&script_path)?;
-            let settings = self.settings_for(id);
+            let settings = self.settings_for(id)?;
             let secrets = self.secrets_for(id)?;
             let allowed_entities = manifest.permissions.ha_entities.clone();
             let entities: BTreeMap<_, _> = entities
@@ -398,26 +400,34 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             .unwrap_or(false)
     }
 
-    fn settings_for(&self, id: &str) -> BTreeMap<String, JsonValue> {
-        settings_table(self.options.settings.get(id))
-            .map(|table| {
-                table
-                    .into_iter()
-                    .filter_map(|(key, value)| {
-                        serde_json::to_value(value).ok().map(|value| (key, value))
-                    })
-                    .collect()
+    fn settings_for(&self, id: &str) -> Result<BTreeMap<String, JsonValue>, ManagerError> {
+        let Some(value) = self.options.settings.get(id) else {
+            return Ok(BTreeMap::new());
+        };
+        let table = value
+            .as_table()
+            .ok_or_else(|| ManagerError::Settings(id.to_string()))?;
+        Ok(table
+            .iter()
+            .filter_map(|(key, value)| {
+                serde_json::to_value(value)
+                    .ok()
+                    .map(|value| (key.clone(), value))
             })
-            .unwrap_or_default()
+            .collect())
     }
 
     fn secrets_for(&self, id: &str) -> Result<BTreeMap<String, String>, ManagerError> {
         let path = self.options.secret_dir.join(format!("{id}.secret.toml"));
-        if !path.exists() {
-            return Ok(BTreeMap::new());
-        }
-        let text = std::fs::read_to_string(path)?;
-        Ok(toml::from_str(&text)?)
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(BTreeMap::new());
+            }
+            Err(error) => return Err(error.into()),
+        };
+        // TOML parse errors include source snippets, which can contain secrets.
+        toml::from_str(&text).map_err(|_| ManagerError::SecretFile)
     }
 }
 
