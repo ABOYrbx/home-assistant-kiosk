@@ -250,7 +250,7 @@ Alternatives considered:
 
 **Out of scope for extensions:** native code, arbitrary Slint UI, Home Assistant service calls, filesystem/process/env access, arbitrary secrets, and access to the kiosk's config or token.
 
-**Companion repository:** `home-assistant-kiosk-extensions` (name provisional, separate from this repo). It contains the catalog schema, extension sources, release packaging, validation CI, and the offline signing instructions. It must be public for community use; the visibility decision is recorded in section 12.
+**Companion repository:** [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) is separate from this repo and public for community use. It contains the catalog schema, extension sources, release packaging, validation CI, and the offline signing instructions. `ABOYrbx` holds the production Minisign private key offline; the decision is recorded in section 12.
 
 ### 4.7 Design system and Overview (adopted)
 
@@ -1012,7 +1012,7 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 4. **Kiosk backend support.** LinuxKMS is primary and X11 is the fallback. Wayland is supported by winit but not a release gate.
 5. **UI localization.** English in v1. Keep strings centralized; add a locale file only when there is a second language.
 6. **Hardware verification.** The release gate requires a Pi Zero 2 W and a Pi 3. If they are unavailable, the release is marked “x86_64 verified only”.
-7. **Catalog repository visibility.** The companion catalog must be public for community use. Decide whether to create it private first, then make it public, and who holds the Minisign private key.
+7. **Catalog repository visibility.** Decided: create `ABOYrbx/home-assistant-kiosk-extensions` as a public repository from the start because community use requires a public catalog. `ABOYrbx` holds the production Minisign private key on encrypted offline storage; it never enters CI or either repository. The initial empty index uses an ephemeral bootstrap key whose secret key is destroyed after signing.
 8. **Extension service access.** v1 extensions are read-only for HA entities and cannot call services. Revisit only with a separate permission and review model.
 9. **Extension runtime.** Rhai is chosen for size and simplicity. Revisit WASM only if a real extension cannot be expressed safely; do not add both.
 

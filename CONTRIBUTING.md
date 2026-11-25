@@ -75,7 +75,7 @@ One logical change per commit. Do not commit generated build output, secrets, lo
 
 ## Extensions
 
-- Extension source and catalog data belong in the separate `home-assistant-kiosk-extensions` repository.
+- Extension source and catalog data belong in the separate public [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) repository.
 - Do not add extension code to this repository.
 - Follow [`docs/extensions.md`](docs/extensions.md) and [`docs/extension-catalog.md`](docs/extension-catalog.md).
 - Extensions are sandboxed Rhai scripts with declared permissions; native code, arbitrary UI, filesystem access, and Home Assistant service calls are not accepted.

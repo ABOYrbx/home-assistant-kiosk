@@ -2,7 +2,7 @@
 
 The community catalog is a **separate, public GitHub repository**. The kiosk never clones it; it fetches a signed index and package release assets over HTTPS. This keeps catalog maintenance independent of the kiosk release cycle.
 
-Proposed repository name: `home-assistant-kiosk-extensions` (provisional). The visibility must be public before community use; the private-key custody is an open decision (see `PLAN.md` section 12).
+Repository: [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions). It is public for community use. `ABOYrbx` holds the production Minisign private key on encrypted offline storage (see `PLAN.md` section 12).
 
 See also: [Extension Author Guide](extensions.md) for the manifest, script API, output schema, configuration, packaging, and author checklist.
 
@@ -127,7 +127,7 @@ Key rotation: publish a new public key in the catalog repository and in a kiosk 
 ```toml
 [extensions]
 enabled = true
-catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
+catalog_url = "https://raw.githubusercontent.com/ABOYrbx/home-assistant-kiosk-extensions/main/index.json"
 public_keys = ["RWQ..."]
 allow_unsigned = false
 dev_mode = false

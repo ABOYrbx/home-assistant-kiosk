@@ -528,7 +528,7 @@ Rotation, DRM output selection, console blanking, touch calibration, fonts, and 
 - **The `docs` check must pass.** The workflow validates TOML, Markdown links, required files, and obvious personal-data leaks.
 - **English only** in code, docs, issues, PRs, and commits.
 - **No secrets, tokens, personal entity IDs, stop IDs, addresses, or internal hostnames** in the repository.
-- **Extensions are separate.** Extension source and the catalog live in the companion `home-assistant-kiosk-extensions` repository, never in this one.
+- **Extensions are separate.** Extension source and the catalog live in the public [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) repository, never in this one.
 - **CODEOWNERS** routes review to `@ABOYrbx`; issue and PR templates describe the required evidence.
 
 GitHub Free does not expose branch protection or rulesets for **private** repositories. The policy above is enforced by process, CODEOWNERS, the `docs` check, and the settings script until the repository is public or on a plan that supports protection. Details, exact commands, and the tracking issue are in [`docs/github-rules.md`](docs/github-rules.md).
