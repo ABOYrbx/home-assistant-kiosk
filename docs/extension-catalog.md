@@ -31,6 +31,7 @@ home-assistant-kiosk-extensions/
 - `index.json` is generated from the extension manifests and release assets.
 - `index.json.minisig` is a Minisign signature over the exact bytes of `index.json`.
 - `schema/` contains JSON Schemas used by CI and by the kiosk author tooling.
+- The same schemas are vendored in this repository under `schema/` (`index.schema.json`, `manifest.schema.json`) so authors can validate without the companion repository.
 - `extensions/<id>/` holds the source of each extension.
 - `scripts/package.sh` builds a `.hkext` and prints its SHA-256 and size.
 - The CI workflow validates schemas, manifests, scripts, and checksums. It never holds the signing private key.

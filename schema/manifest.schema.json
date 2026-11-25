@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ABOYrbx/home-assistant-kiosk-extensions/schema/manifest.schema.json",
+  "title": "Home Assistant Kiosk extension manifest",
+  "description": "Extension manifest (manifest.toml) shipped inside a .hkext package.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "version",
+    "api_version",
+    "min_app_version",
+    "entry",
+    "provides",
+    "author",
+    "license",
+    "description"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\.[A-Za-z0-9][A-Za-z0-9-]*)+$",
+      "maxLength": 128
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "api_version": { "type": "integer", "const": 1 },
+    "min_app_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "entry": {
+      "type": "string",
+      "pattern": "^[^/].*\\.rhai$"
+    },
+    "provides": {
+      "type": "string",
+      "enum": ["departures", "list", "key_value"]
+    },
+    "author": { "type": "string", "minLength": 1 },
+    "license": { "type": "string", "minLength": 1 },
+    "homepage": { "type": ["string", "null"] },
+    "description": { "type": "string", "minLength": 1 },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "http_hosts": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string" }
+        },
+        "ha_entities": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string" }
+        }
+      },
+      "default": { "http_hosts": [], "ha_entities": [] }
+    },
+    "config_schema": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/configField" },
+      "default": []
+    }
+  },
+  "$defs": {
+    "configField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "type"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 64
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["string", "integer", "boolean", "url", "secret", "entity_id", "select"]
+        },
+        "required": { "type": "boolean", "default": false },
+        "default": {},
+        "help": { "type": "string" },
+        "min": { "type": "integer" },
+        "max": { "type": "integer" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

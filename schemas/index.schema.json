@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ABOYrbx/home-assistant-kiosk-extensions/schema/index.schema.json",
+  "title": "Home Assistant Kiosk extension catalog index",
+  "description": "Signed catalog index (index.json). The index is signed separately as index.json.minisig.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "extensions"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Catalog schema version. Must be 1."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp when the index was generated."
+    },
+    "extensions": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/catalogEntry" }
+    }
+  },
+  "$defs": {
+    "catalogEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "version",
+        "api_version",
+        "min_app_version",
+        "description",
+        "author",
+        "license",
+        "provides",
+        "package_url",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*)+$",
+          "maxLength": 128,
+          "description": "Reverse-DNS, immutable extension identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+        },
+        "api_version": {
+          "type": "integer",
+          "const": 1
+        },
+        "min_app_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "homepage": {
+          "type": ["string", "null"],
+          "format": "uri"
+        },
+        "provides": {
+          "type": "string",
+          "enum": ["departures", "list", "key_value"]
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "http_hosts": {
+              "type": "array",
+              "maxItems": 32,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "ha_entities": {
+              "type": "array",
+              "maxItems": 64,
+              "items": { "type": "string" }
+            }
+          },
+          "default": { "http_hosts": [], "ha_entities": [] }
+        },
+        "config_schema": {
+          "type": "array",
+          "maxItems": 32,
+          "items": { "$ref": "#/$defs/configField" },
+          "default": []
+        },
+        "package_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "configField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "type"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 64
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "integer", "boolean", "url", "secret", "entity_id", "select"]
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "help": {
+          "type": "string"
+        },
+        "default": {},
+        "min": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
