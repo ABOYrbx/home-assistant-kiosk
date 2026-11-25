@@ -27,6 +27,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The authentication failure badge reads "Authentication failed".
 - The dependency audit runs a pinned `cargo-audit` 0.23.0 against the committed `Cargo.lock`, and both workflows install Rust with the runner's `rustup`.
 - The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
+- The release profile settings and their abort/restart behaviour are guarded by tests and recorded with host-side build evidence; the performance document now names the `Restart=on-failure` policy the systemd units actually use (#113).
 
 ### Fixed
 
