@@ -47,7 +47,7 @@ home-assistant-kiosk-extensions/
       "name": "Bus Departures",
       "version": "1.0.0",
       "api_version": 1,
-      "min_app_version": "0.6.0",
+      "min_app_version": "0.1.0",
       "description": "Shows upcoming bus departures for a configured stop.",
       "author": "Example Author",
       "license": "MIT",
@@ -62,7 +62,17 @@ home-assistant-kiosk-extensions/
           "key": "stop_id",
           "label": "Stop ID",
           "type": "string",
-          "required": true
+          "required": true,
+          "help": "The stop identifier used by the transit API."
+        },
+        {
+          "key": "limit",
+          "label": "Maximum departures",
+          "type": "integer",
+          "required": false,
+          "default": 6,
+          "min": 1,
+          "max": 20
         }
       ],
       "package_url": "https://github.com/example/home-assistant-kiosk-extensions/releases/download/org.example.bus-departures-v1.0.0/org.example.bus-departures-1.0.0.hkext",
@@ -175,18 +185,20 @@ The kiosk keeps installed extensions under `store_path`:
 
 - Installation extracts into a staging directory inside the store and renames it into place, so a failed install never leaves a partial version.
 - Only the active version and one previous version are kept. Rollback switches the record back and removes the newer files.
-- The package manifest must match the signed catalog entry for id, version, provides, permissions, and config schema; a mismatch is rejected before anything is installed.
+- The package manifest must match the signed catalog entry for ID, name, version, API version, minimum app version, output kind, permissions, config schema, author, license, homepage, and description. The entry path is validated separately inside the package. Any mismatch is rejected before anything is installed.
 
 ## Package format
 
 - Suffix: `.hkext`.
 - Format: gzipped tar (`tar -czf`).
-- Root: the archive contains `manifest.toml`, the entry script, `README.md`, and `LICENSE` at its root; no wrapping directory.
-- Required: `manifest.toml`, `entry` script, `README.md`, `LICENSE`.
-- Maximum compressed size: 5 MiB (configurable).
-- Maximum decompressed size: 20 MiB.
-- Rejected: absolute paths, `..`, symlinks, hardlinks, device files, sockets, duplicate entries.
-- The SHA-256 and size in the signed index are the authority. The kiosk verifies both before extraction.
+- Root: `manifest.toml`, the entry script, `README.md`, and `LICENSE` are stored at the archive root; no wrapping directory.
+- Runtime requirements: root-level `manifest.toml` and the manifest's entry script, which may be in a subdirectory. Catalog publication policy requires a root-level entry script and additionally requires `README.md` and `LICENSE`; packages submitted to the catalog must contain all four at the root.
+- Maximum compressed size: enforced from `extensions.max_package_bytes` (default 5 MiB).
+- Maximum decompressed file data: 20 MiB.
+- Maximum archive entries: 1,000.
+- Accepted entry types: regular files and directories only.
+- Rejected: absolute paths, `..`, symlinks, hardlinks, device files, sockets, duplicate entries, and decompression bombs.
+- `sha256` is exactly 64 lowercase hexadecimal characters over the published `.hkext` bytes. `size_bytes` is the exact byte length. The signed index is authoritative; the kiosk verifies both before extraction.
 
 ## Release flow
 
@@ -210,7 +222,7 @@ The catalog CI checks:
 - Semver versions and `api_version`.
 - Package SHA-256 and size match the GitHub release asset.
 - No real secrets, personal stop IDs, home addresses, or API keys.
-- `manifest.toml` permissions match the index.
+- Every shared `manifest.toml` field, including permissions and config schema, matches the index entry exactly.
 - Rhai scripts compile with the pinned Rhai engine (no execution during CI).
 - The example bus extension runs against a fixture in a sandbox test.
 - The index signature verifies with the public key.
@@ -251,7 +263,7 @@ A reviewer may approve, request changes, or reject a submission. A maintainer ne
 - Mark a package unavailable by removing it from `index.json`; installed kiosks keep the package.
 - For a security removal, publish a new signed index and a notice in the repository README.
 - Never reuse a version or replace a published package silently.
-- The kiosk disables an extension that repeatedly fails its sandbox or output validation and shows the error.
+- The kiosk keeps the last good output and marks an extension degraded after three consecutive sandbox or output-validation failures; a later success clears the degraded state.
 
 ## Hosting
 

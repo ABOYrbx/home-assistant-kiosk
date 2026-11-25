@@ -345,6 +345,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Absolute extension store and verified-catalog cache path. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
@@ -420,6 +421,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Absolute extension store and verified-catalog cache path. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The full deployment guide, including seat models, hardening, upgrade, rollback,
