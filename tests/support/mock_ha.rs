@@ -41,6 +41,10 @@ pub enum Behaviour {
     InitialWithRemoved,
     /// Reconnect snapshot replaces the initial state and omits the removed entity.
     Resync,
+    /// Send malformed frames during the handshake before valid protocol messages.
+    MalformedHandshake,
+    /// Send nothing but malformed frames, so every connection is unusable.
+    GarbageHandshake,
 }
 
 pub struct MockHaServer {
@@ -175,6 +179,17 @@ async fn serve_connection(
     requests: Arc<Mutex<Vec<Value>>>,
 ) -> Result<(), BoxError> {
     let mut ws = accept_async(stream).await?;
+    if behaviour == Behaviour::MalformedHandshake {
+        ws.send(Message::Text("this is not json".into())).await?;
+        ws.send(Message::Text("{\"type\":".into())).await?;
+        ws.send(Message::Binary(vec![0x00, 0xff, 0x7f].into()))
+            .await?;
+    }
+    if behaviour == Behaviour::GarbageHandshake {
+        for _ in 0..32 {
+            ws.send(Message::Text("not json at all".into())).await?;
+        }
+    }
     send(
         &mut ws,
         json!({"type": "auth_required", "ha_version": HA_VERSION}),
@@ -213,6 +228,9 @@ async fn serve_connection(
 
         match request.get("type").and_then(Value::as_str) {
             Some("get_config") => {
+                if behaviour == Behaviour::MalformedHandshake {
+                    ws.send(Message::Text("{\"id\":".into())).await?;
+                }
                 if behaviour == Behaviour::EarlySnapshot {
                     send_scenario_messages(&mut ws, behaviour).await?;
                 }

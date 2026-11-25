@@ -30,7 +30,7 @@ pub fn connection_view(state: &ConnectionState, stale: bool) -> ConnectionView {
             error: false,
         },
         ConnectionState::AuthFailed => ConnectionView {
-            label: "Auth failed".to_string(),
+            label: "Authentication failed".to_string(),
             connected: false,
             warning: false,
             error: true,
@@ -99,7 +99,7 @@ mod tests {
 
         let auth = connection_view(&ConnectionState::AuthFailed, false);
         assert!(auth.error);
-        assert_eq!(auth.label, "Auth failed");
+        assert_eq!(auth.label, "Authentication failed");
 
         let offline = connection_view(&ConnectionState::Disconnected, true);
         assert!(offline.warning);

@@ -84,6 +84,20 @@ These are applied by the script:
 
 Security settings: Dependabot alerts, Dependabot security updates, private vulnerability reporting, secret scanning, and push protection are enabled. Actions use read-only `GITHUB_TOKEN` permissions and are limited to GitHub-owned or verified actions.
 
+The repository's Actions policy is `allowed_actions: selected` with only
+GitHub-owned and verified actions permitted. A third-party action such as
+`dtolnay/rust-toolchain` is not on that list, and a workflow that references one
+fails at startup with no jobs. Install Rust in workflows with the runner's
+`rustup` instead:
+
+```yaml
+- name: Set up Rust
+  run: |
+    rustup toolchain install stable --profile minimal
+    rustup default stable
+    rustup component add rustfmt clippy
+```
+
 ## Pull requests
 
 - Use the pull request template.

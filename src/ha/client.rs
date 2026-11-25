@@ -388,11 +388,26 @@ async fn read_json<S>(ws: &mut tokio_tungstenite::WebSocketStream<S>) -> Result<
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
+    // A proxy or a truncated write can corrupt one frame without making the
+    // connection unusable, so skip a bounded number instead of discarding the
+    // socket. A peer that only sends garbage still fails instead of spinning.
+    const MAX_MALFORMED_FRAMES: usize = 16;
+    let mut malformed = 0usize;
     loop {
         match ws.next().await {
-            Some(Ok(Message::Text(text))) => {
-                return serde_json::from_str(&text).map_err(|e| HaError::Protocol(e.to_string()));
-            }
+            Some(Ok(Message::Text(text))) => match serde_json::from_str(&text) {
+                Ok(value) => return Ok(value),
+                Err(_) => {
+                    malformed += 1;
+                    if malformed > MAX_MALFORMED_FRAMES {
+                        return Err(HaError::Protocol(format!(
+                            "more than {MAX_MALFORMED_FRAMES} malformed frames"
+                        )));
+                    }
+                    tracing::warn!(count = malformed, "skipping a malformed frame");
+                    continue;
+                }
+            },
             Some(Ok(Message::Close(_))) | None => {
                 return Err(HaError::Connection("socket closed".into()));
             }

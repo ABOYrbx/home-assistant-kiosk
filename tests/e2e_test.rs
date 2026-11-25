@@ -426,6 +426,43 @@ async fn failed_service_call_reports_an_error_without_optimistic_state() {
 }
 
 #[tokio::test]
+async fn malformed_handshake_frames_do_not_force_reconnect() {
+    let server = MockHaServer::start(Behaviour::MalformedHandshake).await;
+    let mut app = TestApp::start(&server, "test-token");
+
+    app.wait_until(|state| {
+        state.connection == ConnectionState::Connected
+            && state
+                .entities
+                .get("light.example")
+                .is_some_and(|entity| entity.state == "on")
+    })
+    .await;
+
+    assert_eq!(
+        server.connections(),
+        1,
+        "malformed handshake frames must not discard a usable connection"
+    );
+    assert_eq!(app.state.entities["light.example"].state, "on");
+}
+
+#[tokio::test]
+async fn a_peer_that_only_sends_garbage_is_abandoned() {
+    let server = MockHaServer::start(Behaviour::GarbageHandshake).await;
+    let mut app = TestApp::start(&server, "test-token");
+
+    match app.next_event().await {
+        HaEvent::Disconnected { reason } => assert!(
+            reason.contains("malformed frames"),
+            "an endless garbage stream must hit the bounded skip, got {reason:?}"
+        ),
+        other => panic!("expected a disconnect after garbage frames, got {other:?}"),
+    }
+    assert!(server.connections() >= 1);
+}
+
+#[tokio::test]
 async fn malformed_messages_and_unknown_domains_do_not_crash() {
     let server = MockHaServer::start(Behaviour::Malformed).await;
     let mut app = TestApp::start(&server, "test-token");
