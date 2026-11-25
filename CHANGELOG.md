@@ -12,6 +12,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Configuration reference for every `config.toml` key in [`README.md`](README.md), matching [`config.example.toml`](config.example.toml).
 - Troubleshooting guide for cross-compilation, glibc mismatch, display backends, touch rotation, token permissions, Home Assistant version, offline state, timezone, and memory in [`docs/troubleshooting.md`](docs/troubleshooting.md).
 - Release checklist covering gates, cross artifacts, checksums, changelog, hardware evidence, known limitations, publication, and rollback in [`docs/release-checklist.md`](docs/release-checklist.md).
+- End-to-end coverage for the configuration → connect → snapshot → UI-state path against a reusable mock Home Assistant WebSocket peer (`tests/support/mock_ha.rs`), including the top-bar badge, the hero light card, and the tile row.
+
+### Fixed
+
+- The WebSocket client now reads the Home Assistant configuration before it subscribes, and holds any entity data until `Connected` reaches the UI, so naive timestamps are never interpreted in the wrong timezone.
 
 ### Security
 
