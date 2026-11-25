@@ -231,16 +231,13 @@ The secret file is mode `0600` and owned by the service user. The host injects o
 
 ## Packaging
 
-From the parent directory:
+From the companion catalog repository, use its deterministic packager:
 
 ```bash
-tar -czf org.example.bus-departures-1.0.0.hkext \
-  -C org.example.bus-departures \
-  manifest.toml main.rhai README.md LICENSE
-sha256sum org.example.bus-departures-1.0.0.hkext
+scripts/package.sh org.example.bus-departures 1.0.0
 ```
 
-The `-C` flag keeps `manifest.toml` at the archive root, as the catalog requires.
+The packager validates the manifest and source tree, keeps `manifest.toml` at the archive root, normalizes tar/gzip metadata, and prints the package path, SHA-256, and byte size as JSON. Do not substitute a manual `tar -czf` command for releases because source timestamps, ownership, and gzip metadata would make the package nondeterministic.
 
 The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub release asset or another stable HTTPS URL. Do not change a published package; publish a new version.
 

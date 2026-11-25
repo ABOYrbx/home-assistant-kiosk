@@ -71,7 +71,7 @@ home-assistant-kiosk-extensions/
           "required": true
         }
       ],
-      "package_url": "https://github.com/example/home-assistant-kiosk-extensions/releases/download/org.example.bus-departures-v1.0.0/org.example.bus-departures-1.0.0.hkext",
+      "package_url": "https://github.com/ABOYrbx/home-assistant-kiosk-extensions/releases/download/org.example.bus-departures-v1.0.0/org.example.bus-departures-1.0.0.hkext",
       "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "size_bytes": 12345
     }
@@ -172,7 +172,7 @@ The kiosk keeps installed extensions under `store_path`:
       "version": "1.0.0",
       "enabled": true,
       "manifest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "source_catalog": "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json",
+      "source_catalog": "https://raw.githubusercontent.com/ABOYrbx/home-assistant-kiosk-extensions/main/index.json",
       "installed_at": "2026-11-23T12:00:00Z"
     }
   ]

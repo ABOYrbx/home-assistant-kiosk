@@ -50,6 +50,7 @@ class ExtensionCatalogRepositoryTest(unittest.TestCase):
         for relative in ("docs/extension-catalog.md", "docs/github-rules.md"):
             with self.subTest(path=relative):
                 self.assertNotIn("provisional name", read(relative).lower())
+        self.assertNotIn("example/home-assistant-kiosk-extensions", read("docs/extension-catalog.md"))
 
     def test_catalog_data_and_secret_keys_are_not_tracked_here(self) -> None:
         tracked = subprocess.run(
