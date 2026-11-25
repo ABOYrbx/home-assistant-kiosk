@@ -37,13 +37,18 @@ pub enum Behaviour {
     Malformed,
     /// Stream state changes for an unbounded soak run.
     Soak,
+    /// First connection includes an entity that disappears on the next snapshot.
+    InitialWithRemoved,
+    /// Reconnect snapshot replaces the initial state and omits the removed entity.
+    Resync,
 }
 
 pub struct MockHaServer {
     addr: SocketAddr,
     connections: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<Value>>>,
-    task: tokio::task::JoinHandle<()>,
+    task: Option<tokio::task::JoinHandle<()>>,
+    connection_tasks: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl MockHaServer {
@@ -57,17 +62,24 @@ impl MockHaServer {
         let addr = listener.local_addr().expect("listener address");
         let connections = Arc::new(AtomicUsize::new(0));
         let requests = Arc::new(Mutex::new(Vec::new()));
+        let connection_tasks = Arc::new(Mutex::new(Vec::new()));
 
         let task = {
             let connections = Arc::clone(&connections);
             let requests = Arc::clone(&requests);
+            let connection_tasks = Arc::clone(&connection_tasks);
             tokio::spawn(async move {
                 while let Ok((stream, _)) = listener.accept().await {
                     connections.fetch_add(1, Ordering::SeqCst);
                     let requests = Arc::clone(&requests);
-                    tokio::spawn(async move {
+                    let connection_tasks = Arc::clone(&connection_tasks);
+                    let task = tokio::spawn(async move {
                         let _ = serve_connection(stream, behaviour, requests).await;
                     });
+                    connection_tasks
+                        .lock()
+                        .expect("connection task log")
+                        .push(task);
                 }
             })
         };
@@ -76,7 +88,24 @@ impl MockHaServer {
             addr,
             connections,
             requests,
-            task,
+            task: Some(task),
+            connection_tasks,
+        }
+    }
+
+    /// Stop accepting connections and close every active WebSocket peer.
+    pub async fn stop(mut self) {
+        if let Some(task) = self.task.take() {
+            task.abort();
+            let _ = task.await;
+        }
+        let tasks =
+            std::mem::take(&mut *self.connection_tasks.lock().expect("connection task log"));
+        for task in &tasks {
+            task.abort();
+        }
+        for task in tasks {
+            let _ = task.await;
         }
     }
 
@@ -120,7 +149,9 @@ impl MockHaServer {
 
 impl Drop for MockHaServer {
     fn drop(&mut self) {
-        self.task.abort();
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
     }
 }
 
@@ -271,6 +302,45 @@ async fn send_scenario_messages(
             ws,
             json!({"type": "event", "event": {
                 "c": [{"entity_id": "light.example", "state": "off", "attributes": {}}],
+            }}),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    if behaviour == Behaviour::InitialWithRemoved {
+        send(
+            ws,
+            json!({"type": "event", "event": {
+                "a": [
+                    {
+                        "entity_id": "light.example",
+                        "state": "on",
+                        "attributes": {"brightness": 128},
+                    },
+                    {
+                        "entity_id": "sensor.cached",
+                        "state": "42",
+                        "attributes": {"unit_of_measurement": "example"},
+                    },
+                ],
+            }}),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    if behaviour == Behaviour::Resync {
+        send(
+            ws,
+            json!({"type": "event", "event": {
+                "a": [
+                    {
+                        "entity_id": "light.example",
+                        "state": "off",
+                        "attributes": {},
+                    },
+                ],
             }}),
         )
         .await?;

@@ -164,7 +164,12 @@ impl AppState {
                 self.connection = ConnectionState::Connected;
                 self.ha_version = Some(ha_version);
                 self.time_zone = time_zone;
-                self.stale = false;
+                // A completed handshake does not make cached values live. Only
+                // the first data from this connection does that, so the stale
+                // badge stays up until the fresh snapshot arrives.
+                if !self.has_displayed_data() {
+                    self.stale = false;
+                }
                 self.last_success = Some(Utc::now());
             }
             HaEvent::AuthFailed { .. } => {
@@ -179,12 +184,20 @@ impl AppState {
                 for e in entities {
                     self.entities.insert(e.entity_id.clone(), e);
                 }
+                self.stale = false;
                 self.last_success = Some(Utc::now());
             }
             HaEvent::EntitiesAdded(entities) => {
+                // The first batch after a reconnect is a full snapshot. Replace
+                // cached entities instead of merging them, so an entity that
+                // disappeared while the server was away does not linger.
+                if self.stale {
+                    self.entities.clear();
+                }
                 for e in entities {
                     self.entities.insert(e.entity_id.clone(), e);
                 }
+                self.stale = false;
                 self.last_success = Some(Utc::now());
             }
             HaEvent::EntitiesChanged(changes) => {
@@ -209,6 +222,7 @@ impl AppState {
                         }
                     }
                 }
+                self.stale = false;
                 self.last_success = Some(Utc::now());
             }
             HaEvent::EntitiesRemoved(ids) => {
@@ -220,6 +234,15 @@ impl AppState {
                 self.pending.remove(&request_id);
             }
         }
+    }
+
+    /// Whether the state holds values that were received before this connection.
+    fn has_displayed_data(&self) -> bool {
+        !self.entities.is_empty()
+            || self.weather.is_some()
+            || self.media.is_some()
+            || self.departures.is_some()
+            || self.calendar.is_some()
     }
 
     /// Restore a cached snapshot for the first frame before the network is back.

@@ -6,7 +6,7 @@ The project has no release yet. Security fixes apply to `main` until the first r
 
 ## Reporting a vulnerability
 
-Do **not** open a public issue. GitHub's private vulnerability reporting is currently unavailable on GitHub Free for private repositories. If the repository's **Security** tab offers "Report a vulnerability", use it. Otherwise, contact the maintainer `@ABOYrbx` through the private contact method listed on their GitHub profile and ask for a secure channel before sharing details. If no private channel is available, open a minimal issue titled "Private security contact requested" with no vulnerability details and wait for a response.
+Do **not** open a public issue. Use the repository's **Security** tab and choose **Report a vulnerability**; private vulnerability reporting is enabled. If the form is unavailable, contact the maintainer `@ABOYrbx` through the private contact method listed on their GitHub profile and ask for a secure channel before sharing details. If no private channel is available, open a minimal issue titled "Private security contact requested" with no vulnerability details and wait for a response.
 
 Include:
 
@@ -46,6 +46,8 @@ Out of scope:
 - A signed catalog proves provenance, not safety. The shop shows permissions and a warning before installation.
 
 ## Secrets in the repository
+
+Secret scanning and push protection are enabled. If GitHub blocks a push because it detects a secret, do not bypass the warning: remove the secret, rotate it, and commit the fix.
 
 If a secret is committed:
 

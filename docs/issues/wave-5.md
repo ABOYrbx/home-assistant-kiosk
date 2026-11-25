@@ -14,7 +14,7 @@ Prove the system under realistic failure modes and on the actual target hardware
 ### End-to-end tests
 
 - [ ] Mock Home Assistant covers config → connect → snapshot → UI state.
-- [ ] Offline scenario: server stops, cached data appears with a stale badge; server returns, state resyncs.
+- [x] Offline scenario: server stops, cached data appears with a stale badge; server returns, state resyncs.
 - [ ] Invalid token shows an error and does not loop.
 - [ ] Failed service call shows an error and does not fake success.
 - [ ] Malformed messages and unknown domains do not crash the app.
@@ -62,7 +62,7 @@ The wave issue is the epic. Every checkbox above, including the commit step, is 
 ### 5.1 End-to-end tests
 
 - [x] #103 — [W5.1.1] Mock Home Assistant server covering config → connect → snapshot → UI state.
-- [ ] #104 — [W5.1.2] Offline scenario: server stops, cached data appears with a stale badge; server returns,...
+- [x] #104 — [W5.1.2] Offline scenario: server stops, cached data appears with a stale badge; server returns,...
 - [ ] #105 — [W5.1.3] Authentication failure: invalid token shows an error and does not loop.
 - [ ] #106 — [W5.1.4] Service failure: tile shows an error and does not fake success.
 - [ ] #107 — [W5.1.5] Malformed messages and unknown domains do not crash the app.

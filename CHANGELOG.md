@@ -18,6 +18,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - The WebSocket client now reads the Home Assistant configuration before it subscribes, and holds any entity data until `Connected` reaches the UI, so naive timestamps are never interpreted in the wrong timezone.
 
+### Changed
+
+- The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
+
+### Fixed
+
+- A reconnect keeps the stale badge until the first fresh snapshot arrives, so cached values never look live; the first batch after a reconnect also replaces entities that disappeared while Home Assistant was offline.
+
 ### Security
 
 - Documented token handling, file permissions, TLS validation, and the offline-cache exposure model.

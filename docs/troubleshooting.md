@@ -224,7 +224,7 @@ The entity ID is validated syntactically but not checked against the server at s
 - When Home Assistant is unreachable, the last cached values stay visible with an "Offline — last update HH:MM" badge. This is expected behaviour, not a hang.
 - The clock and date are always local and always live, even offline.
 - A cache with a different schema version or configuration fingerprint is discarded. After adding, removing, or renaming a widget, tile, or entity, expect one empty start and a fresh snapshot.
-- If the badge never clears after Home Assistant returns, check the journal for a failed re-authentication or a rejected subscription.
+- After Home Assistant returns, the badge stays on until the first fresh snapshot has replaced the cached values; an accepted handshake alone does not clear it. If it never clears, check the journal for a failed re-authentication or a rejected subscription.
 - The cache directory is `0700` and the cache file `0600`. A cache owned by the wrong user is not writable and the service logs a warning. Fix the ownership; do not widen the permissions.
 
 ## Timezone and clock
