@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -731,6 +732,111 @@ fn wall_clock_limit_stops_a_slow_script() {
     config.limits.max_operations = 100_000_000;
     config.limits.wall_clock = Duration::from_millis(100);
     let host = ExtensionHost::new(config).unwrap();
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::Timeout
+    ));
+}
+
+#[test]
+fn call_depth_limit_stops_deep_recursion() {
+    let script = r#"
+        fn recurse(n) {
+            if n <= 0 { return 0; }
+            recurse(n - 1)
+        }
+        fn refresh(config) {
+            recurse(64);
+            #{ kind: "departures", items: [] }
+        }
+    "#;
+    let mut limited = config(script);
+    limited.limits.max_call_levels = 8;
+    let host = ExtensionHost::new(limited).unwrap();
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::ResourceLimit { what } if what == "call depth"
+    ));
+
+    // The same recursion depth is fine when the configured limit allows it.
+    let mut allowed = config(script);
+    allowed.limits.max_call_levels = 128;
+    assert!(ExtensionHost::new(allowed).unwrap().refresh().is_ok());
+}
+
+#[test]
+fn extension_host_runs_on_a_background_thread() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<ExtensionHost>();
+
+    let script = r#"fn refresh(config) {
+        let i = 0;
+        while true { i += 1; }
+    }"#;
+    let mut config = config(script);
+    config.limits.max_operations = 100_000_000;
+    config.limits.wall_clock = Duration::from_millis(50);
+    let host = ExtensionHost::new(config).unwrap();
+
+    let (tx, rx) = std_mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(host.refresh());
+    });
+
+    // The caller stays responsive while the wall-clock limit stops the
+    // hostile script on the worker thread.
+    let result = rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the extension worker must finish");
+    assert!(matches!(result, Err(ExtensionError::Timeout)));
+}
+
+#[test]
+fn now_host_function_checks_the_wall_clock() {
+    struct SlowClock(Duration);
+
+    impl Clock for SlowClock {
+        fn now(&self) -> DateTime<Utc> {
+            thread::sleep(self.0);
+            Utc::now()
+        }
+    }
+
+    // The clock is the only operation after the call, so the progress callback
+    // cannot be relied on to notice the overrun.
+    let script = r#"fn refresh(config) { now() }"#;
+    let mut config = key_value_config(script);
+    config.clock = Some(Arc::new(SlowClock(Duration::from_millis(200))));
+    config.limits.wall_clock = Duration::from_millis(50);
+    let host = ExtensionHost::new(config).unwrap();
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::Timeout
+    ));
+}
+
+#[test]
+fn http_host_function_checks_the_wall_clock_after_the_fetch() {
+    let server = TestServer::start(
+        http_response(
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"ok"}"#,
+        ),
+        Duration::from_millis(200),
+    );
+    // The fetch is the final operation, so the progress callback cannot notice
+    // that it ran past the wall-clock deadline.
+    let script = format!(
+        r#"fn refresh(config) {{ http_get_json("http://127.0.0.1:{}/data") }}"#,
+        server.port
+    );
+    let limits = Limits {
+        wall_clock: Duration::from_millis(50),
+        http_timeout: Duration::from_secs(2),
+        ..Limits::default()
+    };
+    let host = loopback_host(server.port, &script, limits);
     assert!(matches!(
         host.refresh().unwrap_err(),
         ExtensionError::Timeout
