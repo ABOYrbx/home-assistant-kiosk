@@ -290,41 +290,91 @@ CI uses a read-only token and public verification material only. It must not def
 
 ## Community review
 
-Every catalog pull request is reviewed by a maintainer before packaging and signing. The review covers:
+Every catalog pull request is reviewed by a maintainer before packaging and signing. This includes new extensions, updates, permission changes, and changes to the entry script or output schema. A signed catalog proves provenance, not safety; CI and approval do not make third-party code trustworthy.
+
+The review follows this sequence:
+
+1. The author submits the source, manifest, README, license, fixtures or test plan, and the evidence listed below.
+2. CI validates the schemas, manifest, script syntax, permissions, checksums, and fixture run.
+3. A maintainer reviews the exact source revision and records a decision. Automated checks do not replace source review.
+4. Requested changes are reviewed again. Approval applies only to the recorded commit or package; any later source change invalidates it.
+5. After approval, the maintainer builds the package, verifies its SHA-256 and size, and signs the index offline. The reviewer confirms that the package matches the approved source before signing.
 
 | Area | What is checked |
 | --- | --- |
-| License | An SPDX identifier is declared, the license text ships in the package, and redistribution is allowed. |
-| Permissions | `http_hosts` and `ha_entities` are minimal and match the script; no wildcard hosts, credentials, or unrelated entities. |
-| Secrets | No API keys, tokens, personal stop IDs, home addresses, or real provider URLs appear in the source, fixtures, README, or screenshots. |
-| Home Assistant access | `ha_state` reads only declared entities; the script never calls a service and never receives the HA token. |
-| UI | Output is data only: `departures`, `list`, or `key_value`. No native code, Slint files, HTML, images, or arbitrary UI. |
-| Tests | The extension has a test or a recorded test plan, and CI validates the schema, manifest, script, checksum, and fixture run. |
-| Removal | The README states how to disable or remove the extension, and the catalog entry can be withdrawn without breaking installed kiosks. |
+| License | An SPDX identifier is declared, the full license text and copyright notices ship in the package, and the terms allow redistribution through the catalog. |
+| Permissions | Every HTTP host and HA entity is necessary and justified. Exact allowlists match the manifest, index, and script; there are no wildcard hosts, credentials in URLs, or unrelated entities. |
+| Secrets | Source, fixtures, README, screenshots, logs, and package contents contain no tokens, API keys, personal stop IDs, addresses, personal entity IDs, or private provider endpoints. Examples use placeholders. |
+| Home Assistant access | `ha_state` reads only declared entities and returns a snapshot. There are no service calls, Home Assistant URLs or credentials, token access, filesystem access, process access, or environment access. |
+| UI | Output is data only: `departures`, `list`, or `key_value`. There is no native code, WASM, arbitrary Slint, HTML, executable content, or custom UI; built-in widgets own presentation. |
+| Tests | Fixture-based tests or a recorded test plan cover the scenarios below. CI validates the schema, manifest, script, checksum, and fixture run without live credentials. |
+| Removal | The README explains disable, remove, and retained settings/secrets. Catalog withdrawal and security withdrawal do not silently uninstall or replace packages on existing kiosks. |
 
-A reviewer may approve, request changes, or reject a submission. A maintainer never signs an index entry that has not passed review. Security removals follow the process below.
+### Submission evidence
 
-## Review checklist
+Include this evidence in the catalog pull request. Do not attach secrets, unredacted logs, personal configuration, or a live Home Assistant token.
+
+- **License:** SPDX identifier, full license text, copyright notices, and any redistribution conditions.
+- **Permissions:** A short justification for each HTTP host and HA entity, including where the script uses it.
+- **Secrets:** The secret-scan result for source, fixtures, documentation, screenshots, and package contents; rotate and remove any exposed credential before review.
+- **Home Assistant access:** The declared read-only entity list and confirmation that no service call, token, or Home Assistant endpoint is used.
+- **UI:** The declared output kind and confirmation that the package contains no native code or arbitrary UI.
+- **Tests:** Commands, fixture results or a recorded test plan, expected output, and any untested limitations.
+- **Removal:** Operator steps for disabling and removing the extension, plus the catalog withdrawal/deprecation plan.
+
+### Test evidence
+
+Use recorded fixtures; never require a live Home Assistant instance or credentials. Tests must assert the observable result, not only that the script compiles. A recorded manual test plan must state the environment, steps, expected result, actual result, and date.
+
+| Scenario | Expected evidence |
+| --- | --- |
+| Successful refresh | A fixture produces the declared data-only output with the expected fields and item cap. |
+| API failure | The failure is visible, the kiosk does not crash, and the last good output is retained. |
+| Empty or missing data | Empty, missing, or unavailable data is explicit and does not blank the whole page. |
+| Forbidden host or entity | Access outside the manifest allowlist is rejected before any request or entity read, including cross-host redirects. |
+| Malformed output | Unknown fields, wrong types, and excess items are rejected without crashing the kiosk. |
+| Resource limits | Deliberate looping or oversized values hit operation, allocation, or wall-clock limits while the UI thread remains responsive. |
+| Removal | Install/remove leaves no installed version or `installed.json` entry; retained settings and the secret file are documented and handled by the operator. |
+
+### Review decision and record
+
+Record the decision in the pull request so the signed release has an audit trail:
+
+- Reviewer: maintainer name and review date.
+- Commit or package: reviewed commit SHA and, once built, package SHA-256 and byte size.
+- Decision: approve, request changes, or reject, with the reason.
+- Evidence: CI run plus fixture or manual-test results for every required scenario.
+- Follow-up: requested changes, deprecation/removal notes, or `none`.
+
+A maintainer never signs an index entry that has not passed review. Security removals follow the process below.
+
+### Reviewer checklist
 
 - [ ] Extension ID is reverse-DNS and version is semver.
 - [ ] License is present and compatible with redistribution.
-- [ ] Permissions are minimal (HTTP hosts and HA entities).
+- [ ] Permissions are minimal and match the manifest, index, and script.
 - [ ] No Home Assistant service calls, filesystem, process, or environment access.
 - [ ] Output is `departures`, `list`, or `key_value` and within limits.
-- [ ] No native code, Slint files, HTML, images, or arbitrary UI.
-- [ ] No secrets, personal data, or real provider IDs in source, fixtures, or README.
+- [ ] No native code, Slint files, HTML, executable content, or arbitrary UI.
+- [ ] No secrets, personal data, or private provider endpoints in source, fixtures, README, screenshots, or logs.
 - [ ] Script handles API errors, missing fields, and empty lists.
-- [ ] Tests or a recorded test plan cover success, API error, and empty output.
-- [ ] Package checksum and size match.
-- [ ] README explains configuration and limitations.
-- [ ] Removal/deprecation plan is clear.
+- [ ] Tests or a recorded test plan cover every scenario in the test-evidence table.
+- [ ] Package checksum and size match the approved source and release asset.
+- [ ] README explains configuration, limitations, and removal.
+- [ ] Review decision and evidence are recorded against the exact revision.
 
 ## Catalog removal and deprecation
 
-- Mark a package unavailable by removing it from `index.json`; installed kiosks keep the package.
-- For a security removal, publish a new signed index and a notice in the repository README.
-- Never reuse a version or replace a published package silently.
-- The kiosk disables an extension that repeatedly fails its sandbox or output validation and shows the error.
+| Action | Effect |
+| --- | --- |
+| Disable | In **Shop → Installed**, disable the extension. Execution stops, but installed files, configuration, and secrets remain so it can be re-enabled. |
+| Remove | In **Shop → Installed**, remove the extension. The kiosk deletes all installed versions and its `installed.json` entry; configuration settings and the secret file are retained. |
+| Catalog withdrawal | Remove the entry from `index.json`, publish a new signed index, and keep the package URL available for existing installations. New installs and updates disappear after a kiosk refreshes the catalog; installed extensions remain installed and usable. |
+| Security withdrawal | Publish a new signed index without the entry and a notice in the catalog README. Withdrawal is not a remote uninstall: tell operators to disable or remove the extension. If the signing key is affected, follow the revocation and rotation process above. |
+
+After **Remove**, the operator may delete `[extensions.settings."<id>"]` from the kiosk configuration and `/etc/ha-kiosk/extensions/<id>.secret.toml` when the data is no longer needed. Remove does not delete those files automatically. Never put their contents in an issue or review comment.
+
+For a planned deprecation, document the replacement and migration steps in the extension README and catalog notice. Keep the last compatible package available while operators migrate. Never reuse a version or replace a published package silently. The kiosk disables an extension that repeatedly fails its sandbox or output validation and shows the error.
 
 ## Hosting
 
