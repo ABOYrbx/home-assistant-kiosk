@@ -32,8 +32,8 @@ The `main-protection` repository ruleset enforces this policy. `scripts/apply-gi
 - Linear history required.
 - Squash merge only; merge commits and rebase merges disabled.
 - Delete the branch after merge.
-- Administrators are subject to the same rules (`enforce_admins`).
-- Push restriction: `ABOYrbx` only.
+- Administrators are subject to the same rules: the ruleset has no bypass actors and `current_user_can_bypass` is `never`; the classic fallback sets `enforce_admins`.
+- Push access: `ABOYrbx` only, because it is the sole collaborator. The ruleset does not add a push restriction; the pull request rule is what blocks direct pushes to `main`.
 - Required approving reviews: `0`, because a sole owner cannot approve their own pull request. CODEOWNERS still requests review and conversation resolution still applies.
 
 Additional release policy:
@@ -47,10 +47,11 @@ Additional release policy:
 
 The repository is public, so GitHub Free exposes repository rulesets for it. The `main-protection` ruleset is active and was verified after issue #10:
 
-- Enforcement is `active` and targets `~DEFAULT_BRANCH`.
-- `bypass_actors` is empty, so administrators are subject to the rules.
+- Enforcement is `active` and targets `~DEFAULT_BRANCH` with no excluded refs.
+- `bypass_actors` is empty and `current_user_can_bypass` is `never`, so administrators are subject to the rules.
 - The rules cover deletion, non-fast-forward pushes, linear history, a pull request, and the required `docs` status check.
-- The `docs` check is strict, so the branch must be up to date before merging.
+- The pull request rule requires resolved conversations, squash merges only, and dismissal of stale reviews; it does not require a code owner review, a last-push approval, or an extra approval for unattributed changes.
+- The `docs` check is strict, applies to new branches, and requires the branch to be up to date before merging.
 - Required approving reviews are `0`; CODEOWNERS still requests review and conversation resolution applies.
 
 Before 2026-11-25 the repository was private on GitHub Free, which does not expose branch protection or rulesets. During that period the policy was process-only. If the repository is ever made private again on a plan without protection support, the API returns:
@@ -192,7 +193,7 @@ gh api repos/ABOYrbx/home-assistant-kiosk/rulesets \
 
 # Ruleset fields (replace <id>)
 gh api repos/ABOYrbx/home-assistant-kiosk/rulesets/<id> \
-  --jq '{enforcement, rules: [.rules[].type], bypass_actors, conditions}'
+  --jq '{enforcement, target, rules: [.rules[].type], bypass_actors, current_user_can_bypass, conditions}'
 
 # Classic protection, only when rulesets are unavailable
 gh api repos/ABOYrbx/home-assistant-kiosk/branches/main/protection
