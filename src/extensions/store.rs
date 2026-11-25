@@ -211,6 +211,12 @@ impl ExtensionStore {
             .previous_version(id)
             .ok_or_else(|| StoreError::NoPreviousVersion(id.to_string()))?;
 
+        // Recompute the manifest hash from the retained version so the record
+        // stays consistent with the files on disk after a rollback.
+        let manifest_hash = package::manifest_bytes(&self.extension_dir(id, &previous))
+            .map(|bytes| package::sha256_hex(&bytes))
+            .ok();
+
         let record = self
             .index
             .extensions
@@ -219,6 +225,9 @@ impl ExtensionStore {
             .ok_or_else(|| StoreError::NotInstalled(id.to_string()))?;
         record.version = previous.clone();
         record.installed_at = Utc::now();
+        if let Some(hash) = manifest_hash {
+            record.manifest_sha256 = hash;
+        }
         self.save()?;
 
         let current_dir = self.extension_dir(id, &current);

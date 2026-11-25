@@ -163,11 +163,16 @@ pub fn manifest_bytes(directory: &Path) -> Result<Vec<u8>, PackageError> {
 }
 
 fn is_safe_archive_path(path: &Path) -> bool {
-    !path.is_absolute()
-        && !path.as_os_str().is_empty()
-        && path
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
+    if path.is_absolute() || path.as_os_str().is_empty() {
+        return false;
+    }
+    // Reject backslashes so Windows-style traversal cannot slip through on
+    // Unix targets, and reject anything that is not a plain relative path.
+    if path.to_string_lossy().contains('\\') {
+        return false;
+    }
+    path.components()
+        .all(|component| matches!(component, Component::Normal(_)))
 }
 
 fn create_private_dir(path: &Path) -> Result<(), PackageError> {
