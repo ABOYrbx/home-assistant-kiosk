@@ -166,14 +166,14 @@ impl AppController {
         let weak_install = self.window.as_weak();
         let shop_install = self.shop.clone();
         let tasks_install = self.shop_tasks.clone();
-        self.window.on_shop_install(move |id| {
+        self.window.on_shop_install(move |id, confirmed| {
             run_shop_action(
                 &weak_install,
                 &shop_install,
                 tasks_install.as_ref(),
                 id.as_str(),
                 ShopAction::Install,
-                true,
+                confirmed,
             );
         });
 
@@ -615,6 +615,41 @@ mod tests {
                 .error
                 .as_deref(),
             Some("The extension store worker is unavailable.")
+        );
+    }
+
+    #[test]
+    fn unconfirmed_install_is_rejected_before_a_task_is_sent() {
+        // No window is needed: the action must be rejected before any UI push.
+        let window = slint::Weak::<MainWindow>::default();
+        let shop = Rc::new(RefCell::new(ShopView::new(
+            "/etc/ha-kiosk/config.toml",
+            DEFAULT_SECRET_DIR,
+        )));
+        shop.borrow_mut().apply_catalog(vec![catalog_entry()]);
+
+        let (tasks_tx, tasks_rx) = std_mpsc::channel();
+        run_shop_action(
+            &window,
+            &shop,
+            Some(&tasks_tx),
+            "org.example.bus-departures",
+            ShopAction::Install,
+            false,
+        );
+
+        assert!(
+            tasks_rx.try_recv().is_err(),
+            "no store task may be sent without the trust confirmation"
+        );
+        assert!(shop.borrow().pending.is_none());
+        assert_eq!(
+            shop.borrow()
+                .entry("org.example.bus-departures")
+                .unwrap()
+                .error
+                .as_deref(),
+            Some("confirmation is required before installing org.example.bus-departures")
         );
     }
 }

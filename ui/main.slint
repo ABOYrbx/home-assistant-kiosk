@@ -57,7 +57,8 @@ export component MainWindow inherits Window {
     callback swipe-next();
     callback swipe-prev();
     callback shop-refresh();
-    callback shop-install(string);
+    // The bool records that the first-install trust dialog was confirmed.
+    callback shop-install(string, bool);
     callback shop-update(string);
     callback shop-remove(string);
     callback shop-set-enabled(string, bool);
@@ -157,7 +158,7 @@ export component MainWindow inherits Window {
                 secret-dir: root.shop-secret-dir;
                 pending-id: root.shop-pending-id;
                 refresh() => { root.shop-refresh(); }
-                confirm-install(id) => { root.shop-install(id); }
+                confirm-install(id) => { root.shop-install(id, true); }
                 update(id) => { root.shop-update(id); }
                 remove(id) => { root.shop-remove(id); }
                 set-enabled(id, on) => { root.shop-set-enabled(id, on); }

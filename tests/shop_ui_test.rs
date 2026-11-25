@@ -148,6 +148,9 @@ async fn run_shop_page_scenarios() {
     app.set_extensions_enabled(true);
     click(&app, "MainWindow::tab-shop").await;
     assert_eq!(app.get_current_page(), 4);
+    assert!(has_element(&app, "MainWindow::shop-page"));
+    assert!(has_element(&app, "ShopPage::installed-list"));
+    assert!(has_element(&app, "ShopPage::available-list"));
 
     // The first frame must not claim that an empty catalog is a loaded catalog.
     assert_text(&app, "Loading extensions…");
@@ -160,7 +163,13 @@ async fn run_shop_page_scenarios() {
 
     let installs = Rc::new(RefCell::new(Vec::new()));
     let installs_sink = installs.clone();
-    app.on_shop_install(move |id| installs_sink.borrow_mut().push(id.to_string()));
+    app.on_shop_install(move |id, confirmed| {
+        assert!(
+            confirmed,
+            "an install may reach the controller only after the trust dialog"
+        );
+        installs_sink.borrow_mut().push(id.to_string());
+    });
 
     let updates = Rc::new(RefCell::new(Vec::new()));
     let updates_sink = updates.clone();
@@ -212,6 +221,14 @@ async fn run_shop_page_scenarios() {
     assert!(installs.borrow().is_empty());
     click(&app, "ShopPage::cancel-button").await;
     assert_no_text(&app, "Install Bus Departures?");
+    assert!(installs.borrow().is_empty());
+
+    // Confirming the trust dialog is the only path that submits an install.
+    install.invoke_accessible_default_action();
+    assert_text(&app, "Install Bus Departures?");
+    click(&app, "ShopPage::confirm-button").await;
+    assert_no_text(&app, "Install Bus Departures?");
+    assert_eq!(installs.borrow().as_slice(), &[EXTENSION_ID.to_string()]);
 
     // A pending operation disables every competing action and cannot double-submit.
     app.set_shop_pending_id(EXTENSION_ID.into());
@@ -220,8 +237,9 @@ async fn run_shop_page_scenarios() {
         element(&app, "ShopPage::refresh-button").accessible_enabled(),
         Some(false)
     );
+    let before_pending_click = installs.borrow().len();
     install.single_click(PointerEventButton::Left).await;
-    assert!(installs.borrow().is_empty());
+    assert_eq!(installs.borrow().len(), before_pending_click);
     app.set_shop_pending_id("".into());
     assert_eq!(install.accessible_enabled(), Some(true));
 
