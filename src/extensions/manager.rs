@@ -215,9 +215,23 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
 
     fn install_from_catalog(&mut self, id: &str) -> Result<(), ManagerError> {
         let entry = self.catalog_entry(id).ok_or(ManagerError::NoCatalog)?;
-        let bytes = self
-            .package_fetcher
-            .get(&entry.package_url, self.options.max_package_bytes)?;
+        let temp_dir = tempfile::tempdir().map_err(ManagerError::Io)?;
+        let package_path = crate::extensions::install::download_and_verify_package(
+            &mut self.package_fetcher,
+            &entry.package_url,
+            &entry.sha256,
+            entry.size_bytes,
+            self.options.max_package_bytes,
+            temp_dir.path(),
+        )
+        .map_err(|error| match error {
+            crate::extensions::install::DownloadError::Fetch(error) => ManagerError::Fetch(error),
+            crate::extensions::install::DownloadError::Package(error) => {
+                ManagerError::Store(StoreError::Package(error))
+            }
+            crate::extensions::install::DownloadError::Io(error) => ManagerError::Io(error),
+        })?;
+        let bytes = std::fs::read(&package_path).map_err(ManagerError::Io)?;
         let source = self
             .options
             .catalog_url
