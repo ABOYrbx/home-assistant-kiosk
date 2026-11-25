@@ -41,8 +41,10 @@ fn connection_events_track_version_timezone_and_stale() {
 
 #[test]
 fn authentication_failure_marks_cached_data_as_stale() {
-    let mut state = AppState::default();
-    state.stale = false;
+    let mut state = AppState {
+        stale: false,
+        ..AppState::default()
+    };
 
     state.apply_ha_event(HaEvent::AuthFailed {
         message: "bad token".to_string(),
