@@ -33,6 +33,12 @@ slint::slint! {
                 read-only: true;
                 tapped => { root.read-only-taps += 1; }
             }
+
+            error-tile := HaTile {
+                label: "Failed tile";
+                state: "off";
+                error: "service error: boom";
+            }
         }
     }
 }
@@ -44,7 +50,7 @@ fn find(app: &TileHarness, id: &str) -> ElementHandle {
 }
 
 #[test]
-fn a_tap_reports_once_and_ignores_read_only_and_pending_tiles() {
+fn tile_renders_errors_and_guards_read_only_and_pending_taps() {
     i_slint_backend_testing::init_integration_test_with_system_time();
 
     slint::spawn_local(async move {
@@ -69,6 +75,16 @@ fn a_tap_reports_once_and_ignores_read_only_and_pending_tiles() {
             app.get_read_only_taps(),
             0,
             "a read-only tile must not report a tap action"
+        );
+
+        let error = ElementHandle::find_by_element_id(&app, "HaTile::tile-error")
+            .next()
+            .expect("a failed tile renders its service error");
+        assert!(
+            error
+                .accessible_label()
+                .is_some_and(|label| label.as_str().contains("service error: boom")),
+            "the rendered error must expose the service failure"
         );
 
         slint::quit_event_loop().unwrap();

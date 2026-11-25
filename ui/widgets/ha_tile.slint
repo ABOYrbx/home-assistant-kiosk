@@ -1,10 +1,17 @@
 import { Theme } from "../theme.slint";
+import { TouchTarget } from "touch_target.slint";
 
 export component HaTile inherits Rectangle {
     in property <string> label: "";
+    in property <string> icon: "";
     in property <string> state: "";
+    in property <string> detail: "";
+    in property <bool> read-only: false;
     in property <bool> pending: false;
+    in property <string> error: "";
+    callback tapped();
 
+    min-width: Theme.touch-target;
     min-height: Theme.touch-target;
     background: Theme.surface;
     border-radius: Theme.radius-md;
@@ -14,13 +21,44 @@ export component HaTile inherits Rectangle {
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-1;
-        Text { text: label; color: Theme.fg; font-size: Theme.text-sm; font-weight: 500; }
+
+        Text {
+            text: label;
+            color: Theme.fg;
+            font-size: Theme.text-sm;
+            font-weight: 500;
+            overflow: elide;
+        }
+
         Text {
             text: pending ? "…" : state;
             color: Theme.muted;
             font-size: Theme.text-sm;
+            overflow: elide;
+        }
+
+        if detail != "" && !pending && error == "" : Text {
+            text: detail;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            overflow: elide;
+        }
+
+        if error != "" : tile-error := Text {
+            text: error;
+            accessible-label: root.error;
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            overflow: elide;
         }
     }
 
-    ta := TouchArea { }
+    tile-touch := TouchTarget {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        enabled: !root.read-only && !root.pending;
+        clicked => { root.tapped(); }
+    }
 }
