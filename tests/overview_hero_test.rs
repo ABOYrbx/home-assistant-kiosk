@@ -1,88 +1,66 @@
-use ha_kiosk::{KioskModel, MainWindow};
-use i_slint_backend_testing::ElementHandle;
-use slint::ComponentHandle;
-use slint::platform::PointerEventButton;
-use std::cell::Cell;
-use std::rc::Rc;
+//! Hero-light view model states behind the consolidated Overview page.
+//!
+//! The shell no longer exposes a `KioskModel` global, so the states the hero
+//! card renders are asserted at the view-model layer instead.
+
+use ha_kiosk::config::HeroLightConfig;
+use ha_kiosk::events::HaEntity;
+use ha_kiosk::ui::hero::HeroLight;
+
+fn config() -> HeroLightConfig {
+    HeroLightConfig {
+        enabled: true,
+        entity: "light.example".into(),
+        name: "Example lamp".into(),
+        min_kelvin: 2700,
+        max_kelvin: 6500,
+    }
+}
+
+fn light(state: &str) -> HaEntity {
+    HaEntity {
+        entity_id: "light.example".into(),
+        state: state.to_string(),
+        attributes: serde_json::json!({
+            "friendly_name": "Example lamp",
+            "brightness": 184,
+            "color_temp_kelvin": 3200,
+            "supported_color_modes": ["color_temp"]
+        }),
+        last_changed: None,
+        last_updated: None,
+    }
+}
 
 #[test]
-fn overview_top_bar_and_hero_controls() {
-    i_slint_backend_testing::init_integration_test_with_system_time();
+fn the_hero_reports_loading_populated_and_unavailable_states() {
+    let mut hero = HeroLight::new(&config());
+    let loading = hero.view_model();
+    assert!(loading.configured);
+    assert!(loading.loading);
+    assert!(loading.status_text.contains("Waiting"));
 
-    slint::spawn_local(async move {
-        let app = MainWindow::new().unwrap();
-        let model = app.global::<KioskModel>();
-        model.set_hero_configured(true);
-        model.set_hero_available(true);
-        model.set_hero_loading(false);
-        model.set_hero_name("Example lamp".into());
-        model.set_hero_on(true);
-        model.set_hero_brightness(40);
-        model.set_hero_color_temp(3200);
-        model.set_hero_brightness_supported(true);
-        model.set_hero_color_temp_supported(true);
-        model.set_hero_brightness_text("40%".into());
-        model.set_hero_color_temp_text("3200 K".into());
-        model.set_hero_state_text("On".into());
+    hero.apply_entity(Some(&light("on")));
+    let ready = hero.view_model();
+    assert!(!ready.loading);
+    assert!(ready.available);
+    assert!(ready.on);
+    assert_eq!(ready.name, "Example lamp");
+    assert_eq!(ready.brightness_text, "72%");
+    assert_eq!(ready.color_temp_text, "3200 K");
+    assert_eq!(ready.state_text, "On");
 
-        for id in [
-            "OverviewPage::top-bar",
-            "OverviewPage::hero",
-            "TopBar::brand",
-            "TopBar::connection-label",
-            "TopBar::clock-text",
-            "TopBar::date-text",
-            "HeroLight::hero-toggle",
-            "HeroLight::hero-brightness",
-            "HeroLight::hero-color-temp",
-        ] {
-            assert_eq!(
-                ElementHandle::find_by_element_id(&app, id).count(),
-                1,
-                "element id {id}"
-            );
-        }
+    hero.apply_entity(Some(&light("unavailable")));
+    let unavailable = hero.view_model();
+    assert!(!unavailable.available);
+    assert!(unavailable.status_text.contains("Unavailable"));
+}
 
-        let toggles = Rc::new(Cell::new(0));
-        let toggles_handler = toggles.clone();
-        model.on_hero_toggled(move || toggles_handler.set(toggles_handler.get() + 1));
-        let toggle = ElementHandle::find_by_element_id(&app, "HeroLight::hero-toggle")
-            .next()
-            .expect("hero toggle exists");
-        toggle.single_click(PointerEventButton::Left).await;
-        assert_eq!(toggles.get(), 1);
-
-        let brightness = Rc::new(Cell::new(-1));
-        let brightness_handler = brightness.clone();
-        model.on_hero_brightness_changed(move |value| brightness_handler.set(value));
-        let slider = ElementHandle::find_by_element_id(&app, "HeroLight::hero-brightness")
-            .next()
-            .expect("brightness slider exists");
-        slider.single_click(PointerEventButton::Left).await;
-        let value = brightness.get();
-        assert!(
-            (45..=55).contains(&value),
-            "brightness callback value: {value}"
-        );
-        assert_eq!(model.get_hero_brightness(), value);
-
-        let color_temp = Rc::new(Cell::new(-1));
-        let color_temp_handler = color_temp.clone();
-        model.on_hero_color_temp_changed(move |value| color_temp_handler.set(value));
-        let slider = ElementHandle::find_by_element_id(&app, "HeroLight::hero-color-temp")
-            .next()
-            .expect("colour temperature slider exists");
-        slider.single_click(PointerEventButton::Left).await;
-        let value = color_temp.get();
-        assert!(
-            (4500..=4700).contains(&value),
-            "colour temperature callback value: {value}"
-        );
-        assert_eq!(model.get_hero_color_temp(), value);
-
-        slint::quit_event_loop().unwrap();
-    })
-    .unwrap();
-
-    slint::run_event_loop().unwrap();
+#[test]
+fn an_unconfigured_hero_has_an_empty_state() {
+    let hero = HeroLight::new(&HeroLightConfig::default());
+    let view = hero.view_model();
+    assert!(!view.configured);
+    assert!(!view.available);
+    assert!(view.status_text.contains("No light configured"));
 }
