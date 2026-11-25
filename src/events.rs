@@ -87,7 +87,7 @@ pub enum HaEvent {
 /// Results from the Wave 6 extension store and host.
 #[derive(Debug, Clone)]
 pub enum ShopEvent {
-    InstalledLoaded(Vec<crate::extensions::InstalledExtension>),
+    InstalledLoaded(Vec<crate::extensions::ShopEntry>),
     CatalogLoaded(Vec<crate::extensions::ShopEntry>),
     CatalogOffline {
         reason: String,

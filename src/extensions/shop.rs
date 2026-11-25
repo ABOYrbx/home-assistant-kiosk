@@ -98,6 +98,10 @@ pub struct ConfigField {
     pub required: bool,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 /// Catalog entry plus local installation state.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopEntry {
@@ -116,6 +120,9 @@ pub struct ShopEntry {
     pub permissions: ExtensionPermissions,
     #[serde(default)]
     pub config_schema: Vec<ConfigField>,
+    /// False only when an installed manifest could not be read or verified.
+    #[serde(default = "default_true")]
+    pub config_schema_available: bool,
     #[serde(default)]
     pub installed_version: Option<String>,
     #[serde(default)]
@@ -166,20 +173,49 @@ impl ShopEntry {
     }
 
     pub fn config_keys_summary(&self) -> String {
+        if !self.config_schema_available {
+            return "Configuration keys unavailable (installed manifest could not be read)"
+                .to_string();
+        }
         if self.config_schema.is_empty() {
             return "No configuration required".to_string();
         }
-        self.config_schema
+        let summarize = |fields: Vec<&ConfigField>| {
+            fields
+                .into_iter()
+                .map(|field| {
+                    let requirement = if field.required {
+                        "required"
+                    } else {
+                        "optional"
+                    };
+                    if field.kind.is_empty() {
+                        format!("{} ({requirement})", field.key)
+                    } else {
+                        format!("{} ({requirement}, {})", field.key, field.kind)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("; ")
+        };
+        let mut groups = Vec::new();
+        let settings: Vec<_> = self
+            .config_schema
             .iter()
-            .map(|field| {
-                if field.required {
-                    format!("{} (required)", field.key)
-                } else {
-                    field.key.clone()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
+            .filter(|field| field.kind != "secret")
+            .collect();
+        let secrets: Vec<_> = self
+            .config_schema
+            .iter()
+            .filter(|field| field.kind == "secret")
+            .collect();
+        if !settings.is_empty() {
+            groups.push(format!("Settings: {}", summarize(settings)));
+        }
+        if !secrets.is_empty() {
+            groups.push(format!("Secrets: {}", summarize(secrets)));
+        }
+        groups.join("\n")
     }
 
     pub fn settings_table(&self) -> String {
@@ -288,6 +324,49 @@ impl ShopView {
                 self.entries.push(entry);
             }
         }
+        self.sort();
+    }
+
+    /// Merge a full installed snapshot, including locally available manifest
+    /// metadata. Catalog-backed metadata remains authoritative when known.
+    pub fn set_installed_entries(&mut self, installed: Vec<ShopEntry>) {
+        let installed_ids: Vec<_> = installed.iter().map(|entry| entry.id.clone()).collect();
+        for record in installed {
+            if let Some(entry) = self.entries.iter_mut().find(|entry| entry.id == record.id) {
+                entry.installed_version = record.installed_version;
+                entry.enabled = record.enabled;
+                entry.configured = record.configured;
+                entry.error = record.error;
+                if !entry.config_schema_available {
+                    entry.name = record.name;
+                    entry.version = record.version;
+                    entry.author = record.author;
+                    entry.license = record.license;
+                    entry.description = record.description;
+                    entry.provides = record.provides;
+                    entry.permissions = record.permissions;
+                    entry.config_schema = record.config_schema;
+                    entry.config_schema_available = record.config_schema_available;
+                }
+            } else {
+                self.entries.push(record);
+            }
+        }
+        self.entries.retain_mut(|entry| {
+            if entry.is_installed() && !installed_ids.contains(&entry.id) {
+                if entry.available {
+                    entry.installed_version = None;
+                    entry.enabled = false;
+                    entry.configured = false;
+                    entry.error = None;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                true
+            }
+        });
         self.sort();
     }
 
@@ -493,6 +572,7 @@ impl ShopEntry {
             provides: String::new(),
             permissions: ExtensionPermissions::default(),
             config_schema: Vec::new(),
+            config_schema_available: true,
             installed_version: None,
             enabled: false,
             configured: false,

@@ -1,4 +1,4 @@
-use i_slint_backend_testing::ElementHandle;
+use i_slint_backend_testing::{ElementHandle, ElementRoot};
 use slint::ComponentHandle;
 use slint::platform::PointerEventButton;
 use std::cell::{Cell, RefCell};
@@ -25,10 +25,12 @@ fn entry_view(
             "Available".into()
         },
         permissions: "Network: api.example.com; Home Assistant: sensor.example".into(),
-        config_keys: "stop_id (required), limit".into(),
-        config_path:
-            "/etc/ha-kiosk/config.toml [extensions.settings.\"org.example.bus-departures\"]".into(),
-        secret_path: "/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml".into(),
+        config_keys:
+            "Settings: stop_id (required, string); limit (optional, integer)\nSecrets: api_key (required, secret)"
+                .into(),
+        config_path: "/var/lib/home-assistant-kiosk/configuration/operator-edited-config.toml".into(),
+        config_table: "[extensions.settings.\"org.example.bus-departures\"]".into(),
+        secret_path: "/var/lib/home-assistant-kiosk/private/extension-secrets/org.example.bus-departures.secret.toml".into(),
         error: error.into(),
         installed,
         enabled,
@@ -44,8 +46,153 @@ async fn click(app: &ha_kiosk::MainWindow, id: &str) {
     element.single_click(PointerEventButton::Left).await;
 }
 
+async fn assert_configuration_guidance(app: &ha_kiosk::MainWindow) {
+    app.set_extensions_enabled(true);
+    app.set_current_page(4);
+    app.set_shop_available(
+        Rc::new(slint::VecModel::from(Vec::<ha_kiosk::ShopEntryView>::new())).into(),
+    );
+    app.set_shop_installed(
+        Rc::new(slint::VecModel::from(vec![entry_view(
+            true, true, false, "",
+        )]))
+        .into(),
+    );
+    app.set_shop_catalog_online(true);
+    app.set_shop_catalog_error("".into());
+    app.set_shop_config_path(
+        "/var/lib/home-assistant-kiosk/configuration/operator-edited-config.toml".into(),
+    );
+    app.set_shop_secret_dir("/var/lib/home-assistant-kiosk/private/extension-secrets".into());
+
+    let guidance = [
+        (
+            "ShopPage::read-only-note",
+            "Configuration is read-only here. Edit the files below directly, then restart the kiosk. No on-screen keyboard is used.",
+        ),
+        (
+            "ShopEntryCard::config-keys",
+            "Configuration keys: Settings: stop_id (required, string); limit (optional, integer)\nSecrets: api_key (required, secret)",
+        ),
+        (
+            "ShopEntryCard::config-path",
+            "Settings file: /var/lib/home-assistant-kiosk/configuration/operator-edited-config.toml",
+        ),
+        (
+            "ShopEntryCard::config-table",
+            "TOML table: [extensions.settings.\"org.example.bus-departures\"]",
+        ),
+        (
+            "ShopEntryCard::secret-path",
+            "Secret file: /var/lib/home-assistant-kiosk/private/extension-secrets/org.example.bus-departures.secret.toml",
+        ),
+    ];
+
+    for (width, height) in [
+        (320, 480),
+        (375, 667),
+        (390, 844),
+        (768, 1024),
+        (800, 480),
+        (1024, 600),
+        (1280, 800),
+        (1440, 900),
+        (2048, 1200),
+    ] {
+        app.window()
+            .set_size(slint::PhysicalSize::new(width, height));
+        slint::platform::update_timers_and_animations();
+        assert!(
+            app.root_element().size().width <= width as f32 + 0.5,
+            "shop root overflows at {width}x{height}"
+        );
+
+        for (id, label) in guidance {
+            // The compact viewport intentionally keeps lower card content in
+            // its contained scroll region; the kiosk gate starts at 800px.
+            if width < 800 && id == "ShopEntryCard::secret-path" {
+                continue;
+            }
+            let element = ElementHandle::find_by_element_id(app, id)
+                .next()
+                .unwrap_or_else(|| {
+                    panic!("configuration guidance element {id} not found at {width}x{height}")
+                });
+            assert_eq!(element.accessible_label().as_deref(), Some(label));
+            let position = element.absolute_position();
+            let size = element.size();
+            assert!(
+                position.x >= -0.5,
+                "{id} starts outside the {width}px window"
+            );
+            assert!(
+                position.x + size.width <= width as f32 + 0.5,
+                "{id} overflows the {width}px window"
+            );
+            assert!(size.height > 0.0, "{id} has no visible text area");
+            if width == 320 && id.ends_with("config-path") {
+                assert!(
+                    size.height > 12.5,
+                    "the long settings path must wrap at 320px"
+                );
+            }
+        }
+
+        let refresh = ElementHandle::find_by_element_id(app, "ShopPage::refresh-button")
+            .next()
+            .unwrap();
+        assert!(
+            refresh.absolute_position().x + refresh.size().width <= width as f32 + 0.5,
+            "refresh button overflows at {width}x{height}"
+        );
+    }
+
+    let mut text_inputs = 0;
+    let mut buttons = 0;
+    app.root_element().visit_descendants(|element| {
+        match element.accessible_role() {
+            Some(slint::language::AccessibleRole::TextInput) => text_inputs += 1,
+            Some(slint::language::AccessibleRole::Button) => {
+                buttons += 1;
+                let size = element.size();
+                assert!(
+                    size.width >= 44.0 && size.height >= 44.0,
+                    "shop button {} is below the 44px touch target",
+                    element.id().unwrap_or_default()
+                );
+                assert!(
+                    element
+                        .accessible_label()
+                        .is_some_and(|label| !label.is_empty()),
+                    "shop button must have an accessible label"
+                );
+            }
+            _ => {}
+        }
+        std::ops::ControlFlow::<(), ()>::Continue(())
+    });
+    assert_eq!(text_inputs, 0, "Wave 6 must not add an on-screen keyboard");
+    assert!(
+        buttons >= 3,
+        "expected refresh, disable, and remove buttons"
+    );
+
+    let mut without_secrets = entry_view(true, true, false, "");
+    without_secrets.config_keys =
+        "Settings: stop_id (required, string); limit (optional, integer)".into();
+    without_secrets.secret_path = "".into();
+    app.set_shop_installed(Rc::new(slint::VecModel::from(vec![without_secrets])).into());
+    slint::platform::update_timers_and_animations();
+    assert!(
+        ElementHandle::find_by_element_id(app, "ShopEntryCard::secret-path")
+            .next()
+            .is_none(),
+        "extensions without secret keys must not show a secret file"
+    );
+}
+
 #[test]
-fn shop_page_navigation_actions_offline_and_error_states() {
+fn shop_page_actions_states_and_read_only_configuration_guidance() {
     i_slint_backend_testing::init_integration_test_with_system_time();
 
     slint::spawn_local(async move {
@@ -164,6 +311,8 @@ fn shop_page_navigation_actions_offline_and_error_states() {
                 .next()
                 .is_some()
         );
+
+        assert_configuration_guidance(&app).await;
 
         slint::quit_event_loop().unwrap();
     })

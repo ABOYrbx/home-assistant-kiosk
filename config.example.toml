@@ -206,10 +206,15 @@ max_script_operations = 1000000
 # created with mode 0700; installed.json is mode 0600).
 store_path = "/var/lib/ha-kiosk/extensions"
 
-# Per-extension settings go here. The shop shows the required keys.
+# Per-extension non-secret settings go in the active TOML file. The Shop page
+# shows each required/optional key, its type, the exact file path, and table.
 # [extensions.settings."org.example.bus-departures"]
 # stop_id = "REPLACE_ME"
 # limit = 6
 
-# Secret fields for an extension live in a separate file with mode 0600:
+# Fields declared as type = "secret" belong only in a per-extension file with
+# mode 0600. The Shop page shows the exact path but never an editor or value.
 # /etc/ha-kiosk/extensions/<extension-id>.secret.toml
+# api_key = "REPLACE_ME"
+#
+# Restart the kiosk after editing settings or secrets.

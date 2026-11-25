@@ -16,10 +16,19 @@ impl UiBridge {
 }
 
 pub fn shop_entry_view(entry: &ShopEntry, view: &ShopView) -> ShopEntryView {
-    let secret_path = entry
-        .secret_file(Path::new(&view.secret_dir))
-        .display()
-        .to_string();
+    let secret_path = if !entry.config_schema_available
+        || entry
+            .config_schema
+            .iter()
+            .any(|field| field.kind == "secret")
+    {
+        entry
+            .secret_file(Path::new(&view.secret_dir))
+            .display()
+            .to_string()
+    } else {
+        String::new()
+    };
     ShopEntryView {
         id: entry.id.clone().into(),
         name: entry.name.clone().into(),
@@ -30,7 +39,8 @@ pub fn shop_entry_view(entry: &ShopEntry, view: &ShopView) -> ShopEntryView {
         status: entry.status().label().into(),
         permissions: entry.permissions_summary().into(),
         config_keys: entry.config_keys_summary().into(),
-        config_path: format!("{} {}", view.config_path, entry.settings_table()).into(),
+        config_path: view.config_path.clone().into(),
+        config_table: entry.settings_table().into(),
         secret_path: secret_path.into(),
         error: entry.error.clone().unwrap_or_default().into(),
         installed: entry.is_installed(),

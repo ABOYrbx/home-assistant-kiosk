@@ -2,12 +2,12 @@
 
 use ha_kiosk::extensions::{
     CatalogCache, CatalogClient, CatalogEntry, CatalogError, CatalogFetcher, CatalogIndex,
-    CatalogPolicy, ExtensionKind, ExtensionManifest, ExtensionStore, FetchError, PackageError,
-    SignatureError, SignatureStatus, StoreError, extract_package, extract_package_with_limit,
-    sha256_hex, verify_package, verify_signature, verify_unsigned,
+    CatalogPolicy, ExtensionKind, ExtensionManager, ExtensionManifest, ExtensionStore, FetchError,
+    ManagerOptions, PackageError, SignatureError, SignatureStatus, StoreError, extract_package,
+    extract_package_with_limit, sha256_hex, verify_package, verify_signature, verify_unsigned,
 };
 use semver::Version;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -115,21 +115,21 @@ fn gzip(data: &[u8]) -> Vec<u8> {
     encoder.finish().unwrap()
 }
 
-fn build_package(id: &str, version: &str) -> Vec<u8> {
+fn build_package_from_manifest(manifest: &str) -> Vec<u8> {
     let mut tar_bytes = Vec::new();
     {
         let mut builder = tar::Builder::new(&mut tar_bytes);
-        append(
-            &mut builder,
-            "manifest.toml",
-            manifest_toml(id, version).as_bytes(),
-        );
+        append(&mut builder, "manifest.toml", manifest.as_bytes());
         append(&mut builder, "main.rhai", b"fn refresh(config) { 42 }");
         append(&mut builder, "README.md", b"# Bus Departures");
         append(&mut builder, "LICENSE", b"MIT");
         builder.finish().unwrap();
     }
     gzip(&tar_bytes)
+}
+
+fn build_package(id: &str, version: &str) -> Vec<u8> {
+    build_package_from_manifest(&manifest_toml(id, version))
 }
 
 fn catalog_entry(id: &str, version: &str, package: &[u8]) -> serde_json::Value {
@@ -720,6 +720,128 @@ fn entry_and_package(id: &str, version: &str) -> (CatalogEntry, Vec<u8>) {
     let package = build_package(id, version);
     let index = index_json(vec![catalog_entry(id, version, &package)]);
     (entry_from_index(&index), package)
+}
+
+fn configured_entry_and_package() -> (CatalogEntry, Vec<u8>) {
+    let manifest = format!(
+        "{}{}",
+        manifest_toml(ID, "1.0.0"),
+        r#"
+[[config_schema]]
+key = "stop_id"
+label = "Stop ID"
+type = "string"
+required = true
+
+[[config_schema]]
+key = "api_key"
+label = "API key"
+type = "secret"
+required = true
+"#
+    );
+    let package = build_package_from_manifest(&manifest);
+    let entry = serde_json::json!({
+        "id": ID,
+        "name": "Bus Departures",
+        "version": "1.0.0",
+        "api_version": 1,
+        "min_app_version": "0.6.0",
+        "description": "Shows upcoming bus departures.",
+        "author": "Example Author",
+        "license": "MIT",
+        "provides": "departures",
+        "permissions": {
+            "http_hosts": ["api.example.com"],
+            "ha_entities": ["sensor.example"]
+        },
+        "config_schema": [
+            {"key": "stop_id", "label": "Stop ID", "type": "string", "required": true},
+            {"key": "api_key", "label": "API key", "type": "secret", "required": true}
+        ],
+        "package_url": PACKAGE_URL,
+        "sha256": sha256_hex(&package),
+        "size_bytes": package.len(),
+    });
+    (entry_from_index(&index_json(vec![entry])), package)
+}
+
+fn manager_options(root: &Path) -> ManagerOptions {
+    ManagerOptions {
+        app_version: app_version(),
+        catalog_url: None,
+        public_keys: Vec::new(),
+        allow_unsigned: false,
+        dev_mode: false,
+        max_catalog_bytes: 2 * 1024 * 1024,
+        max_package_bytes: MAX_PACKAGE_BYTES,
+        store_path: root.to_path_buf(),
+        secret_dir: root.join("secrets"),
+        settings: BTreeMap::new(),
+    }
+}
+
+#[test]
+fn installed_shop_entry_keeps_configuration_keys_without_a_catalog() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let (entry, package) = configured_entry_and_package();
+    {
+        let mut store = ExtensionStore::open(&root).unwrap();
+        store
+            .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+            .unwrap();
+    }
+
+    let mut manager = ExtensionManager::new(
+        manager_options(&root),
+        FakeFetcher::default(),
+        FakeFetcher::default(),
+    )
+    .unwrap();
+    let entries = manager.shop_entries();
+    assert_eq!(entries.len(), 1);
+    let installed = &entries[0];
+    assert!(installed.config_schema_available);
+    assert_eq!(installed.name, "Bus Departures");
+    assert_eq!(
+        installed.config_keys_summary(),
+        "Settings: stop_id (required, string)\nSecrets: api_key (required, secret)"
+    );
+    assert!(!installed.available);
+    assert_eq!(installed.installed_version.as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn tampered_installed_manifest_does_not_publish_configuration_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let (entry, package) = configured_entry_and_package();
+    let version = Version::parse("1.0.0").unwrap();
+    {
+        let mut store = ExtensionStore::open(&root).unwrap();
+        store
+            .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+            .unwrap();
+        let manifest_path = store.extension_dir(ID, &version).join("manifest.toml");
+        let mut text = fs::read_to_string(&manifest_path).unwrap();
+        text.push_str("\n# local tampering\n");
+        fs::write(manifest_path, text).unwrap();
+    }
+
+    let mut manager = ExtensionManager::new(
+        manager_options(&root),
+        FakeFetcher::default(),
+        FakeFetcher::default(),
+    )
+    .unwrap();
+    let entries = manager.shop_entries();
+    assert_eq!(entries.len(), 1);
+    assert!(!entries[0].config_schema_available);
+    assert_eq!(
+        entries[0].config_keys_summary(),
+        "Configuration keys unavailable (installed manifest could not be read)"
+    );
 }
 
 #[test]

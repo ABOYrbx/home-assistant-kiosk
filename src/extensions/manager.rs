@@ -17,7 +17,7 @@ use super::host::{EntitySnapshot, ExtensionError, ExtensionHost, HostConfig};
 use super::manifest::Manifest;
 use super::output::ExtensionOutput;
 use super::runner::ExtensionRunner;
-use super::shop::{ConfigField, ExtensionPermissions, InstalledExtension, ShopEntry};
+use super::shop::{ConfigField, ExtensionPermissions, ShopEntry};
 use super::store::{ExtensionStore, StoreError};
 
 /// Everything the manager needs from `[extensions]`.
@@ -160,35 +160,18 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             }
             // An installed extension stays available when the catalog is
             // offline or the entry was removed from the catalog.
-            let mut entry = placeholder_shop_entry(&record.id);
-            entry.version = record.version.to_string();
-            entry.installed_version = Some(record.version.to_string());
-            entry.enabled = record.enabled;
-            entry.configured = self.configured(&record.id);
-            entry.error = self
-                .health
-                .get(&record.id)
-                .and_then(|health| health.last_error.clone());
-            entries.push(entry);
+            entries.push(self.installed_shop_entry(record));
         }
         entries
     }
 
-    /// Installed snapshot for the shop view.
-    pub fn installed_entries(&self) -> Vec<InstalledExtension> {
+    /// Installed shop entries with metadata from their verified local manifests.
+    /// This keeps configuration guidance available when the catalog is offline.
+    pub fn installed_shop_entries(&self) -> Vec<ShopEntry> {
         self.store
             .installed()
             .iter()
-            .map(|record| InstalledExtension {
-                id: record.id.clone(),
-                version: record.version.to_string(),
-                enabled: record.enabled,
-                configured: self.configured(&record.id),
-                error: self
-                    .health
-                    .get(&record.id)
-                    .and_then(|health| health.last_error.clone()),
-            })
+            .map(|record| self.installed_shop_entry(record))
             .collect()
     }
 
@@ -324,6 +307,55 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             .cloned()
     }
 
+    fn installed_shop_entry(&self, record: &super::store::InstalledExtension) -> ShopEntry {
+        let mut entry = placeholder_shop_entry(&record.id);
+        if let Some(manifest) = self.installed_manifest(record) {
+            entry.name = manifest.name;
+            entry.version = manifest.version.to_string();
+            entry.author = manifest.author;
+            entry.license = manifest.license;
+            entry.description = manifest.description;
+            entry.provides = kind_name(manifest.provides);
+            entry.permissions = ExtensionPermissions {
+                http_hosts: manifest.permissions.http_hosts,
+                ha_entities: manifest.permissions.ha_entities,
+            };
+            entry.config_schema = manifest
+                .config_schema
+                .iter()
+                .map(|field| ConfigField {
+                    key: field.key.clone(),
+                    label: field.label.clone(),
+                    kind: field_type_name(field.field_type),
+                    required: field.required,
+                })
+                .collect();
+            entry.config_schema_available = true;
+        }
+        entry.installed_version = Some(record.version.to_string());
+        entry.enabled = record.enabled;
+        entry.configured = self.configured(&record.id);
+        entry.error = self
+            .health
+            .get(&record.id)
+            .and_then(|health| health.last_error.clone());
+        entry
+    }
+
+    fn installed_manifest(
+        &self,
+        record: &super::store::InstalledExtension,
+    ) -> Option<ExtensionManifest> {
+        let directory = self.store.extension_dir(&record.id, &record.version);
+        let bytes = super::package::manifest_bytes(&directory).ok()?;
+        if super::package::sha256_hex(&bytes) != record.manifest_sha256 {
+            return None;
+        }
+        let manifest = super::package::load_manifest(&directory).ok()?;
+        manifest.validate(&self.options.app_version).ok()?;
+        Some(manifest)
+    }
+
     fn to_shop_entry(
         &self,
         entry: &CatalogEntry,
@@ -351,6 +383,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                     required: field.required,
                 })
                 .collect(),
+            config_schema_available: true,
             installed_version: None,
             enabled: false,
             configured: false,
@@ -420,6 +453,7 @@ fn placeholder_shop_entry(id: &str) -> ShopEntry {
         provides: String::new(),
         permissions: ExtensionPermissions::default(),
         config_schema: Vec::new(),
+        config_schema_available: false,
         installed_version: None,
         enabled: false,
         configured: false,

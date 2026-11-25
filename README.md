@@ -36,7 +36,7 @@ Home Assistant 2023.9 or newer is required (`subscribe_entities` and `weather.ge
 
 Wave 6 adds a Shop page backed by a separate, public GitHub catalog. Community extensions can add data widgets such as bus departures without shipping a new kiosk binary.
 
-The trust boundary is deliberately small: a Minisign-signed catalog, SHA-256-checked packages, and sandboxed Rhai scripts with declared network/HA permissions and hard resource limits. Extensions cannot ship native code, arbitrary Slint UI, filesystem access, or Home Assistant service calls. See [`docs/extensions.md`](docs/extensions.md) and [`docs/extension-catalog.md`](docs/extension-catalog.md).
+The trust boundary is deliberately small: a Minisign-signed catalog, SHA-256-checked packages, and sandboxed Rhai scripts with declared network/HA permissions and hard resource limits. Extensions cannot ship native code, arbitrary Slint UI, filesystem access, or Home Assistant service calls. The Shop is read-only: it shows typed configuration keys and the exact TOML/secret file paths to edit directly, then restart the kiosk. See [`docs/extensions.md`](docs/extensions.md) and [`docs/extension-catalog.md`](docs/extension-catalog.md).
 
 ## Supported hardware
 
@@ -308,9 +308,15 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.overview.title` | string | `"Home"` | Overview page heading. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the Overview hero light. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity for the hero control. |
+| `widgets.hero_light.name` | string | `""` | Optional display name; empty uses the entity name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Lower colour-temperature limit. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Upper colour-temperature limit. |
 | `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
 | `widgets.weather.entity` | string | unset | A `weather.*` entity. |
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
@@ -342,10 +348,11 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.allow_unsigned` | bool | `false` | Development only. Never enable in production. |
 | `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs. |
 | `extensions.refresh_hours` | integer | `24` | Catalog refresh interval. |
+| `extensions.store_path` | string | `"/var/lib/ha-kiosk/extensions"` | Absolute store root for installed extensions and the verified catalog cache. |
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
-| `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
+| `extensions.settings.<id>` | table | unset | Non-secret per-extension settings declared by the extension. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
 
@@ -383,9 +390,15 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.overview.title` | string | `"Home"` | Overview page heading. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the Overview hero light. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity for the hero control. |
+| `widgets.hero_light.name` | string | `""` | Optional display name; empty uses the entity name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Lower colour-temperature limit. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Upper colour-temperature limit. |
 | `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
 | `widgets.weather.entity` | string | unset | A `weather.*` entity. |
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
@@ -417,10 +430,11 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `extensions.allow_unsigned` | bool | `false` | Development only. Never enable in production. |
 | `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs. |
 | `extensions.refresh_hours` | integer | `24` | Catalog refresh interval. |
+| `extensions.store_path` | string | `"/var/lib/ha-kiosk/extensions"` | Absolute store root for installed extensions and the verified catalog cache. |
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
-| `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
+| `extensions.settings.<id>` | table | unset | Non-secret per-extension settings declared by the extension. |
 
 The full deployment guide, including seat models, hardening, upgrade, rollback,
 logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).

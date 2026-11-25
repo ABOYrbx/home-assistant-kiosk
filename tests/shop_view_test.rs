@@ -31,6 +31,7 @@ fn entry(id: &str, name: &str, version: &str) -> ShopEntry {
                 required: false,
             },
         ],
+        config_schema_available: true,
         installed_version: None,
         enabled: false,
         configured: false,
@@ -47,6 +48,49 @@ fn view_with_catalog() -> ShopView {
         "1.0.0",
     )]);
     view
+}
+
+#[test]
+fn installed_snapshot_supplies_offline_configuration_metadata() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    let mut installed = entry("org.example.bus-departures", "Bus Departures", "1.0.0");
+    installed.installed_version = Some("1.0.0".to_string());
+    installed.enabled = true;
+    installed.available = false;
+
+    view.set_installed_entries(vec![installed]);
+
+    let entry = view.entry("org.example.bus-departures").unwrap();
+    assert!(entry.is_installed());
+    assert!(entry.config_schema_available);
+    assert_eq!(
+        entry.config_keys_summary(),
+        "Settings: stop_id (required, string); limit (optional, integer)"
+    );
+}
+
+#[test]
+fn installed_snapshot_preserves_catalog_metadata_and_removes_stale_installs() {
+    let mut view = view_with_catalog();
+    let id = "org.example.bus-departures";
+    let mut snapshot = entry(id, "Local manifest name", "1.0.0");
+    snapshot.installed_version = Some("1.0.0".to_string());
+    snapshot.enabled = true;
+    snapshot.available = false;
+    snapshot.config_schema.clear();
+    snapshot.config_schema_available = false;
+
+    view.set_installed_entries(vec![snapshot]);
+    let entry = view.entry(id).unwrap();
+    assert!(entry.is_installed());
+    assert_eq!(entry.name, "Bus Departures");
+    assert!(entry.config_schema_available);
+    assert_eq!(entry.config_schema.len(), 2);
+
+    view.set_installed_entries(Vec::new());
+    let entry = view.entry(id).unwrap();
+    assert!(!entry.is_installed());
+    assert!(entry.available);
 }
 
 #[test]
@@ -263,7 +307,10 @@ fn permissions_and_config_keys_are_described_without_inventing_values() {
         entry.permissions_summary(),
         "Network: api.example.com; Home Assistant: sensor.example"
     );
-    assert_eq!(entry.config_keys_summary(), "stop_id (required), limit");
+    assert_eq!(
+        entry.config_keys_summary(),
+        "Settings: stop_id (required, string); limit (optional, integer)"
+    );
 
     let empty = ShopEntry {
         permissions: ExtensionPermissions::default(),
@@ -275,6 +322,39 @@ fn permissions_and_config_keys_are_described_without_inventing_values() {
         "No network or Home Assistant access"
     );
     assert_eq!(empty.config_keys_summary(), "No configuration required");
+}
+
+#[test]
+fn configuration_keys_are_grouped_by_file_with_types_and_requirements() {
+    let view = view_with_catalog();
+    let mut entry = view.entry("org.example.bus-departures").unwrap().clone();
+    entry.config_schema.push(ConfigField {
+        key: "api_key".to_string(),
+        label: "API key".to_string(),
+        kind: "secret".to_string(),
+        required: true,
+    });
+
+    assert_eq!(
+        entry.config_keys_summary(),
+        "Settings: stop_id (required, string); limit (optional, integer)\n\
+         Secrets: api_key (required, secret)"
+    );
+}
+
+#[test]
+fn unavailable_config_schema_is_not_reported_as_no_configuration() {
+    let view = view_with_catalog();
+    let mut value =
+        serde_json::to_value(view.entry("org.example.bus-departures").unwrap()).unwrap();
+    value["config_schema"] = serde_json::json!([]);
+    value["config_schema_available"] = serde_json::json!(false);
+    let entry: ShopEntry = serde_json::from_value(value).unwrap();
+
+    assert_eq!(
+        entry.config_keys_summary(),
+        "Configuration keys unavailable (installed manifest could not be read)"
+    );
 }
 
 #[test]
@@ -311,8 +391,14 @@ fn extension_errors_are_collected_for_the_status_page() {
 #[test]
 fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
     let view = view_with_catalog();
-    let entry = view.entry("org.example.bus-departures").unwrap();
-    let ui = ha_kiosk::ui::bridge::shop_entry_view(entry, &view);
+    let mut entry = view.entry("org.example.bus-departures").unwrap().clone();
+    entry.config_schema.push(ConfigField {
+        key: "api_key".to_string(),
+        label: "API key".to_string(),
+        kind: "secret".to_string(),
+        required: true,
+    });
+    let ui = ha_kiosk::ui::bridge::shop_entry_view(&entry, &view);
 
     assert_eq!(ui.id.as_str(), "org.example.bus-departures");
     assert_eq!(ui.name.as_str(), "Bus Departures");
@@ -322,19 +408,45 @@ fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
         ui.permissions.as_str(),
         "Network: api.example.com; Home Assistant: sensor.example"
     );
-    assert_eq!(ui.config_keys.as_str(), "stop_id (required), limit");
-    assert!(
-        ui.config_path
-            .as_str()
-            .contains("[extensions.settings.\"org.example.bus-departures\"]")
+    assert_eq!(
+        ui.config_keys.as_str(),
+        "Settings: stop_id (required, string); limit (optional, integer)\n\
+         Secrets: api_key (required, secret)"
     );
-    assert!(
-        ui.secret_path
-            .as_str()
-            .ends_with("org.example.bus-departures.secret.toml")
+    assert_eq!(ui.config_path.as_str(), "/etc/ha-kiosk/config.toml");
+    assert_eq!(
+        ui.config_table.as_str(),
+        "[extensions.settings.\"org.example.bus-departures\"]"
+    );
+    assert_eq!(
+        ui.secret_path.as_str(),
+        "/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml"
     );
     assert!(!ui.installed);
     assert!(ui.available);
+}
+
+#[test]
+fn bridge_omits_the_secret_path_when_no_secret_key_is_declared() {
+    let view = view_with_catalog();
+    let entry = view.entry("org.example.bus-departures").unwrap();
+    let ui = ha_kiosk::ui::bridge::shop_entry_view(entry, &view);
+
+    assert!(ui.secret_path.is_empty());
+}
+
+#[test]
+fn bridge_shows_the_secret_path_when_the_installed_schema_is_unavailable() {
+    let view = view_with_catalog();
+    let mut entry = view.entry("org.example.bus-departures").unwrap().clone();
+    entry.config_schema.clear();
+    entry.config_schema_available = false;
+    let ui = ha_kiosk::ui::bridge::shop_entry_view(&entry, &view);
+
+    assert_eq!(
+        ui.secret_path.as_str(),
+        "/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml"
+    );
 }
 
 #[test]

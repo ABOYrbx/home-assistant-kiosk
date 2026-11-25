@@ -228,7 +228,9 @@ impl AppController {
                 {
                     let mut shop = self.shop.borrow_mut();
                     match shop_event {
-                        ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
+                        ShopEvent::InstalledLoaded(installed) => {
+                            shop.set_installed_entries(installed)
+                        }
                         ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
                         ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
                         ShopEvent::ActionResult { id, action, result } => {
@@ -354,7 +356,7 @@ fn push_shop(window: &MainWindow, shop: &ShopView) {
 
 fn apply_shop_event(shop: &mut ShopView, event: ShopEvent) {
     match event {
-        ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
+        ShopEvent::InstalledLoaded(installed) => shop.set_installed_entries(installed),
         ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
         ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
         ShopEvent::ActionResult { id, action, result } => {
@@ -418,14 +420,14 @@ fn run_shop_worker(
                 Ok(entries) => {
                     catalog_online = true;
                     let _ = events.send(ShopEvent::CatalogLoaded(entries));
-                    let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
                 }
                 Err(error) => {
                     catalog_online = false;
                     let _ = events.send(ShopEvent::CatalogOffline {
                         reason: error.to_string(),
                     });
-                    let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
+                    let _ =
+                        events.send(ShopEvent::InstalledLoaded(manager.installed_shop_entries()));
                 }
             },
             ShopTask::Install(id) => {
@@ -474,8 +476,9 @@ fn refresh_after_action<
     events: &std_mpsc::Sender<ShopEvent>,
     catalog_online: bool,
 ) {
-    let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
+    } else {
+        let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_shop_entries()));
     }
 }

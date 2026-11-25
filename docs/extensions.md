@@ -28,12 +28,12 @@ An extension cannot:
 The Shop is a fifth page. It appears only when `extensions.enabled = true`; with the default configuration the kiosk keeps four pages.
 
 - **Installed** lists extensions recorded in `installed.json`, including ones that are no longer in the catalog.
-- **Available** lists catalog entries that are not installed. Each card shows the name, version, author, license, description, status, declared permissions, configuration keys, and the exact settings and secret file paths.
+- **Available** lists catalog entries that are not installed. Each card shows the name, version, author, license, description, status, declared permissions, typed configuration keys, and the exact settings file, TOML table, and secret file paths.
 - **Actions:** Install, Update, Remove, and Enable/Disable. Install opens a first-install trust confirmation that repeats the warning and permissions; nothing is installed until the user confirms. Update is offered only when the catalog version differs from the installed version.
 - **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success.
-- **Offline:** installed extensions stay usable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
+- **Offline:** installed extensions stay usable. Their verified local manifests still provide configuration keys and metadata when the catalog is unavailable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
 - **Errors** are also collected on the Status page.
-- **No on-screen keyboard:** the page shows the configuration keys and the exact TOML and secret file paths. Edit those files directly.
+- **No on-screen keyboard:** the page is read-only. It shows required and optional keys, their types, and the exact files to edit. Edit those files directly and restart the kiosk.
 
 The shop view model is backed by `extensions::manager`. The manager refreshes the signed catalog, downloads and verifies packages, drives the store, and runs installed scripts only on a background thread. The Shop page never blocks the UI thread and never reports an action as successful before the store confirms it.
 
@@ -99,7 +99,7 @@ Rules:
 - `license` is an SPDX identifier. The package must include the license text.
 - Do not put secrets in the manifest. Secret fields use a separate file.
 
-Config field types: `string`, `integer`, `boolean`, `url`, `secret`, `entity_id`, and `select` (with `options`). The shop displays the required keys and the file path; it does not provide an on-screen keyboard.
+Config field types: `string`, `integer`, `boolean`, `url`, `secret`, `entity_id`, and `select` (with `options`). The shop groups keys into **Settings** and **Secrets**, marks each key as required or optional, and shows its type. It does not provide an on-screen keyboard.
 
 ## Script API
 
@@ -213,7 +213,7 @@ The host does not render HTML, Markdown, images, or custom controls. Long string
 
 ## Configuration and secrets
 
-Non-secret settings:
+Non-secret settings live in the active kiosk TOML file. The default is `/etc/ha-kiosk/config.toml`; a `--config <path>` override is reflected exactly in the Shop page.
 
 ```toml
 [extensions.settings."org.example.bus-departures"]
@@ -221,13 +221,16 @@ stop_id = "REPLACE_ME"
 limit = 6
 ```
 
-Secret settings:
+Fields whose manifest type is `secret` belong only in the per-extension secret file:
 
-```text
-/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml
+```toml
+# /etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml
+api_key = "REPLACE_ME"
 ```
 
-The secret file is mode `0600` and owned by the service user. The host injects only the declared secret keys into `config`; it never logs them.
+The secret file is mode `0600` and owned by the service user. The host injects only the declared secret keys into `config`; it never logs them. The Shop page shows the exact settings file, `[extensions.settings."<id>"]` table, and per-extension secret file path. It never displays secret values and provides no editor. Restart the kiosk after editing either file.
+
+When the catalog is offline, the shop reads each installed package's manifest and verifies its recorded SHA-256 before showing its configuration keys. If that manifest is missing, unreadable, or locally modified, the card says that configuration keys are unavailable instead of claiming that no configuration is required.
 
 ## Packaging
 
