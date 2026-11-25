@@ -164,6 +164,36 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 - Release profile: `opt-level = "s"`, LTO, `strip`, `panic = "abort"`. Measure before changing these.
 - Performance records live in [`docs/performance.md`](docs/performance.md). Check a device record with `python3 scripts/perf-budget.py <record.json>`; never replace a measured value with an estimate.
 
+### Where builds and tests run
+
+Heavy Rust work (clippy, tests, the kiosk release build) runs on the repository's
+self-hosted Debian runner (`debian-kiosk-ci`, labels `self-hosted`, `debian`), not
+on the contributor's machine. Local builds are a last resort, for interactive work
+such as `cargo run --features desktop`.
+
+- Before committing, run only `cargo fmt --check` locally; it is fast.
+- For everything heavier, push the branch and let the runner verify it:
+
+  ```bash
+  git push -u origin <branch>
+  gh workflow run ci.yml --ref <branch>
+  gh run list --workflow ci.yml --branch <branch> --limit 1
+  gh run watch <run-id> --exit-status
+  ```
+
+  A branch push on its own does not start `ci`: it runs on pushes to `main`, on
+  pull requests, and on manual dispatch. Opening a same-repository pull request
+  also triggers it without the dispatch command.
+- Read a failure with `gh run view <run-id> --log-failed`, fix it, push again. Do
+  not call a change tested until the runner run is green.
+- Never run ad-hoc builds on the server as root over SSH. The dedicated
+  `ghrunner` account (no sudo, no login shell) is the only CI identity.
+- The runner account has no sudo. System libraries must already exist on the host;
+  ask the owner before adding one. The `Install system dependencies` CI step is
+  restricted to GitHub-hosted runners.
+- The repository is public: never point a workflow that runs on fork pull requests
+  at the self-hosted runner. The fork guard in `ci.yml` is load-bearing.
+
 ## 6. Architecture rules
 
 1. **Home Assistant-first.** Weather, media, calendar, tiles, and departures come from Home Assistant entities or actions. No direct weather, transit, or calendar provider integrations in v1.
