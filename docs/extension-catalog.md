@@ -13,6 +13,7 @@ home-assistant-kiosk-extensions/
 ├── README.md
 ├── index.json
 ├── index.json.minisig
+├── catalog.pub
 ├── schema/
 │   ├── index.schema.json
 │   └── manifest.schema.json
@@ -23,9 +24,14 @@ home-assistant-kiosk-extensions/
 │       ├── README.md
 │       └── LICENSE
 ├── scripts/
+│   ├── validate.py
 │   ├── validate.sh
+│   ├── package.py
 │   └── package.sh
-└── .github/workflows/validate.yml
+├── tests/
+└── .github/
+    ├── CODEOWNERS
+    └── workflows/validate.yml
 ```
 
 - `index.json` is generated from the extension manifests and release assets.

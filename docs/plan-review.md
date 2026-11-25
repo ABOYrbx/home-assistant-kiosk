@@ -53,7 +53,7 @@ Key decisions:
 - **No ambient network.** `http_get_json` is GET-only, HTTPS-only, host-allowlisted, credential-free, timeout-bound, size-capped, and does not follow cross-host redirects.
 - **Hard limits.** Rhai operations/strings/arrays/maps/call depth, wall clock, package and decompressed size, and item count.
 - **Lifecycle.** Atomic install, one-version rollback, offline installed extensions, no unsigned production catalog.
-- **Separate repository.** `home-assistant-kiosk-extensions` is a companion project; its visibility and signing-key custody are open decisions.
+- **Separate repository.** [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) is a public companion project. `ABOYrbx` holds the production Minisign private key offline; the initial empty index uses an ephemeral bootstrap key whose secret key is destroyed.
 
 New risks accepted by this wave: a malicious extension that stays inside its declared permissions can still show misleading data; a compromised signing key can publish a malicious package; Rhai is a smaller sandbox than WASM. Mitigations are permissions review, signed index, limits, rollback, and the ability to remove a catalog entry; they do not make community code trustworthy.
 
@@ -147,7 +147,7 @@ These points from the original plan were checked and kept:
 4. **Departures contract:** Is a Home Assistant sensor attribute acceptable for v1, or is a configurable generic HTTP JSON adapter required? The plan recommends the sensor contract for v1.
 5. **UI design:** The minimal prototype is adopted; the Slint port and the 800 × 480 compact layout are tracked in Wave 3.6. Energy and Schedule remain post-v1.
 6. **Localization:** English is the project and UI language in v1. A second language is future work.
-7. **Companion catalog:** Should `home-assistant-kiosk-extensions` be public from the start, and who holds the Minisign private key? A community shop needs a public catalog.
+7. **Companion catalog:** Resolved: `ABOYrbx/home-assistant-kiosk-extensions` is public from the start, and `ABOYrbx` holds the production Minisign private key on encrypted offline storage.
 8. **Wave 6 scope:** The shop is planned as post-v1. If it must ship in v1, the release gate and hardware budget need to be revisited.
 9. **Extension service access:** v1 extensions are read-only for Home Assistant. Service calls require a separate permission and review model.
 
