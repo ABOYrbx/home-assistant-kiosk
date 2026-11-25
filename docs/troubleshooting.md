@@ -35,6 +35,8 @@ Record these facts in any bug report:
 
 ## Build and cross-compilation
 
+Use `scripts/build-all.sh` for release artifacts. It selects the kiosk feature set, passes `--locked`, uses the image pinned for the target in `Cross.toml`, and names the artifact with its target. A host-native `cargo build` does not produce a Pi binary.
+
 ### `cross` is missing or Docker is not running
 
 `cross` needs Docker (or Podman with a compatible socket). Check both:
@@ -48,11 +50,24 @@ Install `cross` with `cargo install cross --locked` and start the Docker daemon.
 
 ### The cross image cannot be pulled
 
-The build uses the Slint cross images pinned in `Cross.toml`. A pull failure is usually a registry outage, an expired token, or a digest that no longer exists. Retry once, then check the pinned digest. Do not replace a pinned digest with a floating tag to work around an outage: that makes the build unreproducible. Use the native-build fallback below until the registry recovers.
+The build uses the Slint cross images pinned in `Cross.toml`. A pull failure is usually a registry outage, an expired token, or a digest that no longer exists. Retry once, then check the pinned digest. Do not replace a pinned digest with a floating tag to work around an outage: that makes the build unreproducible. Use the [native-build fallback](release-builds.md#native-build-fallback-on-the-pi) until the registry recovers.
 
-### The native build cannot find C libraries
+### The binary cannot execute on the Pi
 
-A native build needs the Slint and seat/libinput development packages. On Debian or Raspberry Pi OS:
+`Exec format error` or `cannot execute binary file` means the artifact architecture does not match the device. Check both sides:
+
+```bash
+file dist/ha-kiosk-<version>-<target>
+uname -m
+```
+
+Use `aarch64-unknown-linux-gnu` for a 64-bit Pi OS (`aarch64`), `armv7-unknown-linux-gnueabihf` for a 32-bit Pi OS (`armv7l`), and `x86_64-unknown-linux-gnu` for `x86_64`. Rebuild with `scripts/build-all.sh`; renaming an artifact does not convert it. If you invoke `cargo build --target` directly, install the matching Rust standard library with `rustup target add <target>` first. `cross` supplies the target toolchain inside its container.
+
+### The cross build cannot find C libraries
+
+A linker or `pkg-config` error naming `fontconfig`, `xkbcommon`, `seat`, `input`, or `udev` belongs to the target sysroot. Check the `[build] pre-build` list in `Cross.toml`; it installs the architecture-qualified development packages inside the container. Rebuild from a clean target directory after changing that list. Installing the packages only on the build host does not fix a target linker error.
+
+A native build needs the same development packages on the device. On Debian or Raspberry Pi OS:
 
 ```bash
 sudo apt install build-essential pkg-config libfontconfig1-dev \
@@ -60,7 +75,7 @@ sudo apt install build-essential pkg-config libfontconfig1-dev \
   libseat-dev libinput-dev libudev-dev
 ```
 
-A `pkg-config` error naming `fontconfig`, `xkbcommon`, or `seat` means the matching `-dev` package is missing. Re-run `cargo build` after installing it.
+Re-run the native build after installing them. On a Pi Zero 2 W, use `CARGO_BUILD_JOBS=1` and provide swap as described in the [release-build guide](release-builds.md#native-build-fallback-on-the-pi).
 
 ### `--all-features` fails on macOS or a non-Linux host
 
@@ -78,7 +93,7 @@ cargo build --release --no-default-features --features kiosk
 
 ### Slint version conflicts
 
-`slint`, `slint-build`, and `i-slint-backend-testing` must all stay on `1.19.x`. A mixed version shows up as a trait or type mismatch between generated UI code and the runtime. Run `cargo update -p slint --precise 1.19.*` only if the whole set moves together, and keep `Cargo.lock` committed.
+`slint`, `slint-build`, and `i-slint-backend-testing` must all stay on the same `1.19.x` release. A mixed version shows up as a trait or type mismatch between generated UI code and the runtime. Update all three requirements and their lockfile entries in one reviewed change; `cargo update --precise` does not accept a `1.19.*` wildcard. Keep `Cargo.lock` committed and verify with `cargo test`.
 
 ### A dependency fails the audit
 
@@ -102,11 +117,18 @@ cat /etc/os-release | grep VERSION_CODENAME
 - Raspberry Pi OS **Bookworm** ships glibc 2.36 and works.
 - Raspberry Pi OS **Bullseye** ships glibc 2.31 and does **not** run cross-built binaries. Build natively on the device instead, or upgrade to Bookworm.
 
-Do not copy a Bullseye `libc` into the image, and do not statically link `glibc`. A native build is the supported fallback.
+Do not copy a Bullseye `libc` into the image, and do not statically link `glibc`. A native build is the supported fallback. `Exec format error` is an architecture problem, not a glibc problem; use the checks under [The binary cannot execute on the Pi](#the-binary-cannot-execute-on-the-pi) first.
 
 ## The display backend does not start
 
-The service can be healthy while the display is not. Look for a message about the backend, DRM, seat, or input in the journal.
+The process can exit cleanly while no window ever appears. Match the journal message to the failing layer before changing the panel configuration:
+
+| Journal message | Meaning | Next step |
+| --- | --- | --- |
+| `SLINT_BACKEND=... is not compiled into this binary` | The selected backend is absent from the build | Rebuild with `--no-default-features --features kiosk` for LinuxKMS or `--features desktop` for X11/Wayland |
+| `no display backend is available` | No explicit backend, DRM device, or windowed display was found | Set `SLINT_BACKEND=linuxkms-software` on a kiosk build, or start a desktop build inside X11/Wayland |
+| DRM, seat, or input permission denied | The backend exists but the service user cannot open it | Check `seatd`, device groups, and the unit environment below |
+| A backend starts but the screen is black | The backend opened; the mode, connector, blanking, or panel may be wrong | Check `SLINT_DRM_OUTPUT`, `SLINT_DRM_MODE`, and the screen-blanking section |
 
 ### LinuxKMS (default)
 
@@ -116,7 +138,7 @@ The service can be healthy while the display is not. Look for a message about th
    systemctl show ha-kiosk -p Environment
    ```
 
-   The default path sets `SLINT_BACKEND=linuxkms-software` and `LIBSEAT_BACKEND=seatd`.
+   For a user service, use `systemctl --user show ha-kiosk -p Environment`. The default system unit sets `SLINT_BACKEND=linuxkms-software` and `LIBSEAT_BACKEND=seatd`.
 
 2. Confirm a DRM device exists and the service user can use it:
 
@@ -125,7 +147,7 @@ The service can be healthy while the display is not. Look for a message about th
    id ha-kiosk
    ```
 
-   The service user needs the `video` and `render` groups, or a working seat. The `seat` group is required when `seatd` grants access.
+   The service user needs the `video`, `render`, and `input` groups for direct device access, and `seat` for the seatd socket. A working seat can grant the device descriptors without root.
 
 3. Confirm the seat manager is running:
 
@@ -133,19 +155,25 @@ The service can be healthy while the display is not. Look for a message about th
    systemctl status seatd --no-pager
    ```
 
-4. If the unit hardening blocks the seat socket, the journal shows a permission error. Relax `ProtectSystem=strict` to `ProtectSystem=full` for this unit and record why in the unit file or the issue. Do not run the kiosk as root to bypass the seat.
+4. If the unit hardening blocks the seat socket, the journal shows a permission error. Relax `ProtectSystem=strict` to `ProtectSystem=full` in a unit drop-in and record why in the deployment notes or issue. Do not run the kiosk as root to bypass the seat.
 
-5. A wrong or unavailable DRM mode leaves a black screen. Select the mode explicitly:
+5. A wrong or unavailable DRM mode leaves a black screen. Select a mode advertised by the connector:
 
    ```bash
    Environment=SLINT_DRM_MODE=800x480
    ```
 
-   For a multi-output device, select the connector with `SLINT_DRM_OUTPUT`, for example `HDMI-A-1`. Use the connector name from `/sys/class/drm/`.
+   For a multi-output device, select the connector with `SLINT_DRM_OUTPUT`, for example `HDMI-A-1`. Use the connector name from `/sys/class/drm/`. See [`kiosk-display.md`](kiosk-display.md#display-selection) for the full display setup.
 
-### X11 fallback
+### X11 and Wayland fallback
 
-The X11 build needs a display and an authorization file, plus a window manager for true fullscreen:
+Build the windowed backend and run it inside a graphical session:
+
+```bash
+cargo build --release --features desktop
+```
+
+X11 needs `DISPLAY` and, when authorization is enabled, `XAUTHORITY`. Wayland needs `WAYLAND_DISPLAY` and the compositor's socket. Both need a window manager or compositor for fullscreen to cover the screen. On X11:
 
 ```bash
 export DISPLAY=:0
@@ -155,35 +183,55 @@ unclutter -idle 0 -root &
 
 - Without a window manager, `set_fullscreen(true)` may not cover panels or the root window. Use a minimal window manager such as `openbox` or `matchbox`.
 - A missing `XAUTHORITY` produces "cannot open display". Point the service environment at the correct file.
+- A system service normally has no graphical session. Use the documented [user-service X11 model](deployment.md#x11-fallback) instead of granting root access.
 - Cursor hiding is a deployment concern. `unclutter` works on X11; a Wayland compositor needs its own setting; the touch-only LinuxKMS path needs no pointer.
 
 ## Touch rotation and calibration
 
 Rotation is a deployment concern, not an application setting alone.
 
-- `display.rotation` in the configuration accepts `0`, `90`, `180`, or `270`. On LinuxKMS it maps to `SLINT_KMS_ROTATION`; the environment variable wins when both are present.
-- Rotating the output does not rotate every touch controller automatically. On X11, map the device to the output or apply a coordinate transformation matrix with `xinput`. On LinuxKMS, libinput normally follows the output transform; if touches are mirrored or offset, the panel reports an unusual axis and needs an explicit calibration.
-- Do not hardcode a calibration matrix in the repository. Record the matrix in the device's local deployment notes and the hardware test record.
-- After a rotation change, restart the service and test all four edges of the screen. A wrong transform makes edge swipes unreachable.
-- If the image is correct but the touch is 180 degrees off, fix the input transform, not the application layout.
+- `display.rotation` accepts `0`, `90`, `180`, or `270`. On LinuxKMS it maps to `SLINT_KMS_ROTATION`; a non-empty environment value wins over the configuration, and `0` leaves the variable unset.
+- `SLINT_KMS_ROTATION` does not rotate an X11 or Wayland desktop. Use `xrandr` or the compositor's output transform for those backends.
+- Rotating the output does not rotate every touch controller automatically. On X11, map the device to the output or apply a coordinate transformation matrix with `xinput`. On LinuxKMS, libinput normally follows the output transform; if touches are mirrored, swapped, or offset, calibrate the touch device.
+
+Find the touch device and its current transform without changing anything:
+
+```bash
+libinput list-devices
+udevadm info --query=property --name=/dev/input/event0 | grep -i matrix
+```
+
+Replace `/dev/input/event0` with the touch controller's event device. Apply a panel-specific libinput calibration matrix through a udev rule or the desktop session; [`kiosk-display.md`](kiosk-display.md#touch-calibration) describes the options. Do not hardcode a calibration matrix in the repository. Record the working values in the device's local deployment notes and hardware test record.
+
+After a rotation change, restart the service and test all four edges and corners of the screen. A wrong transform makes edge swipes unreachable. If the image is correct but the touch is 180 degrees off, fix the input transform, not the application layout.
 
 ## Token and permission problems
 
-Startup validates the token file and the configuration file before connecting.
+The installer creates the configuration and token with mode `0600`, owned by the service user. Startup rejects a token file with group or world permission bits. Keep the configuration at `0600` as a deployment security rule even though the current loader does not reject its mode before parsing.
+
+Verify ownership and mode without displaying the token:
+
+```bash
+stat -c '%a %U:%G %n' /etc/ha-kiosk/config.toml /etc/ha-kiosk/ha_token
+sudo -u ha-kiosk test -r /etc/ha-kiosk/ha_token
+```
+
+The second command must exit successfully. For the X11 user-service model, use that user's name and the paths under its home directory. If the configured paths differ, substitute them in both commands.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Startup rejects the token file as world-readable | Mode is not `0600` | `sudo chmod 0600 /etc/ha-kiosk/ha_token` |
-| Startup rejects the config file | Mode is not `0600` | `sudo chmod 0600 /etc/ha-kiosk/config.toml` |
-| "Permission denied" reading the token | Wrong owner | `sudo chown ha-kiosk:ha-kiosk /etc/ha-kiosk/ha_token` |
+| Token file is world/group-readable | Permission bits are too broad | `sudo chmod 0600 /etc/ha-kiosk/ha_token` |
+| Configuration is group/world-readable | Deployment file mode is unsafe | `sudo chmod 0600 /etc/ha-kiosk/config.toml` |
+| "Permission denied" reading the token | Wrong owner or unreadable parent directory | `sudo chown ha-kiosk:ha-kiosk /etc/ha-kiosk/ha_token`, then check directory access |
+| Token file is empty | The file contains only whitespace | Recreate it with the token and mode `0600`; do not paste the value into a log |
 | "Authentication failed" and no retry | Invalid or revoked token | Create a new long-lived token and restart |
-| Token from the environment is ignored | `HA_TOKEN` overrides the file only when set for the unit | Set it in the unit environment or unset it |
+| A stale environment token wins | Non-empty `HA_TOKEN` overrides `ha.token_file` | Inspect the unit environment and drop-ins, remove the stale value, then restart |
 | Token file not found | Relative path or wrong directory | Use an absolute path in `ha.token_file` |
 
 Rules that catch operators out:
 
-- `ha.token_file` must be absolute. Relative paths are rejected at startup.
-- `HA_TOKEN` overrides `ha.token_file`. A stale value in a shell profile or a unit drop-in causes a confusing authentication failure.
+- `ha.token_file` must be absolute. Relative paths are rejected when the file is used.
+- A non-empty `HA_TOKEN` overrides `ha.token_file`; an empty value falls through to the file. A stale value in a unit drop-in causes a confusing authentication failure.
 - A literal `ha.token` in the configuration is for development only. Do not use it in a service.
 - The token belongs to a Home Assistant user. Prefer a dedicated user that can see only the configured entities and actions. Some actions require an admin user; grant the minimum that the kiosk needs.
 - After an `auth_invalid` response the kiosk stops reconnecting on purpose. It does not hammer Home Assistant with a bad token. Fix the token and restart the service.
@@ -194,7 +242,9 @@ If a token was ever committed, pasted into an issue, or shown in a screenshot, r
 
 ### The version is too old
 
-Home Assistant **2023.9** or newer is required, because the kiosk uses `subscribe_entities` and `weather.get_forecasts`. An older instance fails subscription or forecast calls. Upgrade Home Assistant; the kiosk does not fall back to a global `state_changed` subscription.
+Check the version shown on the kiosk Status page and compare it with **Developer Tools → Info** in Home Assistant. The kiosk reads the version from the `auth_ok` response, so a mismatch means the kiosk is connected to a different instance than the one being inspected.
+
+Home Assistant **2023.9** or newer is required, because the kiosk uses `subscribe_entities` and `weather.get_forecasts`. An older instance can authenticate but reject the subscription or forecast command. Upgrade Home Assistant; the kiosk does not fall back to a global `state_changed` subscription.
 
 ### The instance is behind a path prefix
 

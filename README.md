@@ -308,6 +308,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
@@ -329,6 +330,11 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `widgets.calendar.entities` | array of strings | unset | One or more `calendar.*` entities. |
 | `widgets.calendar.days` | integer | `2` | Number of days to fetch. |
 | `widgets.calendar.refresh_seconds` | integer | `300` | Refresh interval. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the hero light card. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity controlled by the hero card. |
+| `widgets.hero_light.name` | string | unset | Optional display name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Minimum colour temperature. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Maximum colour temperature. |
 | `tiles.columns` | integer | `3` | Grid columns. |
 | `tiles.items[].entity` | string | required | Entity ID for a tile. |
 | `tiles.items[].label` | string | entity name | Tile label. |
@@ -346,6 +352,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Installed extensions and last verified catalog index. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
 
@@ -383,6 +390,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
@@ -404,6 +412,11 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `widgets.calendar.entities` | array of strings | unset | One or more `calendar.*` entities. |
 | `widgets.calendar.days` | integer | `2` | Number of days to fetch. |
 | `widgets.calendar.refresh_seconds` | integer | `300` | Refresh interval. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the hero light card. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity controlled by the hero card. |
+| `widgets.hero_light.name` | string | unset | Optional display name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Minimum colour temperature. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Maximum colour temperature. |
 | `tiles.columns` | integer | `3` | Grid columns. |
 | `tiles.items[].entity` | string | required | Entity ID for a tile. |
 | `tiles.items[].label` | string | entity name | Tile label. |
@@ -421,6 +434,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Installed extensions and last verified catalog index. |
 
 The full deployment guide, including seat models, hardening, upgrade, rollback,
 logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).
