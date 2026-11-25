@@ -429,16 +429,19 @@ fn run_shop_worker(
                 }
             },
             ShopTask::Install(id) => {
-                report_action(&events, &id, ShopAction::Install, manager.install(&id));
+                let result = manager.install(&id);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, ShopAction::Install, result);
             }
             ShopTask::Update(id) => {
-                report_action(&events, &id, ShopAction::Update, manager.update(&id));
+                let result = manager.update(&id);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, ShopAction::Update, result);
             }
             ShopTask::Remove(id) => {
-                report_action(&events, &id, ShopAction::Remove, manager.remove(&id));
+                let result = manager.remove(&id);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, ShopAction::Remove, result);
             }
             ShopTask::SetEnabled(id, enabled) => {
                 let action = if enabled {
@@ -446,8 +449,9 @@ fn run_shop_worker(
                 } else {
                     ShopAction::Disable
                 };
-                report_action(&events, &id, action, manager.set_enabled(&id, enabled));
+                let result = manager.set_enabled(&id, enabled);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, action, result);
             }
         }
     }
@@ -477,5 +481,48 @@ fn refresh_after_action<
     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn worker_refreshes_installed_state_before_reporting_action_failure() {
+        let temp = tempfile::tempdir().unwrap();
+        let options = ManagerOptions {
+            app_version: semver::Version::new(0, 1, 0),
+            catalog_url: None,
+            public_keys: Vec::new(),
+            allow_unsigned: false,
+            dev_mode: false,
+            max_catalog_bytes: 2_097_152,
+            max_package_bytes: 5_242_880,
+            store_path: temp.path().to_path_buf(),
+            secret_dir: temp.path().join("secrets"),
+            settings: Default::default(),
+        };
+        let (tasks, task_receiver) = std_mpsc::channel();
+        let (event_sender, events) = std_mpsc::channel();
+        let worker =
+            std::thread::spawn(move || run_shop_worker(options, task_receiver, event_sender));
+
+        tasks
+            .send(ShopTask::Update("org.example.missing".to_string()))
+            .unwrap();
+        let first = events.recv_timeout(Duration::from_secs(5)).unwrap();
+        let second = events.recv_timeout(Duration::from_secs(5)).unwrap();
+        drop(tasks);
+        worker.join().unwrap();
+
+        assert!(
+            matches!(first, ShopEvent::InstalledLoaded(_)),
+            "the installed snapshot must be applied before the action result"
+        );
+        assert!(
+            matches!(second, ShopEvent::ActionResult { result: Err(_), .. }),
+            "the failed action must be reported after the refreshed snapshot"
+        );
     }
 }

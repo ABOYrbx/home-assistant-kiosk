@@ -70,7 +70,8 @@ async fn long_error_list_scrolls_without_changing_pages() {
     app.set_shop_catalog_online(false);
     app.set_shop_catalog_error("network unreachable".into());
 
-    let last_error = "Extension 12: a long failure reason that wraps across several lines and must remain reachable without covering the page navigation".to_string();
+    let first_error = "Extension 1: a long failure reason that wraps across several lines and must remain reachable without covering the page navigation";
+    let last_error = "Final extension: unique final row".to_string();
     let mut errors: Vec<slint::SharedString> = (1..=12)
         .map(|index| {
             slint::SharedString::from(format!(
@@ -80,6 +81,18 @@ async fn long_error_list_scrolls_without_changing_pages() {
         .collect();
     errors.push(last_error.clone().into());
     app.set_extension_errors(Rc::new(slint::VecModel::from(errors)).into());
+
+    for text in [
+        "Catalog offline",
+        "network unreachable",
+        "Extension errors",
+        first_error,
+    ] {
+        assert!(
+            !matching_text(&app, text).is_empty(),
+            "Status must render {text:?} alongside the other diagnostics"
+        );
+    }
 
     let list = element(&app, "StatusPage::status-list");
     assert_within(&list, "Status error list", 800.0, 480.0);
@@ -98,36 +111,54 @@ async fn long_error_list_scrolls_without_changing_pages() {
         );
     }
 
-    let last_row = matching_text(&app, &last_error)
-        .into_iter()
-        .next()
-        .expect("the final error is rendered");
-    let before = last_row.absolute_position().y;
+    assert!(
+        matching_text(&app, &last_error).is_empty(),
+        "the final row should start outside the visible viewport"
+    );
     let position = list.absolute_position();
     let size = list.size();
+    let viewport_top = position.y;
+    let viewport_bottom = position.y + size.height;
     let center = LogicalPosition::new(
         position.x + size.width / 2.0,
         position.y + size.height / 2.0,
     );
-    list.drag(
-        LogicalPosition::new(center.x, center.y - 180.0),
-        PointerEventButton::Left,
-    )
-    .await;
 
-    let after = matching_text(&app, &last_error)
+    for _ in 0..12 {
+        if let Some(row) = matching_text(&app, &last_error).into_iter().last() {
+            let row_position = row.absolute_position();
+            let row_size = row.size();
+            if row_position.y >= viewport_top - 0.5
+                && row_position.y + row_size.height <= viewport_bottom + 0.5
+            {
+                break;
+            }
+        }
+        list.drag(
+            LogicalPosition::new(center.x, center.y - 140.0),
+            PointerEventButton::Left,
+        )
+        .await;
+    }
+
+    let final_row = matching_text(&app, &last_error)
         .into_iter()
-        .next()
-        .expect("the final error remains rendered")
-        .absolute_position()
-        .y;
+        .last()
+        .expect("the actual final row becomes rendered and reachable");
+    let final_position = final_row.absolute_position();
+    let final_size = final_row.size();
     assert!(
-        after < before,
-        "the error list did not scroll: {before} -> {after}"
+        final_position.y >= viewport_top - 0.5
+            && final_position.y + final_size.height <= viewport_bottom + 0.5,
+        "the actual final row must be reachable: y={} height={} viewport={}..{}",
+        final_position.y,
+        final_size.height,
+        viewport_top,
+        viewport_bottom
     );
     assert_eq!(app.get_current_page(), 3, "scrolling must not change pages");
 
-    for (width, height) in [(1024, 600), (1280, 800), (2048, 1200)] {
+    for (width, height) in [(1024, 600), (1280, 800), (1440, 900), (2048, 1200)] {
         app.window().set_size(PhysicalSize::new(width, height));
         assert_within(
             &element(&app, "StatusPage::status-list"),
@@ -144,6 +175,46 @@ async fn long_error_list_scrolls_without_changing_pages() {
     }
 }
 
+async fn unbroken_diagnostic_tokens_wrap() {
+    let app = ha_kiosk::MainWindow::new().unwrap();
+    app.window().set_size(PhysicalSize::new(800, 480));
+    app.set_current_page(3);
+    app.set_shop_catalog_online(false);
+
+    let catalog_token = "C".repeat(600);
+    let extension_token = "E".repeat(600);
+    app.set_shop_catalog_error(catalog_token.clone().into());
+    app.set_extension_errors(
+        Rc::new(slint::VecModel::from(vec![slint::SharedString::from(
+            extension_token.clone(),
+        )]))
+        .into(),
+    );
+
+    for (label, token) in [
+        ("catalog reason", catalog_token.as_str()),
+        ("extension error", extension_token.as_str()),
+    ] {
+        let row = matching_text(&app, token)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("{label} is rendered"));
+        let position = row.absolute_position();
+        let size = row.size();
+        assert!(
+            size.height > 28.0,
+            "{label} must wrap an unbroken token across multiple lines: height={}",
+            size.height
+        );
+        assert!(
+            position.x >= -0.5 && position.x + size.width <= 800.5,
+            "{label} must stay within the viewport: x={} width={}",
+            position.x,
+            size.width
+        );
+    }
+}
+
 #[test]
 fn status_page_diagnostics_remain_usable_offline() {
     i_slint_backend_testing::init_integration_test_with_system_time();
@@ -151,6 +222,7 @@ fn status_page_diagnostics_remain_usable_offline() {
     slint::spawn_local(async move {
         catalog_offline_diagnostic_recovers().await;
         long_error_list_scrolls_without_changing_pages().await;
+        unbroken_diagnostic_tokens_wrap().await;
         slint::quit_event_loop().unwrap();
     })
     .unwrap();

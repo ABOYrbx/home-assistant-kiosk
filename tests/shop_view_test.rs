@@ -238,6 +238,21 @@ fn offline_catalog_keeps_installed_extensions_usable() {
 }
 
 #[test]
+fn successful_catalog_refresh_clears_the_offline_reason() {
+    let mut view = view_with_catalog();
+    view.mark_catalog_offline("network unreachable");
+
+    view.apply_catalog(vec![entry(
+        "org.example.bus-departures",
+        "Bus Departures",
+        "1.0.0",
+    )]);
+
+    assert!(view.catalog_online);
+    assert!(view.catalog_error.is_none());
+}
+
+#[test]
 fn installed_extension_missing_from_the_catalog_stays_installed() {
     let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
     view.set_installed(vec![InstalledExtension {
