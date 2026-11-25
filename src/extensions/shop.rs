@@ -140,24 +140,33 @@ impl ShopEntry {
             return ExtensionStatus::Error;
         }
         match &self.installed_version {
-            Some(installed) => {
-                if !self.enabled {
-                    ExtensionStatus::Disabled
-                } else if self.available && self.version != *installed {
-                    ExtensionStatus::UpdateAvailable
-                } else {
-                    ExtensionStatus::Installed
-                }
-            }
+            Some(_) if !self.enabled => ExtensionStatus::Disabled,
+            Some(_) if self.has_update() => ExtensionStatus::UpdateAvailable,
+            Some(_) => ExtensionStatus::Installed,
             None => ExtensionStatus::Available,
         }
     }
 
+    /// Whether the verified catalog offers a different version for an
+    /// installed extension. Errors and disabled state do not remove a valid
+    /// update or its retry action.
+    pub fn has_update(&self) -> bool {
+        match &self.installed_version {
+            Some(installed) => self.available && self.version != *installed,
+            None => false,
+        }
+    }
+
     pub fn primary_action(&self) -> Option<ShopAction> {
+        if self.has_update() {
+            return Some(ShopAction::Update);
+        }
         match self.status() {
             ExtensionStatus::Available => Some(ShopAction::Install),
-            ExtensionStatus::UpdateAvailable => Some(ShopAction::Update),
-            ExtensionStatus::Installed | ExtensionStatus::Disabled | ExtensionStatus::Error => None,
+            ExtensionStatus::UpdateAvailable
+            | ExtensionStatus::Installed
+            | ExtensionStatus::Disabled
+            | ExtensionStatus::Error => None,
         }
     }
 
@@ -403,7 +412,7 @@ impl ShopView {
                 if !entry.is_installed() {
                     return Err(ShopError::NotInstalled(id.to_string()));
                 }
-                if entry.status() != ExtensionStatus::UpdateAvailable {
+                if !entry.has_update() {
                     return Err(ShopError::NoUpdate(id.to_string()));
                 }
             }
@@ -453,9 +462,12 @@ impl ShopView {
             Ok(()) => {
                 entry.error = None;
                 match action {
-                    ShopAction::Install | ShopAction::Update => {
+                    ShopAction::Install => {
                         entry.installed_version = Some(entry.version.clone());
                         entry.enabled = true;
+                    }
+                    ShopAction::Update => {
+                        entry.installed_version = Some(entry.version.clone());
                     }
                     ShopAction::Remove => {
                         entry.installed_version = None;

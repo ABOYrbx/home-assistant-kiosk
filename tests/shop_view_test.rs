@@ -145,6 +145,78 @@ fn update_flow_uses_the_catalog_version() {
 }
 
 #[test]
+fn failed_update_keeps_the_update_available_for_retry() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.bus-departures".to_string(),
+        version: "1.0.0".to_string(),
+        enabled: true,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry(
+        "org.example.bus-departures",
+        "Bus Departures",
+        "1.1.0",
+    )]);
+    let id = "org.example.bus-departures";
+
+    view.request(id, ShopAction::Update, true).unwrap();
+    view.complete(
+        id,
+        ShopAction::Update,
+        Err("package download failed".to_string()),
+    )
+    .unwrap();
+
+    let installed = view.entry(id).unwrap();
+    assert_eq!(installed.status(), ExtensionStatus::Error);
+    assert_eq!(installed.installed_version.as_deref(), Some("1.0.0"));
+    assert_eq!(installed.error.as_deref(), Some("package download failed"));
+    assert_eq!(installed.primary_action(), Some(ShopAction::Update));
+
+    let retry = view.request(id, ShopAction::Update, true).unwrap();
+    assert_eq!(retry.version, "1.1.0");
+    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+    assert_eq!(
+        view.entry(id).unwrap().installed_version.as_deref(),
+        Some("1.1.0")
+    );
+    assert!(view.entry(id).unwrap().error.is_none());
+}
+
+#[test]
+fn disabled_installed_extension_can_be_updated() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.bus-departures".to_string(),
+        version: "1.0.0".to_string(),
+        enabled: false,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry(
+        "org.example.bus-departures",
+        "Bus Departures",
+        "1.1.0",
+    )]);
+    let id = "org.example.bus-departures";
+
+    assert_eq!(view.entry(id).unwrap().status(), ExtensionStatus::Disabled);
+    assert_eq!(
+        view.entry(id).unwrap().primary_action(),
+        Some(ShopAction::Update)
+    );
+    let request = view.request(id, ShopAction::Update, true).unwrap();
+    assert_eq!(request.version, "1.1.0");
+    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+    let updated = view.entry(id).unwrap();
+    assert_eq!(updated.installed_version.as_deref(), Some("1.1.0"));
+    assert!(!updated.enabled);
+    assert_eq!(updated.status(), ExtensionStatus::Disabled);
+}
+
+#[test]
 fn update_requires_an_installed_extension_with_a_newer_version() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
@@ -335,6 +407,30 @@ fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
     );
     assert!(!ui.installed);
     assert!(ui.available);
+}
+
+#[test]
+fn bridge_shows_the_installed_version_while_an_update_is_available() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.bus-departures".to_string(),
+        version: "1.0.0".to_string(),
+        enabled: true,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry(
+        "org.example.bus-departures",
+        "Bus Departures",
+        "1.1.0",
+    )]);
+
+    let ui = ha_kiosk::ui::bridge::shop_entry_view(
+        view.entry("org.example.bus-departures").unwrap(),
+        &view,
+    );
+    assert_eq!(ui.version.as_str(), "1.0.0");
+    assert!(ui.update_available);
 }
 
 #[test]

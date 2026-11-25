@@ -80,10 +80,39 @@
 - Modify: `tests/shop_ui_test.rs`
 - Create: `.openchamber/logs/summary-build.md`
 
-- [ ] Run `cargo fmt --check`.
-- [ ] Run `cargo clippy --all-targets -- -D warnings`.
-- [ ] Run `cargo test`.
-- [ ] Run `python3 scripts/check-docs.py`.
-- [ ] Review the diff for scope, provider neutrality, and accidental secrets.
-- [ ] Commit with a Conventional Commit message.
+- [x] Run `cargo fmt --check`.
+- [ ] Run `cargo clippy --all-targets -- -D warnings` (blocked by pre-existing stale UI integration tests).
+- [ ] Run `cargo test` (blocked by the same pre-existing stale UI integration tests).
+- [ ] Run `python3 scripts/check-docs.py` (blocked by pre-existing missing README configuration references).
+- [x] Review the diff for scope, provider neutrality, and accidental secrets.
+- [x] Commit with a Conventional Commit message.
 - [ ] Write the required 3–6 bullet summary to `.openchamber/logs/summary-build.md`.
+
+## Review verification (2026-11-25)
+
+The full repository gates were re-run during review. They fail on unchanged
+`main` code: legacy media, calendar, departures, layout, and UI smoke tests
+reference removed APIs, `tests/ui_smoke_test.rs` contains duplicate definitions,
+and `scripts/check-docs.py` reports missing README references for
+`pages.overview.title`, the hero-light widgets, and `extensions.store_path`.
+These failures are outside W6.3.6 and were not hidden or repaired in this branch.
+
+Issue-focused verification:
+
+- [x] `cargo fmt --check`
+- [x] `cargo build --features desktop`
+- [x] `cargo test --lib`
+- [x] `cargo test --test shop_ui_test`
+- [x] `cargo test --test shop_view_test`
+- [x] `cargo clippy --test shop_ui_test --test shop_view_test -- -D warnings`
+- [x] `git diff --check`
+
+Review fixes:
+
+- Scope rendered status and error assertions to the correct shop card.
+- Assert ordered, exclusive callbacks for every shop action.
+- Render pending requests and verify that no success state appears early.
+- Prove that offline mode removes a previously visible install offer.
+- Complete install and update retries through their callbacks and store results.
+- Keep valid updates retryable after an error or while an extension is disabled.
+- Show the installed version until the store confirms an update.
