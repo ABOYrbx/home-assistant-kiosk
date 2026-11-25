@@ -224,13 +224,15 @@ record and requires a new one.
 | `soak_hours` | not run |
 | `soak_rss_growth_mb` | not measured |
 | `throttled` | not measured |
-| Checker result | not run |
+| Runtime budget check (#111) | not run; no device record |
+| Full Wave 5 checker result | not run |
 
 ### What is verified without a device
 
 | Item | Evidence | Status |
 | --- | --- | --- |
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
+| Runtime-only scope and finite-value validation | `tests/test_perf_budget.py` | verified in CI |
 | Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
 | Pi Zero 2 W RSS, first frame, idle CPU, soak | this record | not verified on hardware |
 
@@ -259,15 +261,37 @@ unknown metrics fail instead of being ignored:
 }
 ```
 
+Issue #111 covers only RSS, first-frame time, and idle CPU. Check a runtime
+record without waiting for the separate 24-hour soak:
+
+```bash
+python3 scripts/perf-budget.py --runtime-only perf-runtime-record.json
+```
+
+A runtime record uses the same top-level fields; its `metrics` object contains only:
+
+```json
+{
+  "rss_idle_mb": 78.4,
+  "first_frame_ms": 1820,
+  "idle_cpu_percent": 6.2
+}
+```
+
+The full Wave 5 gate still requires all six metrics and uses the default check:
+
 ```bash
 python3 scripts/perf-budget.py perf-record.json
 ```
 
-The command prints a table, exits 0 when every hard gate is met (warnings for a
-missed target), exits 1 when a gate is breached or the record is malformed, and
-exits 2 when the file cannot be read or is not JSON.
+Both commands print a table, exit 0 when every selected hard gate is met
+(warnings for a missed memory target), exit 1 when a gate is breached or the
+record is malformed, and exit 2 when the file cannot be read or is not JSON.
+NaN and infinity are rejected rather than treated as passing measurements. A
+runtime-only pass prints `result: runtime budgets pass`; it is not a full Wave 5
+pass.
 
-The values above are a format example, not a measurement. An accepted record is
+The values above are format examples, not measurements. An accepted record is
 committed as `docs/performance/<date>-<device>.json` and this table is updated
 with the numbers and the checker result. Do not copy the example values into
 the record.

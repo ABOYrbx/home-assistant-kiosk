@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Runtime-only performance budget checking for RSS, first-frame time, and idle CPU, with finite-value validation and an explicit result separate from the full Wave 5 soak gate.
 - Operator documentation: installation, upgrade, and rollback steps in [`README.md`](README.md).
 - Configuration reference for every `config.toml` key in [`README.md`](README.md), matching [`config.example.toml`](config.example.toml).
 - Troubleshooting guide for cross-compilation, glibc mismatch, display backends, touch rotation, token permissions, Home Assistant version, offline state, timezone, and memory in [`docs/troubleshooting.md`](docs/troubleshooting.md).

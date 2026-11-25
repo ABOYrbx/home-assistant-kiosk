@@ -149,13 +149,20 @@ Restore the previous binary, restart the service, and confirm the frame and the 
 
 The Pi Zero 2 W budgets are recorded in [`docs/performance.md`](docs/performance.md): resident set size below 150 MB (target below 100 MB), first frame below 3 seconds, idle CPU at most a quarter of one core, and a 24-hour soak with no leak trend or unbounded cache.
 
-A recorded measurement is checked against those budgets with:
+Issue #111's RSS, first-frame, and idle CPU budgets can be checked independently
+of the 24-hour soak:
+
+```bash
+python3 scripts/perf-budget.py --runtime-only perf-runtime-record.json
+```
+
+The full Wave 5 record, including soak and throttling metrics, uses:
 
 ```bash
 python3 scripts/perf-budget.py perf-record.json
 ```
 
-The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
+The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds, runtime-only checker, finite-value validation, and release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
 
 ## Design in one paragraph
 
