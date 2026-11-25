@@ -46,7 +46,8 @@ export component MainWindow inherits Window {
     in property <bool> extensions-enabled: false;
     in property <[ShopEntryView]> shop-installed: [];
     in property <[ShopEntryView]> shop-available: [];
-    in property <bool> shop-catalog-online: true;
+    in property <bool> shop-catalog-online: false;
+    in property <bool> shop-loading: true;
     in property <string> shop-catalog-error: "";
     in property <string> shop-config-path: "";
     in property <string> shop-secret-dir: "";
@@ -145,11 +146,12 @@ export component MainWindow inherits Window {
                 x: 0px; y: 0px; width: 100%; height: 100%;
                 extension-errors: root.extension-errors;
             }
-            if current-page == 4 && extensions-enabled : ShopPage {
+            if current-page == 4 && extensions-enabled : shop-page := ShopPage {
                 x: 0px; y: 0px; width: 100%; height: 100%;
                 installed: root.shop-installed;
                 available: root.shop-available;
                 catalog-online: root.shop-catalog-online;
+                loading: root.shop-loading;
                 catalog-error: root.shop-catalog-error;
                 config-path: root.shop-config-path;
                 secret-dir: root.shop-secret-dir;

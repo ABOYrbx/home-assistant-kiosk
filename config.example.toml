@@ -183,9 +183,10 @@ max_bytes = 262144
 
 [extensions]
 # When true, the kiosk adds a fifth Shop page. It lists installed and available
-# extensions, shows permissions, and installs, updates, removes, enables, or
-# disables them after a first-install trust confirmation. Installed extensions
-# stay usable while the catalog is offline.
+# extensions, shows permissions and configuration status, and installs, updates,
+# removes, enables, or disables them after a first-install trust confirmation.
+# Pending actions disable duplicate input; installed extensions stay usable
+# while the catalog is offline.
 #
 # Enabling the shop requires catalog_url and public_keys. Unsigned or HTTP
 # catalogs are accepted only with allow_unsigned and dev_mode both true.

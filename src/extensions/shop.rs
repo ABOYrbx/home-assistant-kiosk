@@ -135,20 +135,20 @@ impl ShopEntry {
         self.installed_version.is_some()
     }
 
+    pub fn update_available(&self) -> bool {
+        self.is_installed()
+            && self.available
+            && self.installed_version.as_deref() != Some(&self.version)
+    }
+
     pub fn status(&self) -> ExtensionStatus {
         if self.error.is_some() {
             return ExtensionStatus::Error;
         }
         match &self.installed_version {
-            Some(installed) => {
-                if !self.enabled {
-                    ExtensionStatus::Disabled
-                } else if self.available && self.version != *installed {
-                    ExtensionStatus::UpdateAvailable
-                } else {
-                    ExtensionStatus::Installed
-                }
-            }
+            Some(_) if !self.enabled => ExtensionStatus::Disabled,
+            Some(_) if self.update_available() => ExtensionStatus::UpdateAvailable,
+            Some(_) => ExtensionStatus::Installed,
             None => ExtensionStatus::Available,
         }
     }
@@ -157,6 +157,7 @@ impl ShopEntry {
         match self.status() {
             ExtensionStatus::Available => Some(ShopAction::Install),
             ExtensionStatus::UpdateAvailable => Some(ShopAction::Update),
+            ExtensionStatus::Error if self.update_available() => Some(ShopAction::Update),
             ExtensionStatus::Installed | ExtensionStatus::Disabled | ExtensionStatus::Error => None,
         }
     }
@@ -180,6 +181,18 @@ impl ShopEntry {
             })
             .collect::<Vec<_>>()
             .join(", ")
+    }
+
+    pub fn configuration_status(&self) -> &'static str {
+        if self.config_schema.is_empty() {
+            "No configuration required"
+        } else if self.configured {
+            "Configured"
+        } else if self.config_schema.iter().any(|field| field.required) {
+            "Configuration required"
+        } else {
+            "Configuration optional"
+        }
     }
 
     pub fn settings_table(&self) -> String {
@@ -234,12 +247,20 @@ pub enum ShopError {
     NoUpdate(String),
     #[error("another extension action is already pending")]
     Busy,
+    #[error("no extension action is pending")]
+    NoPending,
+}
+
+fn default_catalog_loading() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopView {
     pub entries: Vec<ShopEntry>,
     pub catalog_online: bool,
+    #[serde(default = "default_catalog_loading")]
+    pub catalog_loading: bool,
     pub catalog_error: Option<String>,
     pub config_path: String,
     pub secret_dir: String,
@@ -251,6 +272,7 @@ impl Default for ShopView {
         Self {
             entries: Vec::new(),
             catalog_online: false,
+            catalog_loading: true,
             catalog_error: None,
             config_path: String::new(),
             secret_dir: DEFAULT_SECRET_DIR.to_string(),
@@ -268,25 +290,46 @@ impl ShopView {
         }
     }
 
+    /// Mark a catalog refresh as in progress without discarding installed data.
+    pub fn begin_refresh(&mut self) {
+        self.catalog_loading = true;
+        self.catalog_error = None;
+    }
+
     /// Replace the installed snapshot. Entries that are not in the catalog yet
     /// are created as installed-only so the shop works while the catalog is
     /// offline.
     pub fn set_installed(&mut self, installed: Vec<InstalledExtension>) {
-        for record in installed {
-            if let Some(entry) = self.entries.iter_mut().find(|e| e.id == record.id) {
-                entry.installed_version = Some(record.version);
+        self.entries.retain_mut(|entry| {
+            if let Some(record) = installed.iter().find(|record| record.id == entry.id) {
+                entry.installed_version = Some(record.version.clone());
                 entry.enabled = record.enabled;
                 entry.configured = record.configured;
-                entry.error = record.error;
-            } else {
-                let mut entry = ShopEntry::default_for(&record.id);
-                entry.version = record.version.clone();
-                entry.installed_version = Some(record.version);
-                entry.enabled = record.enabled;
-                entry.configured = record.configured;
-                entry.error = record.error;
-                self.entries.push(entry);
+                entry.error = record.error.clone();
+                return true;
             }
+            if entry.is_installed() {
+                entry.installed_version = None;
+                entry.enabled = false;
+                entry.configured = false;
+                entry.error = None;
+                // Installed-only entries disappear with the installation. A
+                // catalog entry remains available for a future reinstall.
+                return entry.available;
+            }
+            true
+        });
+        for record in installed {
+            if self.entries.iter().any(|entry| entry.id == record.id) {
+                continue;
+            }
+            let mut entry = ShopEntry::default_for(&record.id);
+            entry.version = record.version.clone();
+            entry.installed_version = Some(record.version);
+            entry.enabled = record.enabled;
+            entry.configured = record.configured;
+            entry.error = record.error;
+            self.entries.push(entry);
         }
         self.sort();
     }
@@ -313,6 +356,7 @@ impl ShopView {
         }
         self.entries = merged;
         self.catalog_online = true;
+        self.catalog_loading = false;
         self.catalog_error = None;
         self.sort();
     }
@@ -320,6 +364,7 @@ impl ShopView {
     /// Keep installed entries usable when the catalog cannot be reached.
     pub fn mark_catalog_offline(&mut self, reason: impl Into<String>) {
         self.catalog_online = false;
+        self.catalog_loading = false;
         self.catalog_error = Some(reason.into());
         for entry in &mut self.entries {
             entry.available = false;
@@ -403,7 +448,7 @@ impl ShopView {
                 if !entry.is_installed() {
                     return Err(ShopError::NotInstalled(id.to_string()));
                 }
-                if entry.status() != ExtensionStatus::UpdateAvailable {
+                if !entry.update_available() {
                     return Err(ShopError::NoUpdate(id.to_string()));
                 }
             }
@@ -438,9 +483,8 @@ impl ShopView {
         action: ShopAction,
         result: Result<(), String>,
     ) -> Result<(), ShopError> {
-        if let Some(pending) = &self.pending
-            && (pending.id != id || pending.action != action)
-        {
+        let pending = self.pending.clone().ok_or(ShopError::NoPending)?;
+        if pending.id != id || pending.action != action {
             return Err(ShopError::Busy);
         }
         let entry = self

@@ -73,6 +73,7 @@ impl AppController {
         window.set_extensions_enabled(config.extensions.enabled);
         window.set_shop_config_path(shop.borrow().config_path.clone().into());
         window.set_shop_secret_dir(shop.borrow().secret_dir.clone().into());
+        window.set_shop_loading(shop.borrow().catalog_loading);
 
         let (task_tx, task_rx) = std_mpsc::channel();
         let (event_tx, event_rx) = std_mpsc::channel();
@@ -148,8 +149,14 @@ impl AppController {
         let shop_refresh = self.shop.clone();
         let tasks_refresh = self.shop_tasks.clone();
         self.window.on_shop_refresh(move || {
-            if let Some(tasks) = &tasks_refresh {
-                let _ = tasks.send(ShopTask::Refresh);
+            {
+                let mut shop = shop_refresh.borrow_mut();
+                shop.begin_refresh();
+                if let Some(tasks) = &tasks_refresh
+                    && tasks.send(ShopTask::Refresh).is_err()
+                {
+                    shop.mark_catalog_offline("The extension store worker is unavailable.");
+                }
             }
             if let Some(window) = weak_refresh.upgrade() {
                 push_shop(&window, &shop_refresh.borrow());
@@ -318,7 +325,13 @@ fn run_shop_action(
                     ShopAction::Disable => Some(ShopTask::SetEnabled(id.to_string(), false)),
                 };
                 if let (Some(tasks), Some(task)) = (tasks, task) {
-                    let _ = tasks.send(task);
+                    if tasks.send(task).is_err() {
+                        let _ = shop.complete(
+                            id,
+                            action,
+                            Err("The extension store worker is unavailable.".to_string()),
+                        );
+                    }
                 } else {
                     let _ = shop.complete(
                         id,
@@ -339,6 +352,7 @@ fn push_shop(window: &MainWindow, shop: &ShopView) {
     window.set_shop_installed(bridge::shop_installed(shop));
     window.set_shop_available(bridge::shop_available(shop));
     window.set_shop_catalog_online(shop.catalog_online);
+    window.set_shop_loading(shop.catalog_loading);
     window.set_shop_catalog_error(shop.catalog_error.clone().unwrap_or_default().into());
     window.set_shop_config_path(shop.config_path.clone().into());
     window.set_shop_secret_dir(shop.secret_dir.clone().into());
@@ -429,16 +443,19 @@ fn run_shop_worker(
                 }
             },
             ShopTask::Install(id) => {
-                report_action(&events, &id, ShopAction::Install, manager.install(&id));
+                let result = manager.install(&id);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, ShopAction::Install, result);
             }
             ShopTask::Update(id) => {
-                report_action(&events, &id, ShopAction::Update, manager.update(&id));
+                let result = manager.update(&id);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, ShopAction::Update, result);
             }
             ShopTask::Remove(id) => {
-                report_action(&events, &id, ShopAction::Remove, manager.remove(&id));
+                let result = manager.remove(&id);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, ShopAction::Remove, result);
             }
             ShopTask::SetEnabled(id, enabled) => {
                 let action = if enabled {
@@ -446,8 +463,9 @@ fn run_shop_worker(
                 } else {
                     ShopAction::Disable
                 };
-                report_action(&events, &id, action, manager.set_enabled(&id, enabled));
+                let result = manager.set_enabled(&id, enabled);
                 refresh_after_action(manager, &events, catalog_online);
+                report_action(&events, &id, action, result);
             }
         }
     }
@@ -477,5 +495,126 @@ fn refresh_after_action<
     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extensions::shop::{ExtensionPermissions, ShopEntry};
+    use std::collections::BTreeMap;
+    use std::sync::Once;
+    use std::time::Duration;
+
+    static INIT_BACKEND: Once = Once::new();
+
+    fn manager_options(store_path: PathBuf) -> ManagerOptions {
+        ManagerOptions {
+            app_version: semver::Version::new(0, 1, 0),
+            catalog_url: None,
+            public_keys: Vec::new(),
+            allow_unsigned: false,
+            dev_mode: false,
+            max_catalog_bytes: 2 * 1024 * 1024,
+            max_package_bytes: 5 * 1024 * 1024,
+            store_path,
+            secret_dir: PathBuf::from(DEFAULT_SECRET_DIR),
+            settings: BTreeMap::new(),
+        }
+    }
+
+    fn catalog_entry() -> ShopEntry {
+        ShopEntry {
+            id: "org.example.bus-departures".to_string(),
+            name: "Bus Departures".to_string(),
+            version: "1.0.0".to_string(),
+            author: "Example Author".to_string(),
+            license: "MIT".to_string(),
+            description: "Shows upcoming bus departures.".to_string(),
+            provides: "departures".to_string(),
+            permissions: ExtensionPermissions::default(),
+            config_schema: Vec::new(),
+            installed_version: None,
+            enabled: false,
+            configured: false,
+            error: None,
+            available: true,
+        }
+    }
+
+    #[test]
+    fn worker_sends_installed_snapshot_before_action_result() {
+        let directory = tempfile::tempdir().unwrap();
+        let (tasks_tx, tasks_rx) = std_mpsc::channel();
+        let (events_tx, events_rx) = std_mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            run_shop_worker(
+                manager_options(directory.path().to_path_buf()),
+                tasks_rx,
+                events_tx,
+            )
+        });
+
+        tasks_tx
+            .send(ShopTask::Install("org.example.bus-departures".to_string()))
+            .unwrap();
+        let first = events_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(
+            matches!(first, ShopEvent::InstalledLoaded(_)),
+            "the installed snapshot must arrive first so it cannot erase the action error: {first:?}"
+        );
+        let second = events_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(
+            matches!(
+                second,
+                ShopEvent::ActionResult {
+                    action: ShopAction::Install,
+                    result: Err(_),
+                    ..
+                }
+            ),
+            "the action result must be applied after the snapshot: {second:?}"
+        );
+
+        drop(tasks_tx);
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn shop_bridge_and_dispatch_failures_are_honest() {
+        INIT_BACKEND.call_once(i_slint_backend_testing::init_no_event_loop);
+        let window = MainWindow::new().unwrap();
+        let shop = Rc::new(RefCell::new(ShopView::new(
+            "/etc/ha-kiosk/config.toml",
+            DEFAULT_SECRET_DIR,
+        )));
+
+        push_shop(&window, &shop.borrow());
+        assert!(window.get_shop_loading());
+        shop.borrow_mut().apply_catalog(vec![catalog_entry()]);
+        push_shop(&window, &shop.borrow());
+        assert!(!window.get_shop_loading());
+
+        let (tasks_tx, tasks_rx) = std_mpsc::channel();
+        drop(tasks_rx);
+
+        run_shop_action(
+            &window.as_weak(),
+            &shop,
+            Some(&tasks_tx),
+            "org.example.bus-departures",
+            ShopAction::Install,
+            true,
+        );
+
+        assert!(shop.borrow().pending.is_none());
+        assert_eq!(
+            shop.borrow()
+                .entry("org.example.bus-departures")
+                .unwrap()
+                .error
+                .as_deref(),
+            Some("The extension store worker is unavailable.")
+        );
     }
 }

@@ -50,6 +50,22 @@ fn view_with_catalog() -> ShopView {
 }
 
 #[test]
+fn catalog_loading_is_explicit_until_a_worker_result_arrives() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    assert!(view.catalog_loading);
+
+    view.begin_refresh();
+    assert!(view.catalog_loading);
+    view.apply_catalog(vec![entry("org.example.weather", "Weather", "2.0.0")]);
+    assert!(!view.catalog_loading);
+
+    view.begin_refresh();
+    view.mark_catalog_offline("network unreachable");
+    assert!(!view.catalog_loading);
+    assert!(!view.catalog_online);
+}
+
+#[test]
 fn catalog_entries_are_listed_as_available() {
     let view = view_with_catalog();
     assert!(view.catalog_online);
@@ -145,6 +161,36 @@ fn update_flow_uses_the_catalog_version() {
 }
 
 #[test]
+fn a_failed_update_can_be_retried_while_the_error_is_visible() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.bus-departures".to_string(),
+        version: "1.0.0".to_string(),
+        enabled: true,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry(
+        "org.example.bus-departures",
+        "Bus Departures",
+        "1.1.0",
+    )]);
+    let id = "org.example.bus-departures";
+    view.set_error(id, "download timed out");
+
+    assert_eq!(view.entry(id).unwrap().status(), ExtensionStatus::Error);
+    view.request(id, ShopAction::Update, true).unwrap();
+    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+
+    assert_eq!(
+        view.entry(id).unwrap().installed_version.as_deref(),
+        Some("1.1.0")
+    );
+    assert!(view.entry(id).unwrap().error.is_none());
+    assert_eq!(view.entry(id).unwrap().status(), ExtensionStatus::Installed);
+}
+
+#[test]
 fn update_requires_an_installed_extension_with_a_newer_version() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
@@ -195,6 +241,17 @@ fn disable_and_enable_flow_updates_status() {
     view.complete(id, ShopAction::Enable, Ok(())).unwrap();
     assert!(view.entry(id).unwrap().enabled);
     assert_eq!(view.entry(id).unwrap().status(), ExtensionStatus::Installed);
+}
+
+#[test]
+fn completion_without_a_matching_pending_action_is_rejected() {
+    let mut view = view_with_catalog();
+    let id = "org.example.bus-departures";
+
+    let error = view.complete(id, ShopAction::Install, Ok(())).unwrap_err();
+
+    assert_eq!(error.to_string(), "no extension action is pending");
+    assert!(view.entry(id).unwrap().installed_version.is_none());
 }
 
 #[test]
@@ -278,6 +335,30 @@ fn permissions_and_config_keys_are_described_without_inventing_values() {
 }
 
 #[test]
+fn configuration_status_distinguishes_required_optional_and_complete_settings() {
+    let mut view = view_with_catalog();
+    let id = "org.example.bus-departures";
+    assert_eq!(
+        view.entry(id).unwrap().configuration_status(),
+        "Configuration required"
+    );
+
+    view.set_configured(id, true);
+    assert_eq!(view.entry(id).unwrap().configuration_status(), "Configured");
+
+    let mut optional = entry(id, "Bus Departures", "1.0.0");
+    optional
+        .config_schema
+        .iter_mut()
+        .for_each(|field| field.required = false);
+    optional.configured = false;
+    assert_eq!(optional.configuration_status(), "Configuration optional");
+
+    optional.config_schema.clear();
+    assert_eq!(optional.configuration_status(), "No configuration required");
+}
+
+#[test]
 fn settings_table_and_secret_path_are_exact() {
     let view = view_with_catalog();
     let entry = view.entry("org.example.bus-departures").unwrap();
@@ -323,6 +404,7 @@ fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
         "Network: api.example.com; Home Assistant: sensor.example"
     );
     assert_eq!(ui.config_keys.as_str(), "stop_id (required), limit");
+    assert_eq!(ui.config_status.as_str(), "Configuration required");
     assert!(
         ui.config_path
             .as_str()
@@ -335,6 +417,32 @@ fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
     );
     assert!(!ui.installed);
     assert!(ui.available);
+}
+
+#[test]
+fn installed_snapshot_removes_extensions_that_are_no_longer_installed() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.retired".to_string(),
+        version: "0.9.0".to_string(),
+        enabled: true,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry("org.example.weather", "Weather", "2.0.0")]);
+
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.weather".to_string(),
+        version: "2.0.0".to_string(),
+        enabled: true,
+        configured: false,
+        error: None,
+    }]);
+
+    assert!(view.entry("org.example.retired").is_none());
+    assert_eq!(view.installed_entries().len(), 1);
+    assert_eq!(view.installed_entries()[0].id, "org.example.weather");
+    assert!(view.available_entries().is_empty());
 }
 
 #[test]

@@ -30,7 +30,8 @@ The Shop is a fifth page. It appears only when `extensions.enabled = true`; with
 - **Installed** lists extensions recorded in `installed.json`, including ones that are no longer in the catalog.
 - **Available** lists catalog entries that are not installed. Each card shows the name, version, author, license, description, status, declared permissions, configuration keys, and the exact settings and secret file paths.
 - **Actions:** Install, Update, Remove, and Enable/Disable. Install opens a first-install trust confirmation that repeats the warning and permissions; nothing is installed until the user confirms. Update is offered only when the catalog version differs from the installed version.
-- **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success.
+- **Honest state:** the page shows `Catalog loading` and `Loading extensions…` until the first catalog result arrives. An action is shown as pending until the store confirms it; competing actions are disabled while work is in progress. A failed action shows the error on the card and remains retryable; it is never rendered as a success.
+- **Configuration status:** each card distinguishes `Configured`, `Configuration required`, `Configuration optional`, and `No configuration required`, alongside the required keys and exact file paths.
 - **Offline:** installed extensions stay usable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
 - **Errors** are also collected on the Status page.
 - **No on-screen keyboard:** the page shows the configuration keys and the exact TOML and secret file paths. Edit those files directly.
