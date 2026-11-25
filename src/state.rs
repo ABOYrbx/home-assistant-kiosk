@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[error("{0}")]
 pub struct CacheError(pub String);
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct WeatherForecast {
     pub datetime: String,
     pub condition: String,
@@ -15,7 +15,7 @@ pub struct WeatherForecast {
     pub templow: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct WeatherView {
     pub entity_id: EntityId,
     pub condition: String,
