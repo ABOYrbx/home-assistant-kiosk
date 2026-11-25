@@ -191,19 +191,37 @@ At the end of the soak:
 
 ### Allocation hotspots
 
-`heaptrack` is an x86_64 development aid, not a Pi gate. Build a profiling copy
-with symbols, because the release profile strips them:
+`heaptrack` is an x86_64 Linux development aid, not a Pi gate. Install it on the
+profiling host and run the helper from the repository root:
 
 ```bash
-CARGO_PROFILE_RELEASE_STRIP=false cargo build --release --features desktop
-heaptrack ./target/release/ha-kiosk --config config.example.toml
-heaptrack_print heaptrack.ha-kiosk.*.zst | head -n 40
+sudo apt install heaptrack
+scripts/perf-heaptrack.sh -- --config config.example.toml
 ```
 
-Look for allocations that scale with the number of entity updates: album art
-buffers, decoded images, and JSON values from large snapshots. A hotspot that
-grows with uptime is a soak failure even if the 24-hour run stays under
-150 MB.
+The helper refuses other platforms before building. It creates a separate
+symbol-enabled release under `target/heaptrack`, so the stripped shipping build
+under `target/release` is not overwritten. Each run gets a unique directory with
+`ha-kiosk.zst` and a `ha-kiosk.txt` summary from `heaptrack_print`. Set
+`HEAPTRACK_TARGET_DIR` or `HEAPTRACK_OUTPUT_DIR` to use another location. These
+paths are under the ignored `target/` tree by default; do not commit profiles.
+
+Exercise the relevant workload, then quit the kiosk normally so heaptrack can
+flush its report. Do not use `SIGKILL` for the final exit. The helper preserves a
+nonzero profiled-process status after writing an available summary and fails if
+no report was produced.
+
+Inspect allocations that scale with entity updates: album-art buffers, decoded
+images, and JSON values from large snapshots. Compare repeated runs with the
+same workload and use `heaptrack_gui` when call stacks are needed. A hotspot
+that grows with uptime is a soak failure even if the 24-hour run stays under
+150 MB. Profiling overhead and the symbol-enabled build mean these numbers are
+not release-budget measurements.
+
+No heaptrack profile was recorded for this change: the available development
+host is macOS on ARM64 and has no Linux x86_64 heaptrack runtime. The runner is
+covered by CI tests with stubbed external tools; a real x86_64 profile remains
+operator evidence to collect.
 
 ## Release profile
 
@@ -243,8 +261,11 @@ record and requires a new one.
 | Item | Evidence | Status |
 | --- | --- | --- |
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
+| Pi memory evidence CLI | `scripts/perf-memory.py` and its unit tests | verified in CI |
+| x86_64 heaptrack runner guards and artifact flow | `scripts/perf-heaptrack.sh` and its stub-based tests | verified in CI |
 | Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
 | Pi Zero 2 W RSS, first frame, idle CPU, soak | this record | not verified on hardware |
+| Real x86_64 allocation profile | operator-run `scripts/perf-heaptrack.sh` | not recorded |
 
 ## Recording and checking a record
 

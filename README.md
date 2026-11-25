@@ -155,7 +155,15 @@ A recorded measurement is checked against those budgets with:
 python3 scripts/perf-budget.py perf-record.json
 ```
 
-The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
+Capture Pi memory evidence with `scripts/perf-memory.py` (GNU `time -v` or
+systemd cgroup accounting), and collect x86_64 Linux allocation hotspots with
+`scripts/perf-heaptrack.sh`. The exact commands and metric differences are in
+[`docs/performance.md`](docs/performance.md).
+
+The current status is **not verified on hardware**: no Pi Zero 2 W record or real
+x86_64 heaptrack profile exists yet, so the Wave 5 performance gate stays open.
+The budget thresholds, measurement helpers, and release profile (`opt-level =
+"s"`, LTO, `strip`, `panic = "abort"`) are covered by automated checks.
 
 ## Design in one paragraph
 
