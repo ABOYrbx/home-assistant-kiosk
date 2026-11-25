@@ -46,13 +46,27 @@ pub struct HttpsFetcher {
 }
 
 impl HttpsFetcher {
+    /// Production fetcher: plain HTTP is rejected, including after a redirect.
     pub fn new() -> Result<Self, FetchError> {
         Self::with_timeout(DEFAULT_TIMEOUT)
     }
 
     pub fn with_timeout(timeout: Duration) -> Result<Self, FetchError> {
+        Self::with_options(timeout, false)
+    }
+
+    /// Build a fetcher for one catalog policy.
+    ///
+    /// Plain HTTP is only possible when the policy explicitly allows insecure
+    /// catalogs, which requires both `allow_unsigned` and `dev_mode`.
+    pub fn for_policy(policy: &CatalogPolicy) -> Result<Self, FetchError> {
+        Self::with_options(DEFAULT_TIMEOUT, policy.allow_insecure())
+    }
+
+    fn with_options(timeout: Duration, allow_insecure: bool) -> Result<Self, FetchError> {
         let client = reqwest::blocking::Client::builder()
             .timeout(timeout)
+            .https_only(!allow_insecure)
             .redirect(reqwest::redirect::Policy::limited(3))
             .build()
             .map_err(|e| FetchError::Transport(e.to_string()))?;
@@ -251,7 +265,13 @@ impl<F: CatalogFetcher> CatalogClient<F> {
                 CatalogError::Signature(SignatureError::InvalidSignature(e.to_string()))
             }),
             Err(error) => {
-                if self.policy.allow_unsigned {
+                // Only a genuinely missing signature file may be treated as an
+                // unsigned catalog. A transport error, an oversized response,
+                // or any other HTTP status must not silently downgrade
+                // verification, even in development mode.
+                if self.policy.allow_unsigned
+                    && matches!(error, FetchError::Status { status: 404, .. })
+                {
                     tracing::debug!("catalog signature is unavailable: {error}");
                     Ok(None)
                 } else {

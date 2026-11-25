@@ -35,6 +35,21 @@ pub struct ManagerOptions {
     pub settings: BTreeMap<String, toml::Value>,
 }
 
+impl ManagerOptions {
+    /// Trust and compatibility policy shared by the catalog client and the
+    /// network fetchers.
+    pub fn catalog_policy(&self) -> CatalogPolicy {
+        CatalogPolicy {
+            app_version: self.app_version.clone(),
+            public_keys: self.public_keys.clone(),
+            allow_unsigned: self.allow_unsigned,
+            dev_mode: self.dev_mode,
+            max_catalog_bytes: self.max_catalog_bytes,
+            max_package_bytes: self.max_package_bytes,
+        }
+    }
+}
+
 /// Errors surfaced by the manager and the shop.
 #[derive(Debug, Error)]
 pub enum ManagerError {
@@ -107,14 +122,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
     ) -> Result<Self, ManagerError> {
         let store = ExtensionStore::open(options.store_path.clone())?;
         let client = options.catalog_url.clone().map(|url| {
-            let policy = CatalogPolicy {
-                app_version: options.app_version.clone(),
-                public_keys: options.public_keys.clone(),
-                allow_unsigned: options.allow_unsigned,
-                dev_mode: options.dev_mode,
-                max_catalog_bytes: options.max_catalog_bytes,
-                max_package_bytes: options.max_package_bytes,
-            };
+            let policy = options.catalog_policy();
             CatalogClient::new(
                 catalog_fetcher,
                 policy,
