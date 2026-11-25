@@ -4,12 +4,15 @@
 The record is produced on the target device with the method in
 docs/performance.md. A record that breaches a hard gate fails, a record that
 misses the memory target passes with a warning, and a malformed record fails.
+The default check covers the full Wave 5 gate; --runtime-only covers issue #111
+without requiring the separate 24-hour soak metrics.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -34,14 +37,17 @@ REQUIRED_FIELDS = (
     "metrics",
 )
 OPTIONAL_FIELDS = ("notes",)
-METRICS = (
+RUNTIME_METRICS = (
     "rss_idle_mb",
     "first_frame_ms",
     "idle_cpu_percent",
+)
+SOAK_METRICS = (
     "soak_hours",
     "soak_rss_growth_mb",
     "throttled",
 )
+METRICS = RUNTIME_METRICS + SOAK_METRICS
 PRIMARY_DEVICE = "raspberry-pi-zero-2-w"
 
 # (key, value, budget, status)
@@ -49,9 +55,14 @@ Row = tuple[str, str, str, str]
 
 
 def _number(metrics: dict, key: str, errors: list[str]) -> float | None:
-    value = metrics.get(key)
+    if key not in metrics:
+        return None
+    value = metrics[key]
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         errors.append(f"metric {key} must be a number")
+        return None
+    if not math.isfinite(value):
+        errors.append(f"metric {key} must be finite")
         return None
     if value < 0:
         errors.append(f"metric {key} must not be negative")
@@ -59,7 +70,9 @@ def _number(metrics: dict, key: str, errors: list[str]) -> float | None:
     return float(value)
 
 
-def _check_metrics(metrics: object) -> tuple[list[str], list[str], list[Row]]:
+def _check_metrics(
+    metrics: object, required_metrics: tuple[str, ...]
+) -> tuple[list[str], list[str], list[Row]]:
     errors: list[str] = []
     warnings: list[str] = []
     rows: list[Row] = []
@@ -69,7 +82,7 @@ def _check_metrics(metrics: object) -> tuple[list[str], list[str], list[Row]]:
 
     for key in sorted(set(metrics) - set(METRICS)):
         errors.append(f"unknown metric: {key}")
-    for key in METRICS:
+    for key in required_metrics:
         if key not in metrics:
             errors.append(f"missing metric: {key}")
 
@@ -165,8 +178,14 @@ def _check_metrics(metrics: object) -> tuple[list[str], list[str], list[Row]]:
     return errors, warnings, rows
 
 
-def check_record(record: object) -> tuple[list[str], list[str], list[Row]]:
-    """Return (errors, warnings, rows) for a decoded performance record."""
+def check_record(
+    record: object, *, runtime_only: bool = False
+) -> tuple[list[str], list[str], list[Row]]:
+    """Return (errors, warnings, rows) for a decoded performance record.
+
+    The full Wave 5 record is the default. ``runtime_only`` requires just the
+    RSS, first-frame, and idle CPU metrics from issue #111.
+    """
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -210,7 +229,10 @@ def check_record(record: object) -> tuple[list[str], list[str], list[Row]]:
         errors.append("notes must be a string")
 
     if "metrics" in record:
-        metric_errors, metric_warnings, rows = _check_metrics(record["metrics"])
+        required_metrics = RUNTIME_METRICS if runtime_only else METRICS
+        metric_errors, metric_warnings, rows = _check_metrics(
+            record["metrics"], required_metrics
+        )
         errors.extend(metric_errors)
         warnings.extend(metric_warnings)
     else:
@@ -239,6 +261,11 @@ def main(argv: list[str] | None = None) -> int:
         description="Check a performance record against the Pi Zero 2 W budgets."
     )
     parser.add_argument("record", type=Path, help="JSON performance record to check")
+    parser.add_argument(
+        "--runtime-only",
+        action="store_true",
+        help="require only RSS, first-frame, and idle CPU metrics (issue #111)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -253,7 +280,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {args.record} is not valid JSON: {exc}", file=sys.stderr)
         return 2
 
-    errors, warnings, rows = check_record(record)
+    errors, warnings, rows = check_record(
+        record, runtime_only=args.runtime_only
+    )
     if isinstance(record, dict):
         _print_report(record, rows)
 
@@ -265,7 +294,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{len(errors)} error(s); the performance gate is not met")
         return 1
 
-    print("\nresult: pass")
+    if args.runtime_only:
+        print("\nresult: runtime budgets pass")
+    else:
+        print("\nresult: pass")
     return 0
 
 

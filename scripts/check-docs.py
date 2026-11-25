@@ -59,6 +59,8 @@ REQUIRED_FILES = [
 ]
 
 REQUIRED_README_SECTIONS = [
+    "## Features",
+    "## Supported hardware",
     "## Installation",
     "### Configuration reference",
     "## Troubleshooting",
@@ -89,35 +91,6 @@ REQUIRED_RELEASE_CHECKLIST_ITEMS = [
 
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]
 
-REQUIRED_README_SECTIONS = [
-    "## Installation",
-    "### Configuration reference",
-    "## Troubleshooting",
-    "## Security",
-    "## Releases and changelog",
-    "## License",
-]
-
-REQUIRED_TROUBLESHOOTING_TOPICS = [
-    "glibc",
-    "SLINT_BACKEND",
-    "rotation",
-    "0600",
-    "2023.9",
-    "cross",
-]
-
-REQUIRED_RELEASE_CHECKLIST_ITEMS = [
-    "cargo fmt --check",
-    "cargo clippy --all-targets -- -D warnings",
-    "cargo test",
-    "cargo audit",
-    "SHA256SUMS",
-    "CHANGELOG.md",
-    "Known limitations",
-    "Rollback",
-]
-
 FORBIDDEN = [
     "Dohlenweg",
     "fahrplanauskunft-mv",
@@ -125,6 +98,25 @@ FORBIDDEN = [
     "10.0.5.",
     "192.168.",
 ]
+
+# The release profile is part of the performance contract (PLAN.md section 8).
+RELEASE_PROFILE = {
+    "opt-level": "s",
+    "lto": True,
+    "strip": True,
+    "panic": "abort",
+}
+
+# Hosts reserved for documentation by RFC 2606 and RFC 6761.
+PLACEHOLDER_HOST_SUFFIXES = (".example",)
+PLACEHOLDER_HOSTS = ("example.com", "example.net", "example.org")
+
+# Paths that belong to an example file and never to a real installation.
+PERSONAL_PATH_PREFIXES = ("/home/", "/Users/", "/root/")
+
+PERSONAL_IDENTIFIER_RE = re.compile(
+    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+)
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
@@ -201,31 +193,20 @@ def config_paths(value: object, prefix: str = "") -> list[str]:
     return paths
 
 
-def check_config_reference() -> None:
-    data = load_example_config()
-    if not isinstance(data, dict):
-        return
-    readme = read(ROOT / "README.md")
-    for path in config_paths(data):
-        if path.startswith("pages.") and path.endswith(".widgets"):
-            path = "pages.<name>.widgets"
-        if path not in readme:
-            errors.append(f"README.md configuration reference is missing: {path}")
-
-
-def config_paths(value: object, prefix: str = "") -> list[str]:
-    paths: list[str] = []
-    if not isinstance(value, dict):
-        return [prefix] if prefix else paths
-    for key, child in value.items():
-        path = f"{prefix}.{key}" if prefix else key
-        if isinstance(child, dict):
-            paths.extend(config_paths(child, path))
-        elif isinstance(child, list) and child and isinstance(child[0], dict):
-            paths.extend(config_paths(child[0], f"{path}[]"))
-        else:
-            paths.append(path)
-    return paths
+def configuration_reference_keys(readme: str) -> set[str]:
+    """Return the keys documented as rows in the configuration reference table."""
+    keys: set[str] = set()
+    in_reference = False
+    for line in readme.splitlines():
+        if line.startswith("#"):
+            in_reference = line == "### Configuration reference"
+            continue
+        if not in_reference:
+            continue
+        match = re.match(r"^\|\s*`([^`]+)`\s*\|", line)
+        if match:
+            keys.add(match.group(1))
+    return keys
 
 
 def check_config_reference() -> None:
@@ -238,61 +219,71 @@ def check_config_reference() -> None:
         return
     if not isinstance(data, dict):
         return
-    readme = read(ROOT / "README.md")
-    for path in config_paths(data):
-        if path.startswith("pages.") and path.endswith(".widgets"):
-            path = "pages.<name>.widgets"
-        if path not in readme:
-            errors.append(f"README.md configuration reference is missing: {path}")
+    documented = configuration_reference_keys(read(ROOT / "README.md"))
+    for config_path in config_paths(data):
+        if config_path.startswith("pages."):
+            parts = config_path.split(".")
+            if len(parts) == 3 and parts[2] in {"title", "widgets"}:
+                config_path = f"pages.<name>.{parts[2]}"
+        if config_path not in documented:
+            errors.append(f"README.md configuration reference is missing: {config_path}")
 
 
-def check_cargo_profile() -> None:
-    path = ROOT / "Cargo.toml"
-    if not path.is_file():
+def string_values(value: object, prefix: str = "") -> list[tuple[str, str]]:
+    """Flatten every string in a parsed TOML value to (path, value) pairs."""
+    pairs: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            path = f"{prefix}.{key}" if prefix else key
+            pairs.extend(string_values(child, path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            pairs.extend(string_values(child, f"{prefix}[{index}]"))
+    elif isinstance(value, str):
+        pairs.append((prefix, value))
+    return pairs
+
+
+def check_placeholder_url(where: str, value: str) -> None:
+    from urllib.parse import urlparse
+
+    host = (urlparse(value).hostname or "").lower()
+    if not (host.endswith(PLACEHOLDER_HOST_SUFFIXES) or host in PLACEHOLDER_HOSTS):
+        errors.append(f"{where} must use a reserved placeholder host such as .example: {value}")
+
+
+def check_example_config() -> None:
+    """Keep the shipped example free of credentials and personal identifiers."""
+    data = load_example_config()
+    if not isinstance(data, dict):
         return
-    try:
-        data = load_toml(path)
-    except Exception as exc:  # noqa: BLE001 - report the parser error as-is
-        errors.append(f"Cargo.toml is not valid TOML: {exc}")
-        return
-    profile = data.get("profile", {}).get("release") if isinstance(data, dict) else None
-    if not isinstance(profile, dict):
-        errors.append("Cargo.toml is missing [profile.release]")
-        return
-    for key, expected in RELEASE_PROFILE.items():
-        if profile.get(key) != expected:
-            errors.append(
-                f"Cargo.toml [profile.release] {key} must be {expected!r} "
-                "(PLAN.md section 8, Wave 5)"
+    ha = data.get("ha", {})
+    if isinstance(ha, dict) and "token" in ha:
+        errors.append("config.example.toml must not set ha.token; keep it commented")
+    if isinstance(ha, dict) and isinstance(ha.get("url"), str):
+        check_placeholder_url("config.example.toml ha.url", ha["url"])
+    extensions = data.get("extensions", {})
+    if isinstance(extensions, dict):
+        if isinstance(extensions.get("catalog_url"), str):
+            check_placeholder_url(
+                "config.example.toml extensions.catalog_url",
+                extensions["catalog_url"],
             )
+        if extensions.get("settings"):
+            errors.append("config.example.toml extensions.settings must remain empty")
 
-
-def check_performance_doc() -> None:
-    doc = ROOT / "docs" / "performance.md"
-    script = ROOT / "scripts" / "perf-budget.py"
-    if not doc.is_file() or not script.is_file():
-        return
-    try:
-        spec = importlib.util.spec_from_file_location("perf_budget", script)
-        if spec is None or spec.loader is None:
-            raise ImportError("cannot load scripts/perf-budget.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 - report the loader error as-is
-        errors.append(f"scripts/perf-budget.py could not be loaded: {exc}")
-        return
-    text = read(doc)
-    budgets = [
-        f"{module.RSS_HARD_MB:.0f} MB",
-        f"{module.RSS_TARGET_MB:.0f} MB",
-        f"{module.FIRST_FRAME_HARD_MS:.0f} ms",
-        f"{module.IDLE_CPU_HARD_PERCENT:.0f} %",
-        f"{module.SOAK_MIN_HOURS:.0f} h",
-        f"{module.SOAK_GROWTH_HARD_MB:.0f} MB",
-    ]
-    for budget in budgets:
-        if budget not in text:
-            errors.append(f"docs/performance.md does not state the budget: {budget}")
+    secret_keys = {"token", "password", "api_key", "secret", "access_token"}
+    for path, value in string_values(data):
+        if path.rsplit(".", 1)[-1] in secret_keys and value:
+            errors.append(f"config.example.toml must not contain a value for {path}")
+        if value.startswith(PERSONAL_PATH_PREFIXES):
+            errors.append(
+                f"config.example.toml contains a personal path in {path}: {value}"
+            )
+        if PERSONAL_IDENTIFIER_RE.search(value):
+            errors.append(
+                f"config.example.toml contains a personal identifier in {path}: {value}"
+            )
 
 
 def check_cargo_profile() -> None:
@@ -383,6 +374,24 @@ def check_content() -> None:
     for section in REQUIRED_README_SECTIONS:
         if section not in readme:
             errors.append(f"README.md is missing the section: {section}")
+    seen_sections: dict[str, int] = {}
+    for line in readme.splitlines():
+        if line.startswith("## "):
+            seen_sections[line] = seen_sections.get(line, 0) + 1
+    for section, count in seen_sections.items():
+        if count > 1:
+            errors.append(f"README.md has a duplicate section: {section}")
+    for topic in ("2023.9", "glibc 2.35", "not verified on hardware"):
+        if topic not in readme:
+            errors.append(f"README.md is missing the topic: {topic}")
+    for command in ("deploy/install.sh --binary", "deploy/kiosk-setup.sh --rotation"):
+        if command not in readme:
+            errors.append(f"README.md is missing the documented install command: {command}")
+    if re.search(r"sudo\s+\./deploy/install\.sh\s+/", readme):
+        errors.append(
+            "README.md uses the obsolete positional deploy/install.sh form; "
+            "use deploy/install.sh --binary"
+        )
     troubleshooting = read(ROOT / "docs/troubleshooting.md")
     for topic in REQUIRED_TROUBLESHOOTING_TOPICS:
         if topic not in troubleshooting:
@@ -461,7 +470,10 @@ def check_forbidden() -> None:
 def main() -> int:
     check_required()
     check_toml()
+    check_example_config()
     check_config_reference()
+    check_cargo_profile()
+    check_performance_doc()
     check_markdown()
     check_content()
     check_deploy()

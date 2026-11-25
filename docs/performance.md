@@ -143,16 +143,33 @@ cache, and the cache writer.
 The mock server and the state-change stream are part of
 [`tests/e2e_test.rs`](../tests/e2e_test.rs). A shorter host-side leak check runs
 the same client, state owner, and cache for a configurable duration and fails
-when the entity map or the cache grows without bound:
+when the entity map, the pending-action map, the cache, or the album-art cache
+grows without bound:
 
 ```bash
 HA_KIOSK_SOAK_SECONDS=3600 cargo test --test e2e_test \
   soak_with_state_change_stream_stays_bounded -- --ignored --nocapture
 ```
 
-It prints the event count, cache writes, cache bytes, and the RSS baseline and
-final value. This check measures the test process on the development host, not
-the Pi; the 24-hour Pi run below is still required for the gate.
+- A missing `HA_KIOSK_SOAK_SECONDS` uses the documented 60-second default.
+  Empty, negative, fractional, or zero values fail instead of silently running
+  a shorter soak. Use `86400` for a full day.
+- The stream churns a uniquely named transient entity (added, changed, then
+  removed) and answers service calls, so cleanup paths are exercised rather
+  than only the update path.
+- RSS is sampled once per second; the first five seconds are excluded from the
+  baseline because allocator warm-up is not a leak.
+- Both endpoint growth and the least-squares trend are reported. The host
+  check fails above 16 MiB observed growth or a projected 24-hour growth above
+  16 MiB; the Pi gate stays at 10 MB and is not relaxed by the host limit.
+- The test prints the duration, event count, cache writes and bytes, RSS
+  values or explicit unavailability, and the maximum entity, pending, and
+  album-art counters. On a non-Linux host RSS is `None`; that is reported, not
+  treated as a memory pass.
+
+This check measures the test process on the development host, not the Pi; the
+24-hour Pi run below is still required for the gate. A recorded host run is in
+[`performance/soak-host-evidence.md`](performance/soak-host-evidence.md).
 
 ```bash
 # Hourly samples; keep the output for the record.
@@ -224,14 +241,17 @@ record and requires a new one.
 | `soak_hours` | not run |
 | `soak_rss_growth_mb` | not measured |
 | `throttled` | not measured |
-| Checker result | not run |
+| Runtime budget check (#111) | not run; no device record |
+| Full Wave 5 checker result | not run |
 
 ### What is verified without a device
 
 | Item | Evidence | Status |
 | --- | --- | --- |
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
-| Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
+| Runtime-only scope and finite-value validation | `tests/test_perf_budget.py` | verified in CI |
+| Release profile matches PLAN.md | `scripts/check-docs.py` and `tests/test_check_docs.py` | verified in CI |
+| Host soak harness, RSS trend, and bounded counters | `tests/e2e_test.rs` soak-monitor tests | verified in CI |
 | Pi Zero 2 W RSS, first frame, idle CPU, soak | this record | not verified on hardware |
 
 ## Recording and checking a record
@@ -259,15 +279,37 @@ unknown metrics fail instead of being ignored:
 }
 ```
 
+Issue #111 covers only RSS, first-frame time, and idle CPU. Check a runtime
+record without waiting for the separate 24-hour soak:
+
+```bash
+python3 scripts/perf-budget.py --runtime-only perf-runtime-record.json
+```
+
+A runtime record uses the same top-level fields; its `metrics` object contains only:
+
+```json
+{
+  "rss_idle_mb": 78.4,
+  "first_frame_ms": 1820,
+  "idle_cpu_percent": 6.2
+}
+```
+
+The full Wave 5 gate still requires all six metrics and uses the default check:
+
 ```bash
 python3 scripts/perf-budget.py perf-record.json
 ```
 
-The command prints a table, exits 0 when every hard gate is met (warnings for a
-missed target), exits 1 when a gate is breached or the record is malformed, and
-exits 2 when the file cannot be read or is not JSON.
+Both commands print a table, exit 0 when every selected hard gate is met
+(warnings for a missed memory target), exit 1 when a gate is breached or the
+record is malformed, and exit 2 when the file cannot be read or is not JSON.
+NaN and infinity are rejected rather than treated as passing measurements. A
+runtime-only pass prints `result: runtime budgets pass`; it is not a full Wave 5
+pass.
 
-The values above are a format example, not a measurement. An accepted record is
+The values above are format examples, not measurements. An accepted record is
 committed as `docs/performance/<date>-<device>.json` and this table is updated
 with the numbers and the checker result. Do not copy the example values into
 the record.
@@ -277,3 +319,13 @@ the record.
 The Pi Zero 2 W parts of the Wave 5 gate stay open until the record is filled
 in. The subtask issues are #109 (measure), #110 (method), #111 (budgets), #112
 (soak), and #113 (release profile); this document records their result.
+
+- #111: the runtime-only checker, finite-value validation, and documentation
+  are implemented. No device record exists, so RSS, first-frame time, and idle
+  CPU remain **not verified on hardware**.
+- #112: the host soak harness and a short host evidence record exist in
+  [`performance/soak-host-evidence.md`](performance/soak-host-evidence.md). The
+  required 24-hour Pi run has not been executed, so the soak gate stays open.
+- #113: the release profile is set in `Cargo.toml` and enforced by the
+  documentation gate and its regression tests. It applies to the release build;
+  the Pi record still needs to be measured with that build.

@@ -870,13 +870,15 @@ The design system is adopted. This task ports the reference prototype to Slint a
 - [ ] Use `/usr/bin/time -v` or systemd memory accounting on the Pi; use `heaptrack` on x86_64 for allocation hotspots.
 - [ ] Verify RSS < 150 MB (target < 100 MB), first frame < 3 s, idle CPU low enough that the device does not throttle.
 - [ ] Run a 24-hour soak with a simulated state-change stream; check for leaks and unbounded caches.
-- [ ] Tune release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) and confirm behavior.
+- [x] Tune release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) and confirm behavior.
 - [ ] Commit: `perf: verify Pi Zero 2 W budgets`.
+
+**Evidence status (2026-11-25):** the runtime budget checker, host soak harness, and release-profile gate are implemented and tested. No Pi Zero 2 W measurement and no 24-hour Pi run exist, so both hardware checkboxes stay open and the result is recorded as “not verified on hardware” in [`docs/performance.md`](docs/performance.md).
 
 #### 5.3 Documentation and release
 
-- [ ] README: features, supported hardware, install, config reference, troubleshooting, security, license status.
-- [ ] Commented `config.example.toml`; no real credentials or personal identifiers.
+- [x] README: features, supported hardware, install, config reference, troubleshooting, security, license status.
+- [x] Commented `config.example.toml`; no real credentials or personal identifiers.
 - [ ] Troubleshooting: cross-compile errors, glibc mismatch, no display backend, touch rotation, token permissions, Home Assistant version.
 - [ ] Release checklist: tests, clippy, fmt, cross artifacts, checksums, changelog, known limitations.
 - [ ] Commit: `docs: complete operator documentation`.

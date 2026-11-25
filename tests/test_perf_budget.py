@@ -52,6 +52,13 @@ def check(**overrides):
     return perf_budget.check_record(make_record(**overrides))
 
 
+def runtime_record():
+    record = make_record()
+    for key in ("soak_hours", "soak_rss_growth_mb", "throttled"):
+        del record["metrics"][key]
+    return record
+
+
 class WithinBudgetTest(unittest.TestCase):
     def test_record_within_budget_passes(self):
         errors, warnings, rows = check()
@@ -110,6 +117,42 @@ class IdleCpuBudgetTest(unittest.TestCase):
     def test_idle_cpu_above_limit_fails(self):
         errors, _, _ = check(metrics={"idle_cpu_percent": 25.1})
         self.assertTrue(any("idle_cpu_percent" in error for error in errors))
+
+
+class RuntimeBudgetScopeTest(unittest.TestCase):
+    def test_runtime_record_without_soak_passes(self):
+        errors, warnings, rows = perf_budget.check_record(
+            runtime_record(), runtime_only=True
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(row[3] == "ok" for row in rows))
+
+    def test_runtime_scope_requires_each_runtime_metric(self):
+        for key in ("rss_idle_mb", "first_frame_ms", "idle_cpu_percent"):
+            with self.subTest(metric=key):
+                record = runtime_record()
+                del record["metrics"][key]
+                errors, _, _ = perf_budget.check_record(
+                    record, runtime_only=True
+                )
+                self.assertTrue(any(key in error for error in errors))
+
+    def test_non_finite_metrics_fail(self):
+        for key in (
+            "rss_idle_mb",
+            "first_frame_ms",
+            "idle_cpu_percent",
+            "soak_hours",
+            "soak_rss_growth_mb",
+        ):
+            for value in (float("nan"), float("inf"), float("-inf")):
+                with self.subTest(metric=key, value=value):
+                    errors, _, _ = check(metrics={key: value})
+                    self.assertTrue(
+                        any(key in error and "finite" in error for error in errors)
+                    )
 
 
 class SoakBudgetTest(unittest.TestCase):
@@ -189,12 +232,12 @@ class SchemaTest(unittest.TestCase):
 
 
 class CliTest(unittest.TestCase):
-    def run_cli(self, text: str) -> subprocess.CompletedProcess:
+    def run_cli(self, text: str, *args: str) -> subprocess.CompletedProcess:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "perf-record.json"
             path.write_text(text, encoding="utf-8")
             return subprocess.run(
-                [sys.executable, str(SCRIPT), str(path)],
+                [sys.executable, str(SCRIPT), *args, str(path)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -204,6 +247,27 @@ class CliTest(unittest.TestCase):
         result = self.run_cli(json.dumps(make_record()))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("result: pass", result.stdout)
+
+    def test_runtime_only_record_exits_zero(self):
+        result = self.run_cli(json.dumps(runtime_record()), "--runtime-only")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("result: runtime budgets pass", result.stdout)
+        self.assertNotIn("soak_hours", result.stdout)
+
+    def test_runtime_only_missing_metric_exits_one(self):
+        record = runtime_record()
+        del record["metrics"]["first_frame_ms"]
+        result = self.run_cli(json.dumps(record), "--runtime-only")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("missing metric: first_frame_ms", result.stdout)
+
+    def test_non_finite_metric_exits_one(self):
+        result = self.run_cli(
+            json.dumps(make_record(metrics={"first_frame_ms": float("nan")})),
+            "--runtime-only",
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("finite", result.stdout)
 
     def test_target_miss_exits_zero_with_warning(self):
         result = self.run_cli(json.dumps(make_record(metrics={"rss_idle_mb": 120.0})))

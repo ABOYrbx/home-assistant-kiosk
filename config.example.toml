@@ -1,41 +1,44 @@
 # Home Assistant Kiosk — example configuration
 #
-# Copy this file to /etc/ha-kiosk/config.toml, replace the placeholders with
-# your own Home Assistant URL and entity IDs, and keep the file readable only
-# by the service user (mode 0600).
+# Copy this file to /etc/ha-kiosk/config.toml, or pass another path with
+# --config. Replace every placeholder with values from your installation and
+# keep the filled-in file readable only by the service user (mode 0600).
 #
-# Do not commit a filled-in copy of this file. It contains no real values by
-# design; every entity below is a placeholder.
+# Do not commit a filled-in copy. This file deliberately contains no real
+# credentials, personal identifiers, or provider-specific URLs or IDs.
 
 # ---------------------------------------------------------------------------
 # Home Assistant connection
 # ---------------------------------------------------------------------------
 
 [ha]
-# Use http:// for a local instance without TLS, https:// for TLS.
-# A path prefix is preserved, e.g. https://example.test/ha.
-# The WebSocket URL (ws:// or wss://) is derived automatically.
-url = "http://homeassistant.local:8123"
+# Base URL of your Home Assistant instance. Use http:// only for a local
+# instance without TLS; https:// is recommended. A path prefix is preserved,
+# for example https://homeassistant.example/ha. The WebSocket URL (ws:// or
+# wss://) is derived automatically. The .example hostname below is reserved
+# for documentation and will not resolve; replace it with your own host.
+url = "http://homeassistant.example:8123"
 
-# Preferred: a file containing only the long-lived access token.
-# The file must be mode 0600 and owned by the service user.
+# Preferred token source for a service: an absolute path to a file containing
+# only the long-lived access token. The file must be mode 0600 and owned by
+# the service user. HA_TOKEN in the environment overrides this file.
 token_file = "/etc/ha-kiosk/ha_token"
 
 # Development only. Prefer token_file or the HA_TOKEN environment variable.
+# Never place a real token in a committed example or in extension settings.
 # token = "REPLACE_ME"
 
 # Leave false unless you understand the risk. Prefer installing the CA
-# certificate on the device instead of disabling verification.
+# certificate on the device instead of disabling TLS verification.
 allow_invalid_certs = false
 
 # Optional IANA timezone used only if Home Assistant's get_config response does
-# not provide one. Example: "Europe/Berlin". Leave unset to use get_config,
-# then the device timezone.
-# time_zone = "Europe/Berlin"
+# not provide one. The final fallback is the device timezone.
+# time_zone = "Etc/UTC"
 
 # Optional extra entities to subscribe to, in addition to the entities
 # referenced by the widgets and tiles below. Useful for templates or future
-# widgets. Example: ["sensor.example"]
+# widgets. Use syntactically valid domain.object_id placeholders.
 extra_entity_ids = []
 
 # ---------------------------------------------------------------------------
@@ -44,11 +47,12 @@ extra_entity_ids = []
 
 [display]
 # Desktop window size and layout-test reference. On LinuxKMS the DRM mode wins;
-# use SLINT_DRM_MODE to select a mode. Keep layouts responsive.
+# use SLINT_DRM_MODE to select a mode. Both dimensions must be greater than 0.
 width = 800
 height = 480
 # 0, 90, 180, or 270. On LinuxKMS this maps to SLINT_KMS_ROTATION.
 rotation = 0
+# Request a fullscreen window on the desktop and X11 backends.
 fullscreen = true
 # "dark" or "light". The dark theme is the default target.
 theme = "dark"
@@ -63,17 +67,21 @@ theme = "dark"
 # ---------------------------------------------------------------------------
 
 [pages.overview]
-# Brand text in the Overview top bar.
+# Brand text shown in the Overview top bar.
 title = "Home"
+# Widget IDs to render, in order. Remove a widget here to hide it on this page.
 widgets = ["hero_light", "clock", "weather", "tiles", "departures"]
 
 [pages.media]
+# Built-in media player page.
 widgets = ["media"]
 
 [pages.agenda]
+# Built-in calendar agenda page.
 widgets = ["calendar"]
 
 [pages.status]
+# Built-in read-only connection and diagnostics page.
 widgets = ["status"]
 
 # ---------------------------------------------------------------------------
@@ -81,8 +89,11 @@ widgets = ["status"]
 # ---------------------------------------------------------------------------
 
 [widgets.clock]
+# Show the clock on pages that list the "clock" widget.
 enabled = true
+# Seconds add detail but are not shown by default on the kiosk.
 show_seconds = false
+# Use a 24-hour clock instead of a 12-hour clock.
 use_24_hour = true
 
 [widgets.hero_light]
@@ -90,26 +101,39 @@ use_24_hour = true
 # light.turn_on with brightness_pct and color_temp_kelvin. Slider calls are
 # debounced to at most one every 100 ms, with the final value sent on release.
 enabled = true
+# Replace with a light.* entity from your installation.
 entity = "light.example"
 # Optional display name. Leave empty to use the entity's friendly_name.
 name = ""
-# Colour-temperature slider range in kelvin. Must be between 1000 and 10000 and
-# min_kelvin must be lower than max_kelvin. The entity's own
-# min_color_temp_kelvin/max_color_temp_kelvin attributes take precedence.
+# Colour-temperature slider range in kelvin. Both values must stay between
+# 1000 and 10000, and min_kelvin must be lower than max_kelvin. The entity's
+# own min_color_temp_kelvin/max_color_temp_kelvin attributes take precedence.
 min_kelvin = 2700
 max_kelvin = 6500
 
 [widgets.weather]
+# Show Home Assistant weather and forecast data; no weather provider is called
+# directly by the kiosk.
 enabled = true
+# Replace with a weather.* entity from your installation.
 entity = "weather.home"
-forecast_type = "daily" # "daily" or "hourly"
+# "daily" or "hourly" forecast data.
+forecast_type = "daily"
+# Number of forecast entries requested from Home Assistant.
 forecast_count = 3
+# Safety refresh in seconds; the minimum is 60. Entity updates still arrive
+# through the subscription.
 refresh_seconds = 900
 
 [widgets.media]
+# Show the built-in media player controls and optional album art.
 enabled = true
+# Replace with a media_player.* entity from your installation.
 entity = "media_player.living_room"
+# Fetch album art only from URLs supplied by Home Assistant. The kiosk never
+# sends its Home Assistant token to a third-party image host.
 show_album_art = true
+# Volume slider step, from 0.0 to 1.0 (0.05 means 5% increments).
 volume_step = 0.05
 
 [widgets.departures]
@@ -117,20 +141,24 @@ volume_step = 0.05
 # docs/departures-entity-contract.md. Any transit integration works through a
 # template sensor, so no provider URL or stop ID appears here.
 enabled = true
+# Replace with the sensor.* entity that exposes your departures attribute.
 entity = "sensor.departures"
+# Heading shown above the departure rows.
 title = "Departures"
-# 1-20. The widget renders at most this many future entries.
+# Number of future entries to render, from 1 to 20.
 max_items = 6
 # Safety refresh in seconds (minimum 10). Entity updates still arrive through
 # the subscription; this refresh only drops expired entries and re-reads state.
 refresh_seconds = 60
 
 [widgets.calendar]
+# Show events from one or more Home Assistant calendar entities.
 enabled = true
+# Replace with one or more calendar.* entities from your installation.
 entities = ["calendar.family"]
 # Number of days from today that the agenda covers; 2 renders today and tomorrow.
 days = 2
-# Refresh interval in seconds; 300 is the default, the minimum is 30.
+# Refresh interval in seconds; 300 is the default and the minimum is 30.
 refresh_seconds = 300
 
 # ---------------------------------------------------------------------------
@@ -142,8 +170,11 @@ refresh_seconds = 300
 # ---------------------------------------------------------------------------
 
 [tiles]
+# Number of grid columns. Must be at least 1 when tile items are configured.
 columns = 3
 
+# Each [[tiles.items]] entry adds one tile. Replace the placeholder entity,
+# label, and bundled icon name with values from your installation.
 [[tiles.items]]
 entity = "light.example"
 label = "Example light"
@@ -169,12 +200,13 @@ icon = "scene"
 # ---------------------------------------------------------------------------
 
 [cache]
-# The service user must be able to create and replace this file.
-# The directory is mode 0700 and the file 0600.
+# Absolute path to the offline state cache. The service user must be able to
+# create and replace this file. The directory is mode 0700 and the file 0600.
 path = "/var/lib/ha-kiosk/state.json"
 # Debounce writes to reduce SD-card wear. Minimum 2 seconds.
 write_debounce_seconds = 10
-# Upper bound for the cache file. Older/incompatible caches are discarded.
+# Upper bound for the cache file in bytes. Older or incompatible caches are
+# discarded when the schema version or configuration fingerprint changes.
 max_bytes = 262144
 
 # ---------------------------------------------------------------------------
@@ -191,22 +223,29 @@ max_bytes = 262144
 # catalogs are accepted only with allow_unsigned and dev_mode both true.
 enabled = false
 # HTTPS URL of the signed catalog index in the separate catalog repository.
-catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
+# The .example hostname is a non-resolving placeholder; replace it before use.
+catalog_url = "https://catalog.example/index.json"
 # Minisign public keys (base64). The matching private key never enters this repo.
 public_keys = []
 # Development only. A production shop must reject unsigned catalogs.
 allow_unsigned = false
 # Development only: permit HTTP (not HTTPS) catalog/package URLs for a local catalog.
 dev_mode = false
+# How often to check the catalog for updates, in hours.
 refresh_hours = 24
+# Maximum catalog index download size in bytes; must be greater than 0.
 max_catalog_bytes = 2097152
+# Maximum extension package download size in bytes; must be greater than 0.
 max_package_bytes = 5242880
+# Maximum Rhai operations allowed per extension run.
 max_script_operations = 1000000
-# Installed extensions and the last verified catalog index (absolute path,
-# created with mode 0700; installed.json is mode 0600).
+# Absolute path for installed extensions and the last verified catalog index.
+# The directory is created with mode 0700; installed.json is mode 0600.
 store_path = "/var/lib/ha-kiosk/extensions"
 
-# Per-extension settings go here. The shop shows the required keys.
+# Per-extension settings go here. Keep this example commented: active settings
+# can contain installation-specific identifiers, and the docs check rejects
+# them in the shipped example. The shop shows the required keys.
 # [extensions.settings."org.example.bus-departures"]
 # stop_id = "REPLACE_ME"
 # limit = 6

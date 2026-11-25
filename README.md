@@ -4,7 +4,7 @@ A small, native Home Assistant dashboard for wall-mounted touchscreens and singl
 
 [![Docs check](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml/badge.svg)](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml)
 
-**Status:** planning. The repository currently contains the implementation plan, project rules, and the operator documentation, not a working application. The installation, configuration reference, troubleshooting, and release steps describe the intended v1 behaviour; the plan is in [`PLAN.md`](PLAN.md).
+**Status:** v1 scope implemented; hardware performance verification and the license decision remain open. The application, configuration, deployment scripts, tests, and operator documentation are in the tree. The Pi Zero 2 W measurement is still required before the Wave 5 performance gate can close; see [`docs/performance.md`](docs/performance.md). The plan is in [`PLAN.md`](PLAN.md).
 
 ## Why this exists
 
@@ -16,7 +16,7 @@ The visual design is adopted, not a placeholder. [`DESIGN.md`](DESIGN.md) and [`
 
 The Overview follows the prototype: top bar, hero light with brightness/colour temperature, scenes/quick actions, and a configurable rooms/tile group. The layout must also work at 800 × 480 and 1024 × 600. Energy and Schedule are post-v1. The prototype's mock values are not production data.
 
-## Planned v1 features
+## Features
 
 - Clock and date.
 - Weather and a short forecast from a Home Assistant `weather` entity.
@@ -91,7 +91,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now ha-kiosk
 ```
 
-The release includes installer scripts in `deploy/` for the same steps: `deploy/install.sh` creates the user and directories, installs the binary, configuration, and unit, and starts the service. `deploy/uninstall.sh` stops and removes the unit and binary and keeps the configuration unless `--purge` is passed.
+The release includes installer scripts in `deploy/` for the same steps: `sudo deploy/install.sh --binary <path>` creates the user and directories, installs the binary, configuration, and unit, and starts the service. `deploy/uninstall.sh` stops and removes the unit and binary and keeps the configuration unless `--purge` is passed. The exact commands are in [Releases and changelog](#releases-and-changelog).
 
 ### Install from source
 
@@ -149,13 +149,20 @@ Restore the previous binary, restart the service, and confirm the frame and the 
 
 The Pi Zero 2 W budgets are recorded in [`docs/performance.md`](docs/performance.md): resident set size below 150 MB (target below 100 MB), first frame below 3 seconds, idle CPU at most a quarter of one core, and a 24-hour soak with no leak trend or unbounded cache.
 
-A recorded measurement is checked against those budgets with:
+Issue #111's RSS, first-frame, and idle CPU budgets can be checked independently
+of the 24-hour soak:
+
+```bash
+python3 scripts/perf-budget.py --runtime-only perf-runtime-record.json
+```
+
+The full Wave 5 record, including soak and throttling metrics, uses:
 
 ```bash
 python3 scripts/perf-budget.py perf-record.json
 ```
 
-The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
+The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds, runtime-only checker, finite-value validation, and release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
 
 ## Design in one paragraph
 
@@ -308,15 +315,15 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
-| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
+| `pages.<name>.title` | string | `""` | Brand text in the Overview top bar; the example uses `"Home"`. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
-| `widgets.hero_light.enabled` | bool | `true` | Enable the hero light card. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the Overview hero light card. |
 | `widgets.hero_light.entity` | string | unset | A `light.*` entity controlled by the hero card. |
-| `widgets.hero_light.name` | string | entity name | Optional display name; empty uses the entity's friendly name. |
-| `widgets.hero_light.min_kelvin` | integer | `2700` | Lower colour-temperature bound; must be 1000–10000. |
-| `widgets.hero_light.max_kelvin` | integer | `6500` | Upper colour-temperature bound; must exceed `min_kelvin`. |
+| `widgets.hero_light.name` | string | `""` | Optional display name; empty uses the entity's friendly name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Minimum colour-temperature slider value in kelvin. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Maximum colour-temperature slider value in kelvin. |
 | `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
 | `widgets.weather.entity` | string | unset | A `weather.*` entity. |
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
@@ -351,7 +358,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
-| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Absolute path for installed extensions; directory `0700`, `installed.json` `0600`. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Absolute directory for installed extensions and the verified catalog cache; directory `0700`, `installed.json` `0600`. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
@@ -376,11 +383,6 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 [`CHANGELOG.md`](CHANGELOG.md) records released and unreleased changes. [`docs/release-checklist.md`](docs/release-checklist.md) is the release procedure: automated gates, cross artifacts, checksums, changelog, hardware evidence, known limitations, publication, and rollback. Releases and `v*` tags are created by `ABOYrbx` from `main`. No binary is distributed while the Slint license decision is open.
 
-## Installation and operation
-
-The full deployment guide, including seat models, hardening, upgrade, rollback,
-logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).
-
 ### Release builds
 
 Reproducible builds for all supported targets:
@@ -391,14 +393,19 @@ Reproducible builds for all supported targets:
 
 Artifacts land in `dist/` as `ha-kiosk-<version>-<target>` with a `SHA256SUMS` file. Targets: `aarch64-unknown-linux-gnu`, `armv7-unknown-linux-gnueabihf`, `x86_64-unknown-linux-gnu`. Cross-built binaries require glibc 2.35 or newer (Raspberry Pi OS Bookworm). Bullseye is not supported for cross-built binaries; build natively on the device as a fallback.
 
-### Install
+The full deployment guide, including seat models, hardening, upgrade, rollback,
+logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).
+
+Install a published release with the installer scripts:
 
 ```bash
-sudo ./deploy/install.sh /path/to/ha-kiosk-<version>-aarch64-unknown-linux-gnu
-sudo ./deploy/kiosk-setup.sh
+sudo deploy/install.sh --binary dist/ha-kiosk-<version>-aarch64-unknown-linux-gnu
+sudo deploy/kiosk-setup.sh --rotation 0
 ```
 
 The installer creates the `ha-kiosk` user, installs the binary to `/usr/local/bin/ha-kiosk`, creates `/etc/ha-kiosk` (0750) and `/var/lib/ha-kiosk` (0700), installs the systemd unit, and enables the service. Copy your config to `/etc/ha-kiosk/config.toml` (mode 0600) and the token file to `/etc/ha-kiosk/ha_token` before starting.
+
+Release artifacts, cross-compilation images, and the reproducible-build rules are documented in [`docs/release-builds.md`](docs/release-builds.md).
 
 ### Upgrade and rollback
 
@@ -421,8 +428,8 @@ journalctl -u ha-kiosk -f
 ### Uninstall
 
 ```bash
-sudo ./deploy/uninstall.sh          # keeps config and data
-sudo ./deploy/uninstall.sh --purge  # removes everything
+sudo deploy/uninstall.sh          # keeps config and data
+sudo deploy/uninstall.sh --purge  # removes everything
 ```
 
 ### Display backends
@@ -434,14 +441,6 @@ The kiosk resolves the display before it opens a window. If no backend is availa
 - `display.rotation` accepts `0`, `90`, `180`, and `270` and is passed to Slint as `SLINT_KMS_ROTATION`. An explicit environment value wins.
 
 Rotation, DRM output selection, console blanking, touch calibration, fonts, and NTP are documented in [`docs/kiosk-display.md`](docs/kiosk-display.md).
-
-### Troubleshooting
-
-- No display backend: verify `SLINT_BACKEND`, seatd, and group membership; check `journalctl -u ha-kiosk`.
-- Console blanking: ensure `consoleblank=0` is in `/boot/firmware/cmdline.txt` and reboot.
-- Touch rotation: set `SLINT_KMS_ROTATION`; calibrate per panel, do not hardcode a matrix.
-- Wrong clock: verify NTP (`timedatectl set-ntp true`) and the device timezone.
-- More display symptoms and fixes: [`docs/kiosk-display.md`](docs/kiosk-display.md#troubleshooting).
 
 ## Assets
 
