@@ -228,3 +228,51 @@ fn manager_update_rejects_an_older_catalog_version() {
             .is_file()
     );
 }
+
+#[test]
+fn manager_marks_a_verified_cache_fallback_as_cached() {
+    let dir = tempfile::tempdir().unwrap();
+    let package = build_package("1.0.0");
+    let catalog = FakeFetcher::default();
+    let packages = FakeFetcher::default();
+    catalog.set_catalog("1.0.0", &package);
+
+    let mut manager =
+        ExtensionManager::new(options(dir.path().to_path_buf()), catalog.clone(), packages)
+            .unwrap();
+    let fresh = manager.refresh_catalog().unwrap();
+    assert!(!fresh.from_cache);
+    assert_eq!(fresh.entries.len(), 1);
+
+    catalog.responses.borrow_mut().clear();
+    let cached = manager.refresh_catalog().unwrap();
+    assert!(cached.from_cache);
+    assert_eq!(cached.entries.len(), 1);
+    assert_eq!(cached.entries[0].id, ID);
+}
+
+#[test]
+fn manager_rejects_an_install_that_no_longer_matches_its_confirmation() {
+    let dir = tempfile::tempdir().unwrap();
+    let package_v1 = build_package("1.0.0");
+    let package_v2 = build_package("2.0.0");
+    let catalog = FakeFetcher::default();
+    let packages = FakeFetcher::default();
+    catalog.set_catalog("1.0.0", &package_v1);
+    packages.set_catalog("1.0.0", &package_v1);
+    packages.set_catalog("2.0.0", &package_v2);
+
+    let mut manager =
+        ExtensionManager::new(options(dir.path().to_path_buf()), catalog.clone(), packages)
+            .unwrap();
+    manager.refresh_catalog().unwrap();
+    let confirmed = manager.shop_entries().remove(0);
+
+    catalog.set_catalog("2.0.0", &package_v2);
+    manager.refresh_catalog().unwrap();
+    let error = manager
+        .install_matching(ID, &confirmed.version, &confirmed.package_sha256)
+        .unwrap_err();
+    assert!(matches!(error, ManagerError::ConfirmationMismatch(_)));
+    assert!(manager.store().get(ID).is_none());
+}

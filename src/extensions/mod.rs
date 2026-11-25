@@ -38,7 +38,9 @@ pub use host::{
     Clock, EntitySnapshot, ExtensionError, ExtensionHost, HostConfig, Limits, SystemClock,
 };
 pub use http::{HttpError, HttpFetcher, HttpPolicy, ReqwestFetcher};
-pub use manager::{ExtensionHealth, ExtensionManager, ManagerError, ManagerOptions};
+pub use manager::{
+    CatalogRefresh, ExtensionHealth, ExtensionManager, ManagerError, ManagerOptions,
+};
 pub use manifest::{Manifest, ManifestError, OutputKind};
 pub use output::{
     DepartureItem, DeparturesView, ExtensionOutput, KeyValueItem, KeyValueView, ListView,

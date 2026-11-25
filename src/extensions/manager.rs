@@ -35,6 +35,13 @@ pub struct ManagerOptions {
     pub settings: BTreeMap<String, toml::Value>,
 }
 
+/// Result of a catalog refresh, including whether the network was unavailable.
+#[derive(Debug, Clone)]
+pub struct CatalogRefresh {
+    pub entries: Vec<ShopEntry>,
+    pub from_cache: bool,
+}
+
 /// Errors surfaced by the manager and the shop.
 #[derive(Debug, Error)]
 pub enum ManagerError {
@@ -48,6 +55,8 @@ pub enum ManagerError {
     AlreadyInstalled(String),
     #[error("no update is available for {0}")]
     NoUpdate(String),
+    #[error("the catalog package for {0} no longer matches the install confirmation")]
+    ConfirmationMismatch(String),
     #[error("catalog: {0}")]
     Catalog(#[from] CatalogError),
     #[error("store: {0}")]
@@ -137,11 +146,15 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
     }
 
     /// Fetch and verify the catalog. Falls back to the last verified cache.
-    pub fn refresh_catalog(&mut self) -> Result<Vec<ShopEntry>, ManagerError> {
+    pub fn refresh_catalog(&mut self) -> Result<CatalogRefresh, ManagerError> {
         let client = self.client.as_mut().ok_or(ManagerError::NoCatalog)?;
         let outcome = client.refresh()?;
+        let from_cache = outcome.from_cache;
         self.catalog = Some(outcome.index);
-        Ok(self.shop_entries())
+        Ok(CatalogRefresh {
+            entries: self.shop_entries(),
+            from_cache,
+        })
     }
 
     /// Shop entries from the last verified catalog plus installed extensions.
@@ -196,6 +209,23 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
     pub fn install(&mut self, id: &str) -> Result<(), ManagerError> {
         if self.store.get(id).is_some() {
             return Err(ManagerError::AlreadyInstalled(id.to_string()));
+        }
+        self.install_from_catalog(id)
+    }
+
+    /// Install only the exact version and checksum the user confirmed.
+    pub fn install_matching(
+        &mut self,
+        id: &str,
+        version: &str,
+        package_sha256: &str,
+    ) -> Result<(), ManagerError> {
+        if self.store.get(id).is_some() {
+            return Err(ManagerError::AlreadyInstalled(id.to_string()));
+        }
+        let entry = self.catalog_entry(id).ok_or(ManagerError::NoCatalog)?;
+        if entry.version.to_string() != version || entry.sha256 != package_sha256 {
+            return Err(ManagerError::ConfirmationMismatch(id.to_string()));
         }
         self.install_from_catalog(id)
     }

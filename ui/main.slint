@@ -51,6 +51,7 @@ export component MainWindow inherits Window {
     in property <string> shop-config-path: "";
     in property <string> shop-secret-dir: "";
     in property <string> shop-pending-id: "";
+    in-out property <string> shop-confirm-id: "";
     in property <[string]> extension-errors: [];
     callback page-changed(int);
     callback swipe-next();
@@ -154,6 +155,7 @@ export component MainWindow inherits Window {
                 config-path: root.shop-config-path;
                 secret-dir: root.shop-secret-dir;
                 pending-id: root.shop-pending-id;
+                confirm-id: root.shop-confirm-id;
                 refresh() => { root.shop-refresh(); }
                 confirm-install(id) => { root.shop-install(id); }
                 update(id) => { root.shop-update(id); }

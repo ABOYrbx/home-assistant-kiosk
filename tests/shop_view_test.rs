@@ -79,6 +79,7 @@ fn install_requires_first_install_confirmation() {
     let request = view.request(id, ShopAction::Install, true).unwrap();
     assert_eq!(request.action, ShopAction::Install);
     assert_eq!(request.version, "1.0.0");
+    assert_eq!(request.package_sha256, "a".repeat(64));
     assert!(view.pending.is_some());
 }
 

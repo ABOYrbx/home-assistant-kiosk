@@ -16,7 +16,7 @@ type SharedShop = Rc<RefCell<ShopView>>;
 /// Work sent to the background extension worker.
 enum ShopTask {
     Refresh,
-    Install(u64, String),
+    Install(u64, String, String, String),
     Update(u64, String),
     Remove(u64, String),
     SetEnabled(u64, String, bool),
@@ -113,11 +113,19 @@ impl AppController {
                 Duration::from_millis(200),
                 move || {
                     let mut changed = false;
+                    let mut catalog_changed = false;
                     while let Ok(event) = event_rx.try_recv() {
+                        catalog_changed |= matches!(
+                            &event,
+                            ShopEvent::CatalogLoaded(_) | ShopEvent::CatalogOffline { .. }
+                        );
                         apply_shop_event(&mut shop_events.borrow_mut(), event);
                         changed = true;
                     }
                     if changed && let Some(window) = weak_events.upgrade() {
+                        if catalog_changed {
+                            window.set_shop_confirm_id("".into());
+                        }
                         push_shop(&window, &shop_events.borrow());
                     }
                 },
@@ -225,6 +233,10 @@ impl AppController {
                 self.state.apply_ha_event(ha_event);
             }
             AppEvent::Shop(shop_event) => {
+                let catalog_changed = matches!(
+                    &shop_event,
+                    ShopEvent::CatalogLoaded(_) | ShopEvent::CatalogOffline { .. }
+                );
                 {
                     let mut shop = self.shop.borrow_mut();
                     match shop_event {
@@ -240,6 +252,9 @@ impl AppController {
                             let _ = shop.complete(request_id, &id, action, result);
                         }
                     }
+                }
+                if catalog_changed {
+                    self.window.set_shop_confirm_id("".into());
                 }
                 push_shop(&self.window, &self.shop.borrow());
             }
@@ -316,9 +331,12 @@ fn run_shop_action(
         match shop.request(id, action, confirmed) {
             Ok(request) => {
                 let task = match action {
-                    ShopAction::Install => {
-                        Some(ShopTask::Install(request.request_id, id.to_string()))
-                    }
+                    ShopAction::Install => Some(ShopTask::Install(
+                        request.request_id,
+                        id.to_string(),
+                        request.version.clone(),
+                        request.package_sha256.clone(),
+                    )),
                     ShopAction::Update => {
                         Some(ShopTask::Update(request.request_id, id.to_string()))
                     }
@@ -442,10 +460,16 @@ fn run_shop_worker(
         };
         match task {
             ShopTask::Refresh => match manager.refresh_catalog() {
-                Ok(entries) => {
-                    catalog_online = true;
-                    let _ = events.send(ShopEvent::CatalogLoaded(entries));
+                Ok(refresh) => {
+                    catalog_online = !refresh.from_cache;
+                    let _ = events.send(ShopEvent::CatalogLoaded(refresh.entries));
                     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
+                    if refresh.from_cache {
+                        let _ = events.send(ShopEvent::CatalogOffline {
+                            reason: "Catalog unavailable; showing the last verified cache."
+                                .to_string(),
+                        });
+                    }
                 }
                 Err(error) => {
                     catalog_online = false;
@@ -455,8 +479,8 @@ fn run_shop_worker(
                     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
                 }
             },
-            ShopTask::Install(request_id, id) => {
-                let result = manager.install(&id);
+            ShopTask::Install(request_id, id, version, package_sha256) => {
+                let result = manager.install_matching(&id, &version, &package_sha256);
                 finish_shop_action(
                     manager,
                     &events,
