@@ -335,8 +335,9 @@ impl ExtensionHost {
 
         let clock = Arc::clone(&self.clock);
         let time_zone = self.time_zone;
-        engine.register_fn("now", move || -> String {
-            clock.now().with_timezone(&time_zone).to_rfc3339()
+        engine.register_fn("now", move || -> Result<String, Box<EvalAltResult>> {
+            check_deadline(start, wall_clock)?;
+            Ok(clock.now().with_timezone(&time_zone).to_rfc3339())
         });
 
         let logs = Arc::clone(&self.logs);
