@@ -116,11 +116,13 @@ The host registers only these functions:
 | Function | Behaviour |
 | --- | --- |
 | `http_get_json(url)` | GET only, HTTPS, host allowlist, no credentials, 10 s timeout, 1 MB cap, no cross-host redirects. Returns a Rhai value. |
-| `ha_state(entity_id)` | Read-only map with `state` and `attributes`, allowlisted entity IDs only. Returns `()` if unavailable. |
+| `ha_state(entity_id)` | Exact manifest entity IDs only. Returns a fresh copy of a read-only map containing only `state` and `attributes`, or `()` when the declared entity has no snapshot. No service calls; the Home Assistant token is never exposed. |
 | `now()` | RFC 3339 timestamp in the Home Assistant timezone. |
 | `log(message)` | Debug log. Do not log secrets or full API responses. |
 
 No other host functions are registered. Rhai's own language has no filesystem, process, environment, or network access.
+
+`ha_state` never calls Home Assistant. The host receives precomputed snapshots, keeps only exact IDs declared in `ha_entities`, and has no Home Assistant client, command channel, URL, or token. Mutating the returned map does not change the stored snapshot or a later `ha_state` call.
 
 Limits: 1,000,000 operations, 64 KB strings, 1,000 array/map entries, max call depth, no modules/imports, 10 s wall clock. Scripts run off the UI thread.
 

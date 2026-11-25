@@ -77,6 +77,8 @@ impl Default for Limits {
 }
 
 /// A read-only Home Assistant entity snapshot.
+///
+/// Scripts receive only the `state` and `attributes` fields.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EntitySnapshot {
@@ -107,6 +109,11 @@ impl Clock for SystemClock {
 }
 
 /// Everything the host needs to run one extension.
+///
+/// `entities` contains precomputed read-only snapshots. This type intentionally
+/// has no Home Assistant client, command channel, URL, or token, so the sandbox
+/// cannot call services. [`ExtensionHost::new`] discards snapshots whose IDs are
+/// not declared in the manifest.
 pub struct HostConfig {
     pub manifest: Manifest,
     pub script: String,

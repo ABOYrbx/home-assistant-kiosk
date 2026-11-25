@@ -414,6 +414,9 @@ fn sandbox_registers_only_the_four_host_functions() {
     for call in [
         r#"read_file("/etc/passwd")"#,
         r#"ha_call_service("light.turn_on", #{})"#,
+        r#"call_service("light", "turn_on", #{})"#,
+        r#"ha_token()"#,
+        r#"access_token()"#,
         r#"http_get("https://api.example.com/x")"#,
         r#"system("id")"#,
     ] {
@@ -507,7 +510,10 @@ fn allowed_host_uses_the_fetcher() {
 fn ha_state_is_read_only_and_allowlisted() {
     let script = r#"fn refresh(config) {
         let snapshot = ha_state("sensor.departures");
-        #{ kind: "key_value", items: [ #{ label: "state", value: snapshot.state } ] }
+        #{ kind: "key_value", items: [
+            #{ label: "state", value: snapshot.state },
+            #{ label: "next", value: snapshot.attributes.next }
+        ] }
     }"#;
     let mut config = key_value_config(script);
     config.entities.insert(
@@ -519,7 +525,13 @@ fn ha_state_is_read_only_and_allowlisted() {
     );
     let host = ExtensionHost::new(config).unwrap();
     match host.refresh().unwrap() {
-        ExtensionOutput::KeyValue(view) => assert_eq!(view.items[0].value, "3"),
+        ExtensionOutput::KeyValue(view) => {
+            assert_eq!(view.items.len(), 2);
+            assert_eq!(view.items[0].label, "state");
+            assert_eq!(view.items[0].value, "3");
+            assert_eq!(view.items[1].label, "next");
+            assert_eq!(view.items[1].value, "12:05");
+        }
         other => panic!("unexpected output: {other:?}"),
     }
 
@@ -527,8 +539,53 @@ fn ha_state_is_read_only_and_allowlisted() {
         ha_state("sensor.private");
         #{ kind: "key_value", items: [] }
     }"#;
-    let error = key_value_host(forbidden).refresh().unwrap_err();
-    assert!(error.to_string().contains("not declared"));
+    let mut forbidden_config = key_value_config(forbidden);
+    forbidden_config.entities.insert(
+        "sensor.private".into(),
+        EntitySnapshot {
+            state: "private-state".into(),
+            attributes: json!({"marker": "private-attribute"}),
+        },
+    );
+    let error = ExtensionHost::new(forbidden_config)
+        .unwrap()
+        .refresh()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not declared"));
+    assert!(!error.contains("private-state"));
+    assert!(!error.contains("private-attribute"));
+}
+
+#[test]
+fn ha_state_returns_a_fresh_snapshot_on_each_call() {
+    let script = r#"fn refresh(config) {
+        let first = ha_state("sensor.departures");
+        first.state = "tampered";
+        first.attributes.next = "tampered";
+        let second = ha_state("sensor.departures");
+        #{ kind: "key_value", items: [
+            #{ label: "state", value: second.state },
+            #{ label: "next", value: second.attributes.next }
+        ] }
+    }"#;
+    let mut config = key_value_config(script);
+    config.entities.insert(
+        "sensor.departures".into(),
+        EntitySnapshot {
+            state: "3".into(),
+            attributes: json!({"next": "12:05"}),
+        },
+    );
+
+    match ExtensionHost::new(config).unwrap().refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => {
+            assert_eq!(view.items.len(), 2);
+            assert_eq!(view.items[0].value, "3");
+            assert_eq!(view.items[1].value, "12:05");
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
 }
 
 #[test]
