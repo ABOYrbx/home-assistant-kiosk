@@ -776,9 +776,10 @@ fn validate_extensions(ext: &ExtensionsConfig) -> Result<(), ConfigError> {
             "extensions.catalog_url is required when extensions are enabled".into(),
         ));
     };
-    if url.scheme() != "https" && !ext.dev_mode {
+    if url.scheme() != "https" && !(ext.allow_unsigned && ext.dev_mode) {
         return Err(ConfigError::Validation(
-            "extensions.catalog_url must use https unless extensions.dev_mode is true".into(),
+            "extensions.catalog_url must use https unless allow_unsigned and dev_mode are both enabled"
+                .into(),
         ));
     }
     if ext.allow_unsigned && !ext.dev_mode {

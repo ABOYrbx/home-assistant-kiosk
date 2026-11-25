@@ -53,7 +53,7 @@ impl HttpsFetcher {
     pub fn with_timeout(timeout: Duration) -> Result<Self, FetchError> {
         let client = reqwest::blocking::Client::builder()
             .timeout(timeout)
-            .redirect(reqwest::redirect::Policy::limited(3))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| FetchError::Transport(e.to_string()))?;
         Ok(Self { client })
