@@ -236,5 +236,14 @@ class ExtensionCatalogDocsTest(unittest.TestCase):
         self.assertIn("missing removal action: Disable", self.validate(empty_removal_cell))
 
 
+class ExtensionCatalogDocsIntegrationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.check_docs = load_check_docs()
+
+    def test_actual_extension_catalog_doc_passes_review_contract(self) -> None:
+        guide = (ROOT / "docs" / "extension-catalog.md").read_text()
+        self.assertEqual(self.check_docs.validate_extension_review_doc(guide), [])
+
+
 if __name__ == "__main__":
     unittest.main()
