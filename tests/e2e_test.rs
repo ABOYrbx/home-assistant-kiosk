@@ -12,6 +12,7 @@ use ha_kiosk::events::{HaCommand, HaError, HaEvent, PendingAction, ServiceCall};
 use ha_kiosk::ha;
 use ha_kiosk::sources::{media, tiles, weather};
 use ha_kiosk::state::{AppState, CacheStore, ConnectionState};
+use ha_kiosk::ui::top_bar::connection_view;
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{Value, json};
 use std::net::SocketAddr;
@@ -41,13 +42,18 @@ enum Behaviour {
     Malformed,
     /// Stream state changes for an unbounded soak run.
     Soak,
+    /// First connection includes an entity that disappears on the next snapshot.
+    InitialWithRemoved,
+    /// Reconnect snapshot replaces the initial state and omits the removed entity.
+    Resync,
 }
 
 struct MockHaServer {
     addr: SocketAddr,
     connections: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<Value>>>,
-    task: tokio::task::JoinHandle<()>,
+    task: Option<tokio::task::JoinHandle<()>>,
+    connection_tasks: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl MockHaServer {
@@ -61,17 +67,24 @@ impl MockHaServer {
         let addr = listener.local_addr().expect("listener address");
         let connections = Arc::new(AtomicUsize::new(0));
         let requests = Arc::new(Mutex::new(Vec::new()));
+        let connection_tasks = Arc::new(Mutex::new(Vec::new()));
 
         let task = {
             let connections = Arc::clone(&connections);
             let requests = Arc::clone(&requests);
+            let connection_tasks = Arc::clone(&connection_tasks);
             tokio::spawn(async move {
                 while let Ok((stream, _)) = listener.accept().await {
                     connections.fetch_add(1, Ordering::SeqCst);
                     let requests = Arc::clone(&requests);
-                    tokio::spawn(async move {
+                    let connection_tasks = Arc::clone(&connection_tasks);
+                    let task = tokio::spawn(async move {
                         let _ = serve_connection(stream, behaviour, requests).await;
                     });
+                    connection_tasks
+                        .lock()
+                        .expect("connection task log")
+                        .push(task);
                 }
             })
         };
@@ -80,7 +93,24 @@ impl MockHaServer {
             addr,
             connections,
             requests,
-            task,
+            task: Some(task),
+            connection_tasks,
+        }
+    }
+
+    /// Stop accepting connections and close every active WebSocket peer.
+    async fn stop(mut self) {
+        if let Some(task) = self.task.take() {
+            task.abort();
+            let _ = task.await;
+        }
+        let tasks =
+            std::mem::take(&mut *self.connection_tasks.lock().expect("connection task log"));
+        for task in &tasks {
+            task.abort();
+        }
+        for task in tasks {
+            let _ = task.await;
         }
     }
 
@@ -106,7 +136,9 @@ impl MockHaServer {
 
 impl Drop for MockHaServer {
     fn drop(&mut self) {
-        self.task.abort();
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
     }
 }
 
@@ -260,6 +292,45 @@ async fn send_scenario_messages(
         return Ok(());
     }
 
+    if behaviour == Behaviour::InitialWithRemoved {
+        send(
+            ws,
+            json!({"type": "event", "event": {
+                "a": [
+                    {
+                        "entity_id": "light.example",
+                        "state": "on",
+                        "attributes": {"brightness": 128},
+                    },
+                    {
+                        "entity_id": "sensor.cached",
+                        "state": "42",
+                        "attributes": {"unit_of_measurement": "example"},
+                    },
+                ],
+            }}),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    if behaviour == Behaviour::Resync {
+        send(
+            ws,
+            json!({"type": "event", "event": {
+                "a": [
+                    {
+                        "entity_id": "light.example",
+                        "state": "off",
+                        "attributes": {},
+                    },
+                ],
+            }}),
+        )
+        .await?;
+        return Ok(());
+    }
+
     send(
         ws,
         json!({"type": "event", "event": {
@@ -338,7 +409,7 @@ async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(),
                         "c": [
                             {
                                 "entity_id": "light.example",
-                                "state": if tick % 2 == 0 { "on" } else { "off" },
+                                "state": if tick.is_multiple_of(2) { "on" } else { "off" },
                                 "attributes": {"brightness": brightness},
                             },
                             {
@@ -579,6 +650,111 @@ async fn offline_shows_cached_state_as_stale_and_resyncs() {
 }
 
 #[tokio::test]
+async fn stopped_server_keeps_cached_data_stale_until_the_returning_snapshot() {
+    let addr = free_addr();
+    let dir = tempfile::tempdir().expect("temp dir");
+    let cache = FileCache::new(
+        dir.path().join("cache.json"),
+        1,
+        "offline-e2e".to_string(),
+        1024 * 1024,
+    );
+    let subscribed = vec!["light.example".to_string(), "sensor.cached".to_string()];
+    let url = Url::parse(&format!("http://{addr}")).expect("mock server URL");
+
+    // A live session with two entities, one of which the resync will drop.
+    let server = MockHaServer::start_on(addr.port(), Behaviour::InitialWithRemoved).await;
+    let mut app = TestApp::start_with(ha_config(url.clone(), "test-token"), subscribed.clone());
+    app.wait_until(|state| {
+        state.connection == ConnectionState::Connected
+            && state.entities.contains_key("sensor.cached")
+            && state
+                .entities
+                .get("light.example")
+                .is_some_and(|entity| entity.state == "on")
+    })
+    .await;
+
+    let live = connection_view(&app.state.connection, app.state.stale);
+    assert_eq!(live.label, "Connected");
+    assert!(!live.warning);
+
+    // The kiosk caches the live state, as the runtime does after a snapshot.
+    cache.save(&app.state).expect("cache write");
+    let cached = cache.load().expect("cache read").expect("cached state");
+    assert_eq!(cached.entities["light.example"].state, "on");
+
+    // Home Assistant stops and the socket closes mid-session.
+    server.stop().await;
+    app.wait_until(|state| state.connection == ConnectionState::Disconnected)
+        .await;
+
+    assert!(app.state.stale, "data from a closed connection is not live");
+    let offline = connection_view(&app.state.connection, app.state.stale);
+    assert_eq!(offline.label, "Offline");
+    assert!(offline.warning);
+    assert_eq!(
+        app.state.entities["light.example"].state, "on",
+        "the last known state stays visible while the server is down"
+    );
+
+    // A kiosk restart while the server is down restores the cached snapshot
+    // and keeps it visibly stale.
+    let mut restarted = TestApp::start_with(ha_config(url, "test-token"), subscribed);
+    restarted.state = AppState::restore_from_cache(cached);
+    assert_eq!(restarted.state.connection, ConnectionState::Disconnected);
+    assert!(restarted.state.stale);
+    assert_eq!(restarted.state.entities.len(), 2);
+    assert_eq!(restarted.state.entities["sensor.cached"].state, "42");
+    assert_eq!(
+        connection_view(&restarted.state.connection, restarted.state.stale).label,
+        "Offline"
+    );
+
+    // The server returns on the same port with a fresh snapshot that no longer
+    // includes `sensor.cached`.
+    let _server = MockHaServer::start_on(addr.port(), Behaviour::Resync).await;
+
+    // A successful handshake alone must not make the restored data look live.
+    restarted
+        .wait_until(|state| state.connection == ConnectionState::Connected)
+        .await;
+    assert!(
+        restarted.state.stale,
+        "the handshake must not clear the stale badge before fresh data arrives"
+    );
+    assert_eq!(
+        connection_view(&restarted.state.connection, restarted.state.stale).label,
+        "Stale"
+    );
+    assert!(restarted.state.entities.contains_key("sensor.cached"));
+
+    // The snapshot replaces the restored state and clears the badge.
+    restarted
+        .wait_until(|state| {
+            !state.stale
+                && state
+                    .entities
+                    .get("light.example")
+                    .is_some_and(|entity| entity.state == "off")
+        })
+        .await;
+    assert_eq!(
+        restarted.state.connection,
+        ConnectionState::Connected,
+        "a resynced kiosk reports a live connection"
+    );
+    assert!(
+        !restarted.state.entities.contains_key("sensor.cached"),
+        "the resync snapshot replaces entities that disappeared"
+    );
+    assert_eq!(
+        connection_view(&restarted.state.connection, restarted.state.stale).label,
+        "Connected"
+    );
+}
+
+#[tokio::test]
 async fn invalid_token_reports_an_error_without_retrying() {
     let server = MockHaServer::start(Behaviour::RejectToken).await;
     let mut app = TestApp::start(&server, "wrong-token");
@@ -758,7 +934,7 @@ async fn soak_with_state_change_stream_stays_bounded() {
         app.next_event().await;
         events += 1;
 
-        if events % 20 == 0 {
+        if events.is_multiple_of(20) {
             cache.save(&app.state).expect("cache write");
             cache_writes += 1;
             let size = std::fs::metadata(&cache_path)

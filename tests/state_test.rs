@@ -116,3 +116,38 @@ fn service_result_clears_pending_action() {
 
     assert!(state.pending.is_empty());
 }
+
+#[test]
+fn reconnect_keeps_cached_data_stale_until_the_first_fresh_batch() {
+    // A snapshot from the previous session, then a restore before the network
+    // is back: the data is cached and must not look live.
+    let mut previous = AppState::default();
+    previous.apply_ha_event(HaEvent::Snapshot(vec![
+        entity("light.cached", "on", json!({})),
+        entity("sensor.gone", "42", json!({})),
+    ]));
+    assert!(!previous.stale);
+
+    let mut state = AppState::restore_from_cache(previous);
+    state.apply_ha_event(HaEvent::Connected {
+        ha_version: "2024.2.0".to_string(),
+        time_zone: chrono_tz::Europe::Berlin,
+    });
+    assert_eq!(state.connection, ConnectionState::Connected);
+    assert!(
+        state.stale,
+        "a handshake must not present cached data as live"
+    );
+
+    // The first batch from the new connection replaces the restored snapshot,
+    // including entities that no longer exist.
+    state.apply_ha_event(HaEvent::EntitiesAdded(vec![entity(
+        "light.cached",
+        "off",
+        json!({}),
+    )]));
+    assert!(!state.stale, "fresh data clears the stale badge");
+    assert_eq!(state.entities.len(), 1);
+    assert_eq!(state.entities["light.cached"].state, "off");
+    assert!(!state.entities.contains_key("sensor.gone"));
+}
