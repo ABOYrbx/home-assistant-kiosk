@@ -1,11 +1,11 @@
 # GitHub Repository Rules
 
-This document is the authoritative policy for the GitHub repository `ABOYrbx/home-assistant-kiosk`. It covers access, branches, merges, releases, security settings, and the current GitHub plan limitation.
+This document is the authoritative policy for the GitHub repository `ABOYrbx/home-assistant-kiosk`. It covers access, branches, merges, releases, security settings, and how the policy is enforced.
 
 ## Current access
 
-- Repository: **private**.
-- Owner and only collaborator: **`ABOYrbx`**.
+- Repository: **public** since 2026-11-25 (issue #10). Anyone may read and fork it.
+- Owner and only collaborator: **`ABOYrbx`**. Only `ABOYrbx` may push.
 - No teams, no bots, no deploy keys, and no outside collaborators.
 - `gh` must be authenticated as `ABOYrbx` before any push.
 - Commit identity: `ABOYrbx <141421787+ABOYrbx@users.noreply.github.com>`.
@@ -22,7 +22,7 @@ gh api repos/ABOYrbx/home-assistant-kiosk/collaborators \
 
 ## Branch policy for `main`
 
-Policy (applied with [`scripts/apply-github-settings.sh`](../scripts/apply-github-settings.sh) when the GitHub plan supports it):
+The `main-protection` repository ruleset enforces this policy. `scripts/apply-github-settings.sh` applies and verifies it.
 
 - Pull request required before merging.
 - No direct pushes to `main`; no force-pushes; no branch deletion.
@@ -43,29 +43,23 @@ Additional release policy:
 - Release assets include checksums.
 - The version follows semver; the extension catalog has its own versions.
 
-## Current limitation: GitHub Free + private repository
+## Enforcement status
 
-GitHub Free does **not** enable branch protection or repository rulesets for private repositories. The API returns:
+The repository is public, so GitHub Free exposes repository rulesets for it. The `main-protection` ruleset is active and was verified after issue #10:
+
+- Enforcement is `active` and targets `~DEFAULT_BRANCH`.
+- `bypass_actors` is empty, so administrators are subject to the rules.
+- The rules cover deletion, non-fast-forward pushes, linear history, a pull request, and the required `docs` status check.
+- The `docs` check is strict, so the branch must be up to date before merging.
+- Required approving reviews are `0`; CODEOWNERS still requests review and conversation resolution applies.
+
+Before 2026-11-25 the repository was private on GitHub Free, which does not expose branch protection or rulesets. During that period the policy was process-only. If the repository is ever made private again on a plan without protection support, the API returns:
 
 ```text
 Upgrade to GitHub Pro or make this repository public to enable this feature.
 ```
 
-Until the repository is public or on a plan that supports protection:
-
-- The rules above are the project policy, not a technical block.
-- The `docs` check runs on every push and pull request but cannot prevent a merge by itself.
-- CODEOWNERS and pull request templates document the expected review.
-- Direct pushes to `main` are a policy violation even if GitHub accepts them.
-- Do not bypass the documented process because the platform cannot enforce it.
-
-To make the rules technically enforceable, the owner chooses one of:
-
-1. Make the repository public and rerun the settings script.
-2. Upgrade to GitHub Pro (or higher) and rerun the settings script.
-3. Keep it private on the current plan and accept process-only enforcement.
-
-The script attempts a repository ruleset first and classic branch protection second, and prints a clear message when neither is available. The remaining step is tracked in [issue #10](https://github.com/ABOYrbx/home-assistant-kiosk/issues/10).
+In that case the script warns, the policy remains in force as process, and the technical block must be restored before the next merge. The script prefers a repository ruleset and falls back to classic branch protection when rulesets are unavailable. It verifies the applied state and exits non-zero when a supported feature could not be applied.
 
 ## Available repository settings
 
@@ -84,11 +78,11 @@ These are applied by the script:
 | Squash title | pull request title |
 | Squash message | pull request body |
 | Delete branch on merge | enabled |
-| Auto-merge | not available on the current GitHub Free private plan; the script requests it |
+| Auto-merge | enabled |
 | Update branch | enabled |
 | Web commit signoff | not required |
 
-Security settings currently available: Dependabot alerts and Dependabot security updates are enabled. Private vulnerability reporting and secret scanning are **not** available on GitHub Free for a private repository; enable them when the repository is public or on GitHub Pro. Actions use read-only `GITHUB_TOKEN` permissions and are limited to GitHub-owned or verified actions.
+Security settings: Dependabot alerts, Dependabot security updates, private vulnerability reporting, secret scanning, and push protection are enabled. Actions use read-only `GITHUB_TOKEN` permissions and are limited to GitHub-owned or verified actions.
 
 ## Pull requests
 
@@ -139,7 +133,7 @@ Enable and keep enabled:
 - Actions token permissions: read-only by default; workflows cannot approve pull requests.
 - Allowed Actions: GitHub-owned and verified actions only.
 
-GitHub Free private repositories do not expose private vulnerability reporting or secret scanning through the API. Until the repository is public or on GitHub Pro, do not open a public security issue; read [`SECURITY.md`](../SECURITY.md) for the current reporting path.
+Do not open a public issue for a security vulnerability. Use the private advisory form; private vulnerability reporting is enabled. Secret scanning and push protection are enabled and must not be bypassed.
 
 ## Branches and tags
 
@@ -176,15 +170,22 @@ gh api repos/ABOYrbx/home-assistant-kiosk \
 gh api repos/ABOYrbx/home-assistant-kiosk/collaborators \
   --jq '.[] | .login'
 
-# Rulesets (requires a plan that supports them)
-gh api repos/ABOYrbx/home-assistant-kiosk/rulesets
+# Ruleset (public repository)
+gh api repos/ABOYrbx/home-assistant-kiosk/rulesets \
+  --jq '.[] | select(.name == "main-protection")'
+gh api repos/ABOYrbx/home-assistant-kiosk/rulesets \
+  --jq '.[] | select(.name == "main-protection") | .id'
 
-# Classic protection (requires a plan that supports it)
+# Ruleset fields (replace <id>)
+gh api repos/ABOYrbx/home-assistant-kiosk/rulesets/<id> \
+  --jq '{enforcement, rules: [.rules[].type], bypass_actors, conditions}'
+
+# Classic protection, only when rulesets are unavailable
 gh api repos/ABOYrbx/home-assistant-kiosk/branches/main/protection
 
 # Docs check
 python3 scripts/check-docs.py
 
-# Apply settings and attempt protection
+# Apply settings and verify protection
 scripts/apply-github-settings.sh
 ```
