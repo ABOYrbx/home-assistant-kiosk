@@ -15,10 +15,10 @@ English only: code, comments, commits, branches, issues, pull requests, document
 
 ## Who can push
 
-- The repository is private and only **`ABOYrbx`** can push.
+- The repository is public and only **`ABOYrbx`** can push. Anyone may read and fork it.
 - No other collaborators, teams, bots, or deploy keys are allowed.
 - Every push must use the `ABOYrbx` GitHub account. Verify with `gh auth status` before pushing.
-- External contributions are welcome through pull requests once the repository is public or access is granted.
+- External contributions are welcome through pull requests from a fork.
 - Do not create a fork, mirror, or second remote for contribution work.
 
 ## Before you start

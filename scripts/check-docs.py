@@ -49,6 +49,8 @@ REQUIRED_FILES = [
     "docs/release-checklist.md",
     "docs/troubleshooting.md",
     "scripts/apply-github-settings.sh",
+    "scripts/github-protection.json",
+    "scripts/github-protection-classic.json",
     "scripts/build-all.sh",
     "scripts/create-subtask-issues.py",
     "tests/deploy_scripts_test.sh",
@@ -438,7 +440,10 @@ def check_forbidden() -> None:
     for path in ROOT.rglob("*"):
         if not path.is_file():
             continue
-        if ".git" in path.parts or "target" in path.parts:
+        if any(
+            part in {".git", ".openchamber", ".opencode", ".design-studio", "node_modules", "target"}
+            for part in path.parts
+        ):
             continue
         if path.resolve() == Path(__file__).resolve():
             continue

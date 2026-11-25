@@ -1006,7 +1006,7 @@ Each focus item has an owning task above; the end-to-end tests in Wave 5 pin ite
 
 ## 12. Open decisions
 
-1. **License.** Slint is GPL-3.0-only, royalty-free for non-embedded use, or commercial. A single-purpose kiosk device may be classified as an embedded system. Choose GPL-3.0-only for the project (source must be available when binaries are distributed) or obtain a commercial license before distributing proprietary binaries. Do not add a license file until this is decided.
+1. **License and visibility.** The repository is public since 2026-11-25 (issue #10). The license is still open: Slint is GPL-3.0-only, royalty-free for non-embedded use, or commercial, and a single-purpose kiosk device may be classified as an embedded system. Choose GPL-3.0-only for the project (source must be available when binaries are distributed) or obtain a commercial license before distributing proprietary binaries. Do not add a license file or distribute binaries until this is decided.
 2. **Direct provider APIs.** v1 is Home Assistant-only. Weather, transit, and calendar providers stay behind Home Assistant integrations. Revisit only if a concrete provider cannot be represented by the generic entity contracts.
 3. **Departures contract.** v1 uses a sensor attribute contract. If that proves too rigid, add a second adapter for a configurable JSON endpoint in v2; do not hardcode a provider.
 4. **Kiosk backend support.** LinuxKMS is primary and X11 is the fallback. Wayland is supported by winit but not a release gate.
