@@ -59,7 +59,7 @@ id = "org.example.bus-departures"
 name = "Bus Departures"
 version = "1.0.0"
 api_version = 1
-min_app_version = "0.6.0"
+min_app_version = "0.1.0"
 entry = "main.rhai"
 provides = "departures" # departures | list | key_value
 author = "Example Author"
@@ -185,7 +185,7 @@ Provider-neutral example extension for the Home Assistant Kiosk extension shop.
 
 ## Configuration
 
-- `stop_id` (required): ASCII letters, digits, `-`, `_`, `.`, or `~` only.
+- `stop_id` (required): ASCII letters, digits, `-`, `_`, `.`, or `~` only. Leading and trailing whitespace is trimmed.
 - `limit` (optional): maximum number of rows, from 1 to 20; defaults to 6.
 
 Replace `api.example.com` and the response field names with the transit API you
@@ -195,9 +195,9 @@ API key, personal address, or provider URL to a public example.
 ## Permissions and behavior
 
 The example makes HTTPS GET requests to `api.example.com` only. It does not read
-Home Assistant entities, call services, or use secrets. An empty response shows
-an empty departures view. HTTP or malformed-response errors are reported while
-the kiosk keeps the last good data.
+Home Assistant entities, call services, or use secrets. An empty `departures`
+array shows an empty departures view. HTTP or malformed-response errors are
+reported while the kiosk keeps the last good data.
 
 ## Removal
 

@@ -7,7 +7,7 @@ use flate2::{Compression, write::GzEncoder};
 use ha_kiosk::extensions::manifest::ConfigFieldType;
 use ha_kiosk::extensions::{
     ExtensionError, ExtensionHost, ExtensionManifest, ExtensionOutput, ExtensionRunner, HostConfig,
-    HttpError, HttpFetcher, Manifest, OutputError, OutputKind, extract_package, load_manifest,
+    HttpError, HttpFetcher, Manifest, OutputError, OutputKind, extract_package,
 };
 use semver::Version;
 use serde_json::{Value, json};
@@ -72,7 +72,7 @@ fn example_license() -> &'static str {
 }
 
 #[test]
-fn documented_example_forms_a_valid_package() {
+fn documented_example_forms_a_runnable_package() {
     let files = [
         ("manifest.toml", example_manifest_toml()),
         ("main.rhai", example_script()),
@@ -99,14 +99,28 @@ fn documented_example_forms_a_valid_package() {
 
     let destination = tempfile::tempdir().unwrap();
     extract_package(&package, destination.path()).unwrap();
-    for path in ["manifest.toml", "main.rhai", "README.md", "LICENSE"] {
-        let file = destination.path().join(path);
-        assert!(file.is_file(), "package must contain {path} at its root");
-        assert!(std::fs::metadata(file).unwrap().len() > 0);
+    for (path, contents) in files {
+        let extracted = std::fs::read_to_string(destination.path().join(path)).unwrap();
+        assert_eq!(extracted, contents, "extracted {path} must match the guide");
     }
+
+    let manifest = Manifest::load(destination.path().join("manifest.toml")).unwrap();
+    assert_eq!(manifest.id, "org.example.bus-departures");
+    let script = std::fs::read_to_string(destination.path().join(&manifest.entry))
+        .expect("the manifest-declared entry must be packaged");
+    let fetcher = Arc::new(RecordingFetcher::ok(json!({ "departures": [] })));
+    let mut config = HostConfig::new(manifest, script);
+    config
+        .settings
+        .insert("stop_id".into(), json!("REPLACE_ME"));
+    config.fetcher = Some(fetcher.clone());
+    let host = ExtensionHost::new(config).expect("extracted package must build a sandbox");
+
+    let output = host.refresh().expect("extracted entry must run");
+    assert!(matches!(output, ExtensionOutput::Departures(_)));
     assert_eq!(
-        load_manifest(destination.path()).unwrap().id,
-        "org.example.bus-departures"
+        fetcher.calls(),
+        ["https://api.example.com/departures?stop=REPLACE_ME&limit=6"]
     );
 }
 
@@ -141,8 +155,8 @@ fn documented_example_is_valid() {
     let catalog_manifest = ExtensionManifest::parse_toml(example_manifest_toml())
         .expect("catalog manifest parser must accept the documented manifest");
     catalog_manifest
-        .validate(&Version::parse("0.6.0").unwrap())
-        .expect("catalog manifest must be compatible with the example app version");
+        .validate(&Version::parse(env!("CARGO_PKG_VERSION")).unwrap())
+        .expect("catalog manifest must be compatible with the current app version");
 
     assert!(
         rhai::Engine::new().compile(example_script()).is_ok(),
@@ -295,6 +309,36 @@ fn example_respects_configured_limit() {
 }
 
 #[test]
+fn example_accepts_safe_stop_id_punctuation() {
+    let fetcher = Arc::new(RecordingFetcher::ok(json!({ "departures": [] })));
+    let host = example_host(fetcher.clone(), "REPLACE_ME-_.~", None);
+
+    host.refresh().expect("safe stop ID must be accepted");
+
+    assert_eq!(
+        fetcher.calls(),
+        ["https://api.example.com/departures?stop=REPLACE_ME-_.~&limit=6"]
+    );
+}
+
+#[test]
+fn example_rejects_out_of_range_limits_before_fetch() {
+    for limit in [0, 21] {
+        let fetcher = Arc::new(RecordingFetcher::ok(json!({ "departures": [] })));
+        let mut config = HostConfig::new(example_manifest(), example_script());
+        config
+            .settings
+            .insert("stop_id".into(), json!("REPLACE_ME"));
+        config.settings.insert("limit".into(), json!(limit));
+        config.fetcher = Some(fetcher.clone());
+
+        let error = ExtensionHost::new(config).expect_err("out-of-range limit must be rejected");
+        assert!(error.to_string().contains("limit"), "got {error:?}");
+        assert!(fetcher.calls().is_empty());
+    }
+}
+
+#[test]
 fn example_accepts_empty_departures() {
     let fetcher = Arc::new(RecordingFetcher::ok(json!({ "departures": [] })));
     let host = example_host(fetcher, "REPLACE_ME", None);
@@ -353,7 +397,17 @@ fn example_rejects_missing_required_provider_field() {
 
 #[test]
 fn example_rejects_invalid_stop_ids_before_fetch() {
-    for stop_id in ["", "   ", "bad&host=evil.example"] {
+    for stop_id in [
+        "",
+        "   ",
+        "bad&host=evil.example",
+        "bad?query",
+        "bad#fragment",
+        "bad%20id",
+        "bad+id",
+        "bad/id",
+        "München",
+    ] {
         let fetcher = Arc::new(RecordingFetcher::ok(json!({ "departures": [] })));
         let host = example_host(fetcher.clone(), stop_id, None);
 
