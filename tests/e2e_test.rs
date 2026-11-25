@@ -7,9 +7,10 @@
 
 use futures_util::{SinkExt, StreamExt};
 use ha_kiosk::cache::FileCache;
-use ha_kiosk::config::{Config, HaConfig};
-use ha_kiosk::events::{HaCommand, HaError, HaEvent, PendingAction, ServiceCall};
+use ha_kiosk::config::{Config, HaConfig, TileConfig, TilesConfig};
+use ha_kiosk::events::{HaCommand, HaError, HaEvent, PendingAction};
 use ha_kiosk::ha;
+use ha_kiosk::sources::tiles::TileBoard;
 use ha_kiosk::sources::{media, tiles, weather};
 use ha_kiosk::state::{AppState, CacheStore, ConnectionState};
 use secrecy::{ExposeSecret, SecretString};
@@ -617,43 +618,85 @@ async fn failed_service_call_reports_an_error_without_optimistic_state() {
     .await;
     assert_eq!(app.state.entities["light.example"].state, "on");
 
+    // Drive the same tile view model the UI uses, from configuration to the
+    // service call, so the test proves the tile can display the server error.
+    let board_config = TilesConfig {
+        columns: 1,
+        items: vec![TileConfig {
+            entity: "light.example".into(),
+            label: "Example light".into(),
+            icon: "light".into(),
+        }],
+    };
+    let mut board = TileBoard::new(&board_config);
+    board.refresh(&app.state);
+
     let request_id = 7;
+    let call = board
+        .tap("light.example", &app.state, request_id)
+        .expect("a configured tile produces one service call");
     app.state.pending.insert(
         request_id,
         PendingAction::ToggleTile {
             entity_id: "light.example".to_string(),
         },
     );
+    assert!(
+        board.tile("light.example").unwrap().pending,
+        "a call in flight must not show a guessed result"
+    );
     app.commands
-        .send(HaCommand::CallService(ServiceCall {
-            request_id,
-            domain: "light".to_string(),
-            service: "toggle".to_string(),
-            target: Some(json!({"entity_id": "light.example"})),
-            data: json!({}),
-            return_response: false,
-        }))
+        .send(HaCommand::CallService(call))
         .await
         .expect("command channel");
 
-    match app.next_event().await {
+    let result = match app.next_event().await {
         HaEvent::ServiceResult {
             request_id: answered,
             result,
         } => {
             assert_eq!(answered, request_id);
-            match result {
-                Err(HaError::Service(message)) => {
-                    assert!(
-                        message.contains("not found"),
-                        "unexpected message: {message}"
-                    );
-                }
-                other => panic!("expected a service error, got {other:?}"),
-            }
+            result
         }
         other => panic!("expected a service result, got {other:?}"),
+    };
+    match &result {
+        Err(HaError::Service(message)) => {
+            assert!(
+                message.contains("not found"),
+                "unexpected message: {message}"
+            );
+        }
+        other => panic!("expected a service error, got {other:?}"),
     }
+
+    // The UI controller feeds the result into the tile board. The tile shows
+    // the error and keeps the last state Home Assistant confirmed.
+    assert_eq!(
+        board.on_result(request_id, &result).as_deref(),
+        Some("light.example")
+    );
+    let tile = board.tile("light.example").unwrap();
+    assert!(
+        tile.error
+            .as_deref()
+            .is_some_and(|error| error.contains("not found")),
+        "the failed tile must show the error from Home Assistant"
+    );
+    assert!(!tile.pending, "the tile must no longer look pending");
+    assert_eq!(tile.state, "on", "a failed call must not flip the tile");
+
+    // A later state update must not hide the error.
+    board.refresh(&app.state);
+    assert!(
+        board
+            .tile("light.example")
+            .unwrap()
+            .error
+            .as_deref()
+            .is_some_and(|error| error.contains("not found")),
+        "a refresh must not hide a service failure"
+    );
 
     assert_eq!(
         app.state.entities["light.example"].state, "on",

@@ -4,6 +4,7 @@ import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
 import { StatusPage } from "pages/status.slint";
 import { ShopPage, ShopEntryView } from "pages/shop.slint";
+import { TileItem } from "widgets/tiles_grid.slint";
 
 export component TabButton inherits Rectangle {
     in property <string> label: "";
@@ -42,6 +43,8 @@ export component MainWindow inherits Window {
     min-height: 240px;
 
     in-out property <int> current-page: 0;
+    in-out property <[TileItem]> tiles: [];
+    in-out property <int> tile-columns: 1;
     // The Shop is a fifth page that only exists when extensions are enabled.
     in property <bool> extensions-enabled: false;
     in property <[ShopEntryView]> shop-installed: [];
@@ -53,6 +56,7 @@ export component MainWindow inherits Window {
     in property <string> shop-pending-id: "";
     in property <[string]> extension-errors: [];
     callback page-changed(int);
+    callback tile-tapped(string);
     callback swipe-next();
     callback swipe-prev();
     callback shop-refresh();
@@ -138,7 +142,12 @@ export component MainWindow inherits Window {
                 }
             }
 
-            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
+            if current-page == 0 : OverviewPage {
+                x: 0px; y: 0px; width: 100%; height: 100%;
+                tiles: root.tiles;
+                tile-columns: root.tile-columns;
+                tile-tapped(entity-id) => { root.tile-tapped(entity-id); }
+            }
             if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
             if current-page == 3 : StatusPage {

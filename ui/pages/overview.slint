@@ -3,10 +3,14 @@ import { ClockWidget } from "../widgets/clock.slint";
 import { WeatherWidget } from "../widgets/weather.slint";
 import { HeroLight } from "../widgets/hero_light.slint";
 import { ScenesRow } from "../widgets/scenes.slint";
-import { HaTile } from "../widgets/ha_tile.slint";
+import { TilesGrid, TileItem } from "../widgets/tiles_grid.slint";
 import { DeparturesWidget } from "../widgets/departures.slint";
 
 export component OverviewPage inherits Rectangle {
+    in property <[TileItem]> tiles: [];
+    in property <int> tile-columns: 1;
+    callback tile-tapped(string);
+
     background: Theme.bg;
 
     VerticalLayout {
@@ -27,10 +31,12 @@ export component OverviewPage inherits Rectangle {
         // Scenes
         ScenesRow { items: []; }
 
-        // Rooms / tiles
-        HorizontalLayout {
-            spacing: Theme.space-3;
-            HaTile { label: ""; state: ""; }
+        // Rooms / tiles. The grid renders the pending and error state of each
+        // tile, so a failed service call is visible where the user tapped.
+        TilesGrid {
+            vertical-stretch: 1;
+            tiles: root.tiles;
+            tapped(entity-id) => { root.tile-tapped(entity-id); }
         }
 
         // Departures

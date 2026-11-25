@@ -12,11 +12,13 @@ slint::slint! {
         in-out property <int> taps: 0;
         in-out property <int> pending-taps: 0;
         in-out property <int> read-only-taps: 0;
+        in-out property <string> tile-error: "";
 
         VerticalLayout {
             tile := HaTile {
                 label: "Test tile";
                 state: "off";
+                error: root.tile-error;
                 tapped => { root.taps += 1; }
             }
 
@@ -43,6 +45,14 @@ fn find(app: &TileHarness, id: &str) -> ElementHandle {
         .unwrap_or_else(|| panic!("element {id} not found"))
 }
 
+/// The error line is conditional, so its presence proves the tile renders a
+/// failed service call instead of silently showing the old state.
+fn shows_error(app: &TileHarness) -> bool {
+    ElementHandle::find_by_element_id(app, "HaTile::tile-error")
+        .next()
+        .is_some()
+}
+
 #[test]
 fn a_tap_reports_once_and_ignores_read_only_and_pending_tiles() {
     i_slint_backend_testing::init_integration_test_with_system_time();
@@ -50,6 +60,18 @@ fn a_tap_reports_once_and_ignores_read_only_and_pending_tiles() {
     slint::spawn_local(async move {
         let app = TileHarness::new().unwrap();
         app.window().set_size(slint::PhysicalSize::new(320, 240));
+
+        assert!(
+            !shows_error(&app),
+            "a successful tile must not show an error"
+        );
+        app.set_tile_error("Service light.toggle not found".into());
+        assert!(
+            shows_error(&app),
+            "a failed service call must be visible on its tile"
+        );
+        app.set_tile_error(String::new().into());
+        assert!(!shows_error(&app), "a retry must clear the old error");
 
         let tile = find(&app, "TileHarness::tile");
         tile.single_click(PointerEventButton::Left).await;

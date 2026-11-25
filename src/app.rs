@@ -1,8 +1,10 @@
 use crate::MainWindow;
 use crate::extensions::shop::{DEFAULT_SECRET_DIR, ShopAction, ShopView};
 use crate::extensions::{ExtensionManager, HttpsFetcher, ManagerOptions};
+use crate::ha::client::next_request_id;
+use crate::sources::tiles::TileBoard;
 use crate::ui::bridge;
-use crate::{AppEvent, AppState, Config, HaCommand, ShopEvent};
+use crate::{AppEvent, AppState, Config, HaCommand, HaEvent, PendingAction, ShopEvent};
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -12,6 +14,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 type SharedShop = Rc<RefCell<ShopView>>;
+type SharedState = Rc<RefCell<AppState>>;
+type SharedTiles = Rc<RefCell<TileBoard>>;
 
 /// Work sent to the background extension worker.
 enum ShopTask {
@@ -25,7 +29,8 @@ enum ShopTask {
 #[allow(dead_code)]
 pub struct AppController {
     window: MainWindow,
-    state: AppState,
+    state: SharedState,
+    tiles: SharedTiles,
     config: Config,
     shop: SharedShop,
     page_count: usize,
@@ -74,6 +79,25 @@ impl AppController {
         window.set_shop_config_path(shop.borrow().config_path.clone().into());
         window.set_shop_secret_dir(shop.borrow().secret_dir.clone().into());
 
+        let state = Rc::new(RefCell::new(AppState::default()));
+        let tiles = Rc::new(RefCell::new(TileBoard::new(&config.tiles)));
+
+        let tap_state = Rc::downgrade(&state);
+        let tap_tiles = Rc::downgrade(&tiles);
+        let tap_window = window.as_weak();
+        let tap_commands = commands.clone();
+        window.on_tile_tapped(move |entity_id| {
+            let (Some(state), Some(tiles), Some(window)) = (
+                tap_state.upgrade(),
+                tap_tiles.upgrade(),
+                tap_window.upgrade(),
+            ) else {
+                return;
+            };
+            dispatch_tile_tap(&state, &tiles, &tap_commands, &entity_id);
+            bridge::UiBridge::apply_tiles(&window, &tiles.borrow());
+        });
+
         let (task_tx, task_rx) = std_mpsc::channel();
         let (event_tx, event_rx) = std_mpsc::channel();
         let shop_tasks = if config.extensions.enabled {
@@ -84,7 +108,8 @@ impl AppController {
 
         let mut ctrl = Self {
             window,
-            state: AppState::default(),
+            state,
+            tiles,
             config,
             shop,
             page_count,
@@ -97,6 +122,7 @@ impl AppController {
         };
 
         ctrl.wire_shop_callbacks();
+        ctrl.sync_tiles();
 
         if ctrl.config.extensions.enabled {
             let options = manager_options(&ctrl.config);
@@ -222,7 +248,22 @@ impl AppController {
         // Update state on the UI thread.
         match event {
             AppEvent::Ha(ha_event) => {
-                self.state.apply_ha_event(ha_event);
+                if let HaEvent::ServiceResult { request_id, result } = &ha_event {
+                    self.tiles.borrow_mut().on_result(*request_id, result);
+                }
+                if matches!(
+                    &ha_event,
+                    HaEvent::Disconnected { .. } | HaEvent::AuthFailed { .. }
+                ) {
+                    self.tiles.borrow_mut().reset_pending();
+                    self.state.borrow_mut().pending.clear();
+                }
+                self.state.borrow_mut().apply_ha_event(ha_event);
+                {
+                    let state = self.state.borrow();
+                    self.tiles.borrow_mut().refresh(&state);
+                }
+                self.sync_tiles();
             }
             AppEvent::Shop(shop_event) => {
                 {
@@ -240,20 +281,20 @@ impl AppController {
             }
             AppEvent::Weather(r) => {
                 if let Ok(v) = r {
-                    self.state.weather = Some(v);
+                    self.state.borrow_mut().weather = Some(v);
                 }
             }
             AppEvent::Media(m) => {
-                self.state.media = m;
+                self.state.borrow_mut().media = m;
             }
             AppEvent::Departures(r) => {
                 if let Ok(v) = r {
-                    self.state.departures = Some(v);
+                    self.state.borrow_mut().departures = Some(v);
                 }
             }
             AppEvent::Calendar(r) => {
                 if let Ok(v) = r {
-                    self.state.calendar = Some(v);
+                    self.state.borrow_mut().calendar = Some(v);
                 }
             }
             AppEvent::AlbumArt { .. } | AppEvent::ImageFailed { .. } => {}
@@ -267,6 +308,19 @@ impl AppController {
         } else {
             self.pending_redraw = true;
         }
+    }
+
+    /// Send one service call for a tapped tile. Returns false for read-only
+    /// tiles, while a call is in flight, or when Home Assistant is unreachable.
+    /// The tile then shows the error from the server, never a fake success.
+    pub fn tap_tile(&mut self, entity_id: &str) -> bool {
+        let tapped = dispatch_tile_tap(&self.state, &self.tiles, &self.commands, entity_id);
+        self.sync_tiles();
+        tapped
+    }
+
+    fn sync_tiles(&self) {
+        bridge::UiBridge::apply_tiles(&self.window, &self.tiles.borrow());
     }
 
     pub fn next_page(&mut self) {
@@ -296,6 +350,38 @@ impl AppController {
     pub fn shop(&self) -> std::cell::Ref<'_, ShopView> {
         self.shop.borrow()
     }
+}
+
+/// Shared tile-tap path for the Slint callback and external callers.
+fn dispatch_tile_tap(
+    state: &SharedState,
+    tiles: &SharedTiles,
+    commands: &mpsc::Sender<HaCommand>,
+    entity_id: &str,
+) -> bool {
+    let request_id = next_request_id();
+    let call = {
+        let state = state.borrow();
+        let mut board = tiles.borrow_mut();
+        let Some(call) = board.tap(entity_id, &state, request_id) else {
+            return false;
+        };
+        call
+    };
+    state.borrow_mut().pending.insert(
+        request_id,
+        PendingAction::ToggleTile {
+            entity_id: entity_id.to_string(),
+        },
+    );
+    if commands.try_send(HaCommand::CallService(call)).is_err() {
+        state.borrow_mut().pending.remove(&request_id);
+        tiles
+            .borrow_mut()
+            .set_error(entity_id, "Home Assistant is not connected");
+        return false;
+    }
+    true
 }
 
 fn run_shop_action(

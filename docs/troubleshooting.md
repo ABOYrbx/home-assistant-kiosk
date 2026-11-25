@@ -219,6 +219,10 @@ Reconnect uses exponential backoff with jitter, capped at 60 seconds. A flapping
 
 The entity ID is validated syntactically but not checked against the server at startup. A typo, a removed entity, or an entity the token's user cannot see renders as unavailable or unknown. Compare the configured IDs with **Developer Tools → States** in Home Assistant. A missing entity must not blank the whole page; only that widget degrades.
 
+### A tile shows a service error
+
+When Home Assistant rejects a tile action, the tile shows the error returned by the server and keeps the last state Home Assistant confirmed. The kiosk never shows a successful toggle before the server acknowledges it. Check the journal for the service name, and confirm that the token's user may call that service. A later successful call clears the error; a disconnect clears the pending marker without inventing a result.
+
 ## Offline and stale data
 
 - When Home Assistant is unreachable, the last cached values stay visible with an "Offline — last update HH:MM" badge. This is expected behaviour, not a hang.

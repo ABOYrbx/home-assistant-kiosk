@@ -272,6 +272,9 @@ impl TileBoard {
     }
 
     pub fn set_error(&mut self, entity_id: &str, message: &str) {
+        // A call that never reached Home Assistant still has to release its
+        // in-flight slot, otherwise the tile could never be retried.
+        self.inflight.remove(entity_id);
         if let Some(tile) = self.tiles.iter_mut().find(|t| t.entity_id == entity_id) {
             tile.pending = false;
             tile.error = Some(error_text(message));
@@ -398,6 +401,31 @@ mod tests {
         assert!(board.tile("vendor.custom").unwrap().read_only);
         assert!(board.tap("sensor.example", &state, 1).is_none());
         assert!(board.tap("vendor.custom", &state, 2).is_none());
+    }
+
+    #[test]
+    fn a_send_error_releases_the_tile_for_a_retry() {
+        let mut board = TileBoard::new(&config(&["switch.example"]));
+        let mut state = AppState::default();
+        state.entities.insert(
+            "switch.example".into(),
+            entity("switch.example", "off", json!({})),
+        );
+        board.refresh(&state);
+
+        assert!(board.tap("switch.example", &state, 1).is_some());
+        board.set_error("switch.example", "not connected");
+        let tile = board.tile("switch.example").unwrap();
+        assert!(!tile.pending);
+        assert!(
+            tile.error
+                .as_deref()
+                .is_some_and(|e| e.contains("not connected"))
+        );
+        assert!(
+            board.tap("switch.example", &state, 2).is_some(),
+            "a tile with a send error must be retryable"
+        );
     }
 
     #[test]

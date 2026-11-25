@@ -1,26 +1,72 @@
 import { Theme } from "../theme.slint";
 
+// A Home Assistant entity tile. The real entity state is shown unless a call is
+// still in flight; a failed call shows the server error instead of a success
+// that Home Assistant never confirmed.
 export component HaTile inherits Rectangle {
     in property <string> label: "";
+    in property <string> icon: "";
     in property <string> state: "";
+    in property <string> detail: "";
+    in property <bool> read-only: false;
     in property <bool> pending: false;
+    in property <string> error: "";
+    callback tapped();
 
+    min-width: Theme.touch-target;
     min-height: Theme.touch-target;
     background: Theme.surface;
     border-radius: Theme.radius-md;
     border-width: 1px;
-    border-color: Theme.border;
+    border-color: error != "" ? Theme.danger : (read-only ? Theme.border-soft : Theme.border);
+
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.tapped(); }
 
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-1;
-        Text { text: label; color: Theme.fg; font-size: Theme.text-sm; font-weight: 500; }
-        Text {
-            text: pending ? "…" : state;
+
+        if icon != "" : Text {
+            text: icon;
             color: Theme.muted;
+            font-size: Theme.text-xs;
+        }
+        Text {
+            text: root.label;
+            color: Theme.fg;
             font-size: Theme.text-sm;
+            font-weight: 500;
+            overflow: elide;
+        }
+        Text {
+            // Never present an optimistic state: while the call is in flight
+            // the value is unknown, and after a failure the last confirmed
+            // state is shown together with the error.
+            text: root.pending ? "…" : root.state;
+            color: root.read-only ? Theme.muted : Theme.fg-2;
+            font-size: Theme.text-sm;
+        }
+        if detail != "" && !pending && error == "" : Text {
+            text: detail;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+        }
+        if error != "" : tile-error := Text {
+            text: error;
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            overflow: elide;
         }
     }
 
-    ta := TouchArea { }
+    // The whole tile is the touch target. Gated so read-only tiles and tiles
+    // with a call in flight ignore taps, matching the 44 px minimum hit area.
+    tile-touch := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: !root.read-only && !root.pending;
+        clicked => { root.tapped(); }
+    }
 }

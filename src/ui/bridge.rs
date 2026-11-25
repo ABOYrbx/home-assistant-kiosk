@@ -1,8 +1,11 @@
 // UI bridge: AppState and shop view models -> Slint properties/models.
 
 use crate::AppState;
+use crate::MainWindow;
 use crate::ShopEntryView;
+use crate::TileItem;
 use crate::extensions::shop::{ExtensionStatus, ShopEntry, ShopView};
+use crate::sources::tiles::TileBoard;
 use slint::{ModelRc, SharedString, VecModel};
 use std::path::Path;
 use std::rc::Rc;
@@ -12,6 +15,31 @@ pub struct UiBridge;
 impl UiBridge {
     pub fn apply(_state: &AppState) {
         // Data-widget bindings arrive with their own wave tasks.
+    }
+
+    /// Push the tile view models, including pending and error state, to Slint.
+    /// A failed service call is rendered as an error on its tile; the last
+    /// confirmed entity state is kept, never a guessed success.
+    pub fn apply_tiles(window: &MainWindow, board: &TileBoard) {
+        let items: Vec<TileItem> = board
+            .tiles()
+            .iter()
+            .enumerate()
+            .map(|(index, tile)| TileItem {
+                entity_id: tile.entity_id.as_str().into(),
+                label: tile.label.as_str().into(),
+                icon: tile.icon.as_str().into(),
+                state: tile.state.as_str().into(),
+                detail: tile.detail.as_str().into(),
+                read_only: tile.read_only,
+                pending: tile.pending,
+                error: tile.error.as_deref().unwrap_or("").into(),
+                row: (index / board.columns() as usize) as i32,
+                col: (index % board.columns() as usize) as i32,
+            })
+            .collect();
+        window.set_tile_columns(board.columns() as i32);
+        window.set_tiles(ModelRc::new(VecModel::from(items)));
     }
 }
 
