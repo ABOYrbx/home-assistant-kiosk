@@ -235,22 +235,38 @@ fn loopback_host(port: u16, script: &str, limits: Limits) -> ExtensionHost {
 
 struct TestServer {
     port: u16,
+    requests: Arc<Mutex<Vec<String>>>,
 }
 
 impl TestServer {
     fn start(response: Vec<u8>, delay: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let recorder = Arc::clone(&requests);
         thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
                 let mut buffer = [0u8; 4096];
-                let _ = stream.read(&mut buffer);
+                let read = stream.read(&mut buffer).unwrap_or(0);
+                if let Ok(request) = String::from_utf8(buffer[..read].to_vec())
+                    && let Ok(mut log) = recorder.lock()
+                {
+                    log.push(request);
+                }
                 thread::sleep(delay);
                 let _ = stream.write_all(&response);
                 let _ = stream.flush();
             }
         });
-        Self { port }
+        Self { port, requests }
+    }
+
+    /// Raw request bytes received by this server, oldest first.
+    fn requests(&self) -> Vec<String> {
+        self.requests
+            .lock()
+            .map(|requests| requests.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -878,19 +894,67 @@ fn loopback_http_fetch_returns_json() {
 }
 
 #[test]
-fn redirects_are_rejected() {
+fn http_fetch_is_get_only_and_sends_no_credentials() {
     let server = TestServer::start(
         http_response(
-            "302 Found",
-            &[("Location", "https://evil.example/steal")],
-            "",
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"ok"}"#,
         ),
+        Duration::ZERO,
+    );
+    let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
+    let host = loopback_host(server.port, &script, Limits::default());
+    host.refresh().unwrap();
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "expected exactly one request");
+    let request_line = requests[0].lines().next().unwrap_or_default();
+    assert!(
+        request_line.starts_with("GET /data HTTP/1."),
+        "expected a GET request, got {request_line:?}"
+    );
+    let headers = requests[0].to_ascii_lowercase();
+    for forbidden in ["authorization:", "proxy-authorization:", "cookie:"] {
+        assert!(
+            !headers.contains(forbidden),
+            "the fetcher must not send {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn http_defaults_match_the_documented_limits() {
+    let limits = Limits::default();
+    assert_eq!(limits.http_timeout, Duration::from_secs(10));
+    assert_eq!(limits.max_http_bytes, 1024 * 1024);
+}
+
+#[test]
+fn redirects_are_rejected_without_contacting_the_target() {
+    let target = TestServer::start(
+        http_response(
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"stolen"}"#,
+        ),
+        Duration::ZERO,
+    );
+    // A different hostname on loopback: following this redirect would be a
+    // cross-host request that bypasses the manifest allowlist.
+    let location = format!("http://localhost:{}/steal", target.port);
+    let server = TestServer::start(
+        http_response("302 Found", &[("Location", &location)], ""),
         Duration::ZERO,
     );
     let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
     let host = loopback_host(server.port, &script, Limits::default());
     let error = host.refresh().unwrap_err().to_string();
     assert!(error.contains("redirects are not allowed"), "{error}");
+    assert!(
+        target.requests().is_empty(),
+        "the redirect target must not be contacted"
+    );
 }
 
 #[test]
