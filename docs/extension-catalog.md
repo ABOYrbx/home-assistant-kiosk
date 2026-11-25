@@ -89,12 +89,13 @@ Rules:
 - `generated_at` is UTC ISO 8601.
 - One entry per extension; multiple versions are not listed. The latest compatible version is published.
 - `id` is immutable and reverse-DNS.
-- `package_url` is HTTPS and stable; GitHub release assets are recommended.
+- `package_url` is HTTPS and stable; GitHub release assets are recommended. Its path must end in `.hkext`; the extractor does not check that suffix.
 - `sha256` is lowercase hex over the exact `.hkext` bytes.
 - `size_bytes` must match the download.
 - `permissions` is the exact allowlist the host enforces.
 - `config_schema` mirrors `manifest.toml`.
 - Unknown fields are rejected by the kiosk parser.
+- A catalog contains at most 500 extension entries. The signature file is limited to 16 KiB.
 
 ## Signature
 
@@ -130,7 +131,7 @@ Key rotation: publish a new public key in the catalog repository and in a kiosk 
 - Sign only an index whose package sources, checksums, and permissions a maintainer has reviewed.
 - If the private key is exposed, publish a revocation notice, rotate the key, and ship a kiosk configuration update.
 
-`allow_unsigned = true` exists only for local development. A production shop must reject unsigned catalogs and must show a persistent warning if the flag is on.
+`allow_unsigned = true` exists only for local development. Production must keep it false. The current kiosk shell does not yet expose a persistent unsigned-mode warning; treat an unsigned catalog as a development-only exception until that warning is implemented.
 
 ## Kiosk trust configuration
 
@@ -150,6 +151,8 @@ store_path = "/var/lib/ha-kiosk/extensions"
 - `max_catalog_bytes` caps the index download; `max_package_bytes` caps both the signed `size_bytes` and the download.
 - `public_keys` lists Minisign public keys in base64. Verification succeeds when any configured key matches, so key rotation lists the old and the new key during the transition.
 - An unsigned catalog is accepted only when `allow_unsigned` and `dev_mode` are both true. Production configurations leave both false.
+- The current kiosk shell refreshes the catalog at startup and on an explicit request. `refresh_hours` is reserved for periodic refresh and is not yet scheduled. `max_script_operations` is reserved for host tuning; the current direct host uses its 1,000,000-operation default.
+- The current kiosk shell does not yet execute installed extensions or expose runtime extension output, even though the host and runner implement last-good data and degradation.
 - The last verified index is cached as `catalog-cache.json` (mode `0600`) next to the store and is used when a refresh fails.
 
 ## Installed state
@@ -209,7 +212,7 @@ The kiosk keeps installed extensions under `store_path`:
 5. A maintainer signs `index.json` offline with Minisign.
 6. Both `index.json` and `index.json.minisig` are committed to the catalog repository.
 7. CI verifies the schema and signature with the public key.
-8. The kiosk refreshes its catalog on its next daily refresh or manual request.
+8. The kiosk picks up the new index on its next startup or manual refresh; periodic refresh is not yet scheduled.
 
 The private signing key never enters CI, the catalog repository, or the kiosk repository.
 
@@ -223,7 +226,7 @@ The catalog CI checks:
 - Package SHA-256 and size match the GitHub release asset.
 - No real secrets, personal stop IDs, home addresses, or API keys.
 - Every shared `manifest.toml` field, including permissions and config schema, matches the index entry exactly.
-- Rhai scripts compile with the pinned Rhai engine (no execution during CI).
+- Rhai scripts compile with the pinned Rhai engine; submitted scripts are not executed during review.
 - The example bus extension runs against a fixture in a sandbox test.
 - The index signature verifies with the public key.
 
@@ -263,7 +266,7 @@ A reviewer may approve, request changes, or reject a submission. A maintainer ne
 - Mark a package unavailable by removing it from `index.json`; installed kiosks keep the package.
 - For a security removal, publish a new signed index and a notice in the repository README.
 - Never reuse a version or replace a published package silently.
-- The kiosk keeps the last good output and marks an extension degraded after three consecutive sandbox or output-validation failures; a later success clears the degraded state.
+- The kiosk keeps the last good output and marks an extension degraded in the runner/manager health model after three consecutive sandbox or output-validation failures; a later success clears the degraded state. Kiosk refresh and rendering integration is not yet wired, so this state is not currently visible on a running extension widget.
 
 ## Hosting
 

@@ -24,7 +24,9 @@ An extension cannot:
 - Draw arbitrary UI, render HTML/Markdown, or open windows.
 - Read the kiosk configuration or another extension's settings.
 
-The Shop shows the warning and declared permissions before first installation. Installed extensions keep their last good data when a refresh fails. Three consecutive failures from an already constructed host's `refresh` call mark an extension degraded; a later success clears that state.
+The Shop shows the warning and declared permissions before first installation. The host and runner already keep last-good output and track degradation; once kiosk refresh integration is available, installed extensions will use that behavior. Three consecutive `refresh` failures mark an extension degraded in the runner/manager health model; a later success clears that state.
+
+> **Wave 6 integration status:** The host and runner implement these failure semantics, and their tests cover last-good output and degradation. The current kiosk shell does not yet schedule extension refreshes or render extension output, so these are author-facing runtime API guarantees rather than currently visible kiosk widget behavior.
 
 ## Package layout
 
@@ -41,6 +43,8 @@ org.example.bus-departures/
 The `.hkext` archive stores these files at its root. Do not wrap them in another directory.
 
 The kiosk extractor requires `manifest.toml`; the store then requires the manifest's entry script to exist. The runtime accepts an entry script in a subdirectory, but catalog publication policy requires it at the archive root and additionally requires `README.md` and `LICENSE`. Include all four files at the root so the package satisfies both contracts.
+
+Catalog packages must use the `.hkext` suffix. The extractor validates the gzip-tar content rather than the URL suffix.
 
 Archive paths must be relative and contain only normal path components. Absolute paths, `..`, symlinks, hardlinks, device files, sockets, duplicate entries, and decompression bombs are rejected. See [Packaging](#packaging) for the exact limits.
 
@@ -91,14 +95,14 @@ max = 20
 | `version` | yes | string | Semantic version. Never reuse a published version. |
 | `api_version` | yes | integer | Must be `1` for this API. |
 | `min_app_version` | yes | string | Semantic version of the oldest compatible kiosk. The catalog rejects an entry when this is newer than the running kiosk. |
-| `entry` | yes | string | Relative path ending in `.rhai`, at most 128 bytes. Subdirectories are allowed; absolute paths, backslashes, empty segments, `.` and `..` are rejected. |
+| `entry` | yes | string | Relative path ending in `.rhai`, at most 128 bytes. Subdirectories are allowed at runtime; absolute paths, backslashes, empty segments, `.` and `..` are rejected. The byte limit is checked when the script runs, and catalog publication requires the entry script at the archive root. |
 | `provides` | yes | string | One of `departures`, `list`, or `key_value`; must match the returned `kind`. |
 | `author` | yes | string | Non-empty author name or organization. |
-| `license` | yes | string | Non-empty SPDX license identifier. The package must include the license text. |
+| `license` | yes | string | Non-empty SPDX license identifier. Both parsers currently check only that it is non-empty; catalog review verifies the identifier and license text. The package must include the license text. |
 | `homepage` | no | string | Absolute HTTP or HTTPS URL. HTTPS is recommended. |
 | `description` | yes | string | Non-empty plain text; catalog limit is 2,000 bytes. |
 | `permissions` | no | table | Declares `http_hosts` and `ha_entities`; both default to empty arrays. |
-| `config_schema` | no | array of tables | Declares at most 32 configuration fields. |
+| `config_schema` | no | array of tables | Declares at most 32 configuration fields under catalog validation; direct runtime manifest parsing does not currently enforce this count. |
 
 The signed catalog entry repeats the manifest metadata. Every shared field must match the packaged manifest exactly: ID, name, version, API version, minimum app version, output kind, permissions, config schema, author, license, homepage, and description. The entry path is validated inside the package because it is not part of the catalog entry.
 
@@ -113,7 +117,7 @@ Permissions are exact allowlists, not capabilities that a script can widen at ru
 http_hosts = ["api.example.com", "api.example.com:8443"]
 ```
 
-- Maximum: 32 entries, each at most 253 bytes.
+- Maximum: 32 entries under catalog validation. Runtime host syntax validation accepts entries up to 255 bytes; catalog publication limits each entry to 253 bytes. Use the catalog limit for portable packages.
 - Use a DNS hostname or IPv4 address, optionally followed by a non-zero port.
 - Hostname labels are 1–63 ASCII letters, digits, or hyphens, with no empty label or leading/trailing hyphen.
 - Do not include a scheme, path, query, fragment, user information, wildcard, or IPv6 literal.
@@ -131,7 +135,7 @@ An allowlisted host grants the script the full origin (scheme, host, and port), 
 ha_entities = ["sensor.departures", "calendar.example"]
 ```
 
-- Maximum: 64 entries.
+- Maximum: 64 entries under catalog validation. Direct runtime manifest parsing does not currently enforce this count. Runtime syntax validation also permits digits in the domain; catalog publication requires a lowercase-letter/underscore domain. Use the catalog rule for portable packages.
 - IDs must be exact and lowercase: a domain of lowercase letters/underscores, one dot, then an object ID of lowercase letters/digits/underscores.
 - No wildcards are supported.
 - `ha_state` returns only a snapshot; there is no service-call API and no token exposure.
@@ -143,8 +147,8 @@ Each `[[config_schema]]` entry describes one key that may appear in the extensio
 
 | Field | Required | Rules |
 | --- | --- | --- |
-| `key` | yes | 1–64 lowercase ASCII letters, digits, or underscores; must start with a lowercase letter; unique within the manifest. |
-| `label` | yes | Non-empty human-readable label shown by the Shop. |
+| `key` | yes | 1–64 lowercase ASCII letters, digits, or underscores; must start with a lowercase letter; unique within the manifest. Catalog validation enforces the leading-letter rule; direct runtime manifest parsing currently permits a leading digit or underscore. |
+| `label` | yes | Non-empty human-readable metadata label for tooling and future Shop rendering. The current Shop displays keys and required status, not labels, types, defaults, or help text. |
 | `type` | yes | One of the types below. |
 | `required` | no | Boolean; defaults to `false`. A required key must be supplied explicitly, even if a default is declared. |
 | `default` | no | Value used only when an optional key is absent. Must match the field type and any integer bounds. Secret fields cannot declare defaults. |
@@ -202,6 +206,10 @@ Before each run, the host builds one `config` map for `refresh(config)`:
 
 ## Script API
 
+### Obtaining the script
+
+When executed, installed extension scripts are read from `store_path`, which defaults to `/var/lib/ha-kiosk/extensions`. For an extension installed from a package, the script path is `<store_path>/<id>/<version>/<entry>`; for example, `/var/lib/ha-kiosk/extensions/org.example.bus-departures/1.0.0/main.rhai`.
+
 The entry script must define:
 
 ```rhai
@@ -212,11 +220,15 @@ fn refresh(config) {
 
 The host registers exactly four functions. Calling an unregistered host function, importing a module, or using disabled dynamic-evaluation/printing symbols fails compilation or execution.
 
+#### Wave 6 integration status
+
+The author API below is implemented in the host and covered by tests. The current kiosk shell does not yet schedule installed extensions or render their output; runtime health, degradation, and last-good output are host/runner behavior, not evidence that a widget is already running in the kiosk. The Shop still provides install, update, remove, enable/disable, catalog, and configuration workflows.
+
 | Function | Behavior |
 | --- | --- |
 | `http_get_json(url)` | Performs a GET to an allowlisted URL and returns parsed JSON as a Rhai value. HTTPS only in production, no credentials, no redirects, 2xx responses only, valid JSON only, 10-second request timeout, 1 MiB response cap. Errors abort the refresh. |
 | `ha_state(entity_id)` | Returns a map with `state` and `attributes` for an allowlisted entity. Returns `()` when the entity is declared but absent from the current snapshot. Undeclared entities are errors. |
-| `now()` | Returns the current time as an RFC 3339 string with an explicit offset. The host uses its configured timezone and falls back to UTC when none is supplied. |
+| `now()` | Returns the current time as an RFC 3339 string with an explicit offset. The host uses its configured timezone and falls back to UTC when none is supplied; the current kiosk manager does not yet pass the Home Assistant timezone, so kiosk-driven runs currently return UTC. |
 | `log(message)` | Writes a bounded debug message. At most 100 messages of 2 KiB each are retained; older messages are discarded. Declared secret values are redacted. |
 
 Rhai's normal language operations are available, but the sandbox has no filesystem, process, environment, module, or arbitrary network API. Scripts run off the UI thread.
@@ -274,7 +286,7 @@ fn refresh(config) {
 | Bytes per log message | 2 KiB |
 | Output rows/items | 100 |
 
-Limits apply while compiling and running the script and while validating its result. Deadline checks are cooperative: a blocking HTTP request already in progress can outlast the refresh deadline by up to its own 10-second timeout. Avoid unbounded loops and large intermediate structures. A limit violation aborts the refresh; it is not a partial success.
+Allocation and operation limits apply while compiling and running the script. The wall-clock deadline is enforced by cooperative checks during Rhai progress and immediately before host calls; compilation and result serialization are not interruptible by it. A blocking HTTP request already in progress can outlast the refresh deadline by up to its own 10-second timeout, so the deadline is not a hard cap on total refresh duration. Avoid unbounded loops and large intermediate structures. A limit violation aborts the refresh; it is not a partial success.
 
 ## Output schema
 
@@ -287,22 +299,22 @@ All output is data only. Built-in widgets own fonts, colors, layout, and touch t
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `kind` | string | yes | Must be `"departures"`. |
-| `title` | string | no | Widget heading. |
+| `title` | string or null | no | Widget heading. |
 | `items` | array | no | Up to 100 departure objects; defaults to an empty array. |
 | `items[].line` | string | yes | Non-empty line or route label. |
 | `items[].destination` | string | yes | Non-empty destination label. |
 | `items[].departure` | string | yes | Non-empty RFC 3339 timestamp; include an offset. The host checks that it is non-empty, so authors must supply a valid timestamp. |
-| `items[].delay_minutes` | integer | no | Signed delay in minutes; defaults to no delay. |
-| `items[].platform` | string or null | no | Omit or return `()`. |
+| `items[].delay_minutes` | integer or null | no | Signed delay in minutes; defaults to no delay. |
+| `items[].platform` | string or null | no | Omit, return `()`, or use JSON `null`. |
 | `items[].cancelled` | boolean | no | Defaults to `false`. |
-| `items[].remarks` | string or null | no | Short status text. |
+| `items[].remarks` | string or null | no | Short status text; omit, return `()`, or use JSON `null`. |
 
 ### `list`
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `kind` | string | yes | Must be `"list"`. |
-| `title` | string | no | Widget heading. |
+| `title` | string or null | no | Widget heading. |
 | `columns` | array of strings | yes | Header labels; the array must contain at least one string. |
 | `rows` | array of arrays of strings | no | Up to 100 rows; defaults to an empty array. Every row must have exactly the same length as `columns`. |
 
@@ -318,7 +330,7 @@ Cells are strings. Convert numbers and booleans in the script rather than return
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `kind` | string | yes | Must be `"key_value"`. |
-| `title` | string | no | Widget heading. |
+| `title` | string or null | no | Widget heading. |
 | `items` | array | no | Up to 100 entries; defaults to an empty array. |
 | `items[].label` | string | yes | Non-empty field label. |
 | `items[].value` | string | yes | Value rendered as text. Convert numbers and booleans to strings in the script. |
@@ -330,7 +342,7 @@ Cells are strings. Convert numbers and booleans in the script rather than return
 
 ### Failure behavior
 
-A compile error, sandbox violation, HTTP error, or malformed output fails the whole refresh. The extension keeps its last good output and reports the error. Manifest, configuration, script-read, and host-construction errors are reported before refresh health tracking begins. For a constructed host, three consecutive compile/runtime/HTTP/output failures mark it degraded in the Shop and Status page; a successful refresh clears the error and failure count.
+A compile error, sandbox violation, HTTP error, or malformed output fails the whole refresh. The extension keeps its last good output and reports the error. Manifest, configuration, script-read, and host-construction errors are reported before refresh health tracking begins. For a constructed host, three consecutive compile/runtime/HTTP/output failures mark it degraded in the runner/manager health model; a successful refresh clears the error and failure count. The current kiosk shell does not yet schedule refreshes or render extension widgets.
 
 ## Packaging
 
@@ -364,7 +376,7 @@ The signed catalog records the exact package URL, lowercase SHA-256 digest, and 
 4. Confirm that malformed output fails and that the last good output remains available.
 5. Exercise operation, allocation, HTTP-size, redirect, and wall-clock limits.
 6. Install from a scratch catalog. Plain HTTP and unsigned catalogs require both `allow_unsigned = true` and `dev_mode = true`; never use that mode in production.
-7. Verify offline use after installation and the Shop at 800 × 480 with touch input.
+7. When kiosk refresh/rendering integration is available, verify offline use after installation and the Shop at 800 × 480 with touch input.
 
 Do not use a live Home Assistant or real provider credentials in automated tests.
 
@@ -382,12 +394,14 @@ The catalog review covers license, permissions, secrets, read-only Home Assistan
 
 ## Versioning and deprecation
 
+- Version extensions with SemVer. Every release increments the version; a bug fix increments the patch component.
 - **Patch:** bug fix with the same manifest contract, permissions, and behavior.
 - **Minor:** backward-compatible behavior changes or optional settings that older hosts already tolerate. Set `min_app_version` to the first kiosk that understands any new manifest/config field.
-- **Major:** removed or renamed settings, changed types/default behavior, newly emitted output fields, incompatible output changes, or other breaking changes. Output parsers reject unknown fields, so a newly emitted field is not backward-compatible; require a kiosk version that accepts it and use a new `api_version` if the host API contract itself changes.
+- **Major:** removed or renamed settings, changed types/default behavior, incompatible output changes, or other breaking changes.
 - **API version:** keep `api_version = 1` while the host function and output contracts remain compatible. A future incompatible host contract requires a new API version.
 - **Permissions:** treat any expansion as a trust-sensitive change requiring explicit review and a new version; never widen permissions silently.
 - Never reuse a version or replace a published package silently.
+- Output parsers reject unknown fields. A new field is compatible only when every supported kiosk accepts it; otherwise require a kiosk version that understands it and use a new `api_version` if the host contract changes.
 - Removing an entry from the catalog does not uninstall it from existing kiosks. Security removals require a newly signed index and a notice in the catalog repository.
 
 ## Security rules
