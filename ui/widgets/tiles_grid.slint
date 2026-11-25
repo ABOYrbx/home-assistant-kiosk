@@ -16,23 +16,52 @@ export struct TileItem {
 
 export component TilesGrid inherits Rectangle {
     in property <[TileItem]> tiles: [];
+    in property <int> columns: 3;
     callback tapped(string);
 
     background: transparent;
+    vertical-stretch: 0;
+    min-height: Theme.touch-target;
 
-    GridLayout {
+    VerticalLayout {
         spacing: Theme.space-2;
-        for tile in root.tiles : HaTile {
-            row: tile.row;
-            col: tile.col;
-            label: tile.label;
-            icon: tile.icon;
-            state: tile.state;
-            detail: tile.detail;
-            read-only: tile.read-only;
-            pending: tile.pending;
-            error: tile.error;
-            tapped => { root.tapped(tile.entity-id); }
+
+        Text {
+            text: "Rooms";
+            color: Theme.fg;
+            font-size: Theme.text-base;
+            font-weight: Theme.weight-semibold;
+        }
+
+        if root.tiles.length == 0 : overview-tile := Rectangle {
+            min-height: Theme.touch-target;
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-md;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            Text {
+                text: "No tiles configured.";
+                color: Theme.muted;
+                font-size: Theme.text-sm;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
+        }
+
+        GridLayout {
+            spacing: Theme.space-2;
+            for tile in root.tiles : HaTile {
+                row: tile.row;
+                col: tile.col;
+                label: tile.label;
+                icon: tile.icon;
+                state: tile.state;
+                detail: tile.detail;
+                read-only: tile.read-only;
+                pending: tile.pending;
+                error: tile.error;
+                tapped => { root.tapped(tile.entity-id); }
+            }
         }
     }
 }

@@ -1,28 +1,66 @@
 import { Theme } from "../theme.slint";
+import { TouchTarget } from "touch_target.slint";
+
+component SceneButton inherits TouchTarget {
+    in property <string> label: "";
+    callback activated();
+
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: Theme.border-width;
+    border-color: Theme.border;
+
+    Text {
+        text: root.label;
+        color: Theme.fg;
+        font-size: Theme.text-sm;
+        font-weight: Theme.weight-medium;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    states [
+        pressed when root.pressed: {
+            background: Theme.border;
+        }
+    ]
+}
 
 export component ScenesRow inherits Rectangle {
     in property <[string]> items: [];
+    in property <int> item-columns: 2;
+    callback activated(string);
 
-    background: Theme.bg;
+    background: transparent;
+    vertical-stretch: 0;
+
     VerticalLayout {
         spacing: Theme.space-2;
-        Text { text: "Scenes"; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
-        HorizontalLayout {
+
+        Text {
+            text: "Scenes";
+            color: Theme.fg;
+            font-size: Theme.text-base;
+            font-weight: Theme.weight-semibold;
+        }
+
+        if root.items.length == 0 : Text {
+            text: "No scenes configured.";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        GridLayout {
             spacing: Theme.space-2;
-            for item in items : Rectangle {
-                min-width: Theme.touch-target;
-                min-height: Theme.touch-target;
-                border-radius: Theme.radius-md;
-                border-width: 1px;
-                border-color: Theme.border;
-                background: Theme.surface;
-                Text {
-                    text: item;
-                    color: Theme.fg;
-                    font-size: Theme.text-sm;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
+            for item[idx] in root.items : SceneButton {
+                row: idx / max(root.item-columns, 1);
+                col: idx - (idx / max(root.item-columns, 1)) * max(root.item-columns, 1);
+                label: item;
+                activated => { root.activated(item); }
             }
         }
     }

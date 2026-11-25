@@ -43,6 +43,7 @@ fn test_config() -> Config {
             max_bytes: 262144,
         },
         extensions: ExtensionsConfig::default(),
+        source_path: None,
     }
 }
 

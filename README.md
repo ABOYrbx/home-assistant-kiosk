@@ -306,20 +306,26 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.height` | integer | `480` | Desktop window height and layout-test reference. |
 | `display.rotation` | integer | `0` | `0`, `90`, `180`, or `270`; maps to `SLINT_KMS_ROTATION` on LinuxKMS. |
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
-| `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
+| `display.theme` | string | `"light"` | `light` matches the adopted design; `dark` is reserved for a future palette. |
+| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the Overview hero light. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity. |
+| `widgets.hero_light.name` | string | unset | Optional display name; defaults to the entity friendly name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Lower colour-temperature bound. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Upper colour-temperature bound. |
 | `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
 | `widgets.weather.entity` | string | unset | A `weather.*` entity. |
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
-| `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries. |
+| `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries (1–24). |
 | `widgets.weather.refresh_seconds` | integer | `900` | Forecast refresh interval. |
 | `widgets.media.enabled` | bool | `true` | Enable the media widget. |
 | `widgets.media.entity` | string | unset | A `media_player.*` entity. |
 | `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
-| `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.0–1.0. |
+| `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.01–1.0. |
 | `widgets.departures.enabled` | bool | `true` | Enable the departures widget. |
 | `widgets.departures.entity` | string | unset | A sensor with the documented `departures` attribute. |
 | `widgets.departures.title` | string | `"Departures"` | Widget heading. |
@@ -327,7 +333,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `widgets.departures.refresh_seconds` | integer | `60` | Optional periodic refresh. |
 | `widgets.calendar.enabled` | bool | `true` | Enable the calendar widget. |
 | `widgets.calendar.entities` | array of strings | unset | One or more `calendar.*` entities. |
-| `widgets.calendar.days` | integer | `2` | Number of days to fetch. |
+| `widgets.calendar.days` | integer | `2` | Number of days to fetch (1–14). |
 | `widgets.calendar.refresh_seconds` | integer | `300` | Refresh interval. |
 | `tiles.columns` | integer | `3` | Grid columns. |
 | `tiles.items[].entity` | string | required | Entity ID for a tile. |
@@ -345,9 +351,12 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Absolute extension store directory. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
+
+Album art is fetched only for HTTP(S) `entity_picture` URLs. Relative URLs resolve against the Home Assistant base URL. The access token is sent only to the exact Home Assistant origin, redirects to another origin are rejected, and logs omit URL query strings. Responses are limited to 5 MiB, 4096 × 4096 pixels, and 8 million pixels; decoded images use an 8 MiB LRU cache. A failed refresh keeps the previous image.
 
 ## Troubleshooting
 
@@ -381,20 +390,26 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `display.height` | integer | `480` | Desktop window height and layout-test reference. |
 | `display.rotation` | integer | `0` | `0`, `90`, `180`, or `270`; maps to `SLINT_KMS_ROTATION` on LinuxKMS. |
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
-| `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
+| `display.theme` | string | `"light"` | `light` matches the adopted design; `dark` is reserved for a future palette. |
+| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the Overview hero light. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity. |
+| `widgets.hero_light.name` | string | unset | Optional display name; defaults to the entity friendly name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Lower colour-temperature bound. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Upper colour-temperature bound. |
 | `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
 | `widgets.weather.entity` | string | unset | A `weather.*` entity. |
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
-| `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries. |
+| `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries (1–24). |
 | `widgets.weather.refresh_seconds` | integer | `900` | Forecast refresh interval. |
 | `widgets.media.enabled` | bool | `true` | Enable the media widget. |
 | `widgets.media.entity` | string | unset | A `media_player.*` entity. |
 | `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
-| `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.0–1.0. |
+| `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.01–1.0. |
 | `widgets.departures.enabled` | bool | `true` | Enable the departures widget. |
 | `widgets.departures.entity` | string | unset | A sensor with the documented `departures` attribute. |
 | `widgets.departures.title` | string | `"Departures"` | Widget heading. |
@@ -402,7 +417,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `widgets.departures.refresh_seconds` | integer | `60` | Optional periodic refresh. |
 | `widgets.calendar.enabled` | bool | `true` | Enable the calendar widget. |
 | `widgets.calendar.entities` | array of strings | unset | One or more `calendar.*` entities. |
-| `widgets.calendar.days` | integer | `2` | Number of days to fetch. |
+| `widgets.calendar.days` | integer | `2` | Number of days to fetch (1–14). |
 | `widgets.calendar.refresh_seconds` | integer | `300` | Refresh interval. |
 | `tiles.columns` | integer | `3` | Grid columns. |
 | `tiles.items[].entity` | string | required | Entity ID for a tile. |
@@ -420,6 +435,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.store_path` | string | `/var/lib/ha-kiosk/extensions` | Absolute extension store directory. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The full deployment guide, including seat models, hardening, upgrade, rollback,

@@ -1,9 +1,11 @@
+import { Theme } from "../theme.slint";
+
 // Bundled weather-condition icons. Every asset is part of the application
 // binary; nothing is downloaded at runtime. Home Assistant condition strings
 // are mapped to the closest local icon, and unknown values get a neutral icon.
 export component WeatherIcon inherits Image {
     in property <string> condition: "unknown";
-    in property <length> icon-size: 28px;
+    in property <length> icon-size: Theme.weather-icon-size;
 
     width: icon-size;
     height: icon-size;

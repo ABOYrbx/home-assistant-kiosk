@@ -175,6 +175,32 @@ path = "/tmp/ha-kiosk-media-test-cache.json"
         let request = art_rx.try_recv().expect("changed picture requests art");
         assert_eq!(request.url.query(), Some("token=two"));
 
+        let image = decode_image(&solid_png()).unwrap();
+        controller.apply(AppEvent::AlbumArt {
+            entity_id: "media_player.example".into(),
+            url: "http://homeassistant.local:8123/api/media_player_proxy/x?token=one".into(),
+            image: image.clone(),
+        });
+        assert!(
+            !controller.window().get_media().has_art,
+            "a stale response for the previous URL must be ignored"
+        );
+        controller.apply(AppEvent::AlbumArt {
+            entity_id: "media_player.example".into(),
+            url: request.url.to_string(),
+            image: image.clone(),
+        });
+        controller.apply(AppEvent::ImageFailed {
+            entity_id: "media_player.example".into(),
+            url: request.url.to_string(),
+            reason: "fetch failed".into(),
+        });
+        assert_eq!(
+            controller.window().get_media().art,
+            slint::Image::from_rgba8(image.clone()),
+            "a stale result or failed refresh must keep the previous art"
+        );
+
         controller.apply(AppEvent::Media(None));
         assert!(art_rx.try_recv().is_err());
 

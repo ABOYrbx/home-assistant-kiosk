@@ -46,6 +46,23 @@ fn controller_wires_tiles_to_slint_and_ha_commands() {
         let window = MainWindow::new().unwrap();
         let mut controller = AppController::new(window, config, tx);
 
+        controller.apply(AppEvent::Ha(HaEvent::Snapshot(vec![
+            ha_kiosk::events::HaEntity {
+                entity_id: "switch.example".into(),
+                state: "off".into(),
+                attributes: serde_json::json!({}),
+                last_changed: None,
+                last_updated: None,
+            },
+            ha_kiosk::events::HaEntity {
+                entity_id: "sensor.example".into(),
+                state: "42".into(),
+                attributes: serde_json::json!({}),
+                last_changed: None,
+                last_updated: None,
+            },
+        ])));
+
         // The configured grid is pushed into the Slint model.
         assert_eq!(controller.window().get_tile_columns(), 2);
         assert_eq!(controller.window().get_tiles().row_count(), 2);

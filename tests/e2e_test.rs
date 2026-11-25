@@ -191,6 +191,22 @@ async fn serve_connection(
                 }
                 send_scenario_messages(&mut ws, behaviour).await?;
             }
+            Some("get_states") => {
+                send(
+                    &mut ws,
+                    json!({
+                        "id": request["id"],
+                        "type": "result",
+                        "success": true,
+                        "result": [
+                            {"entity_id":"light.example","state":"on","attributes":{}},
+                            {"entity_id":"weather.home","state":"sunny","attributes":{}},
+                            {"entity_id":"sensor.unconfigured","state":"42","attributes":{}}
+                        ]
+                    }),
+                )
+                .await?;
+            }
             Some("call_service") => {
                 let response = if behaviour == Behaviour::ServiceFailure {
                     json!({
@@ -338,7 +354,7 @@ async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(),
                         "c": [
                             {
                                 "entity_id": "light.example",
-                                "state": if tick % 2 == 0 { "on" } else { "off" },
+                                "state": if tick.is_multiple_of(2) { "on" } else { "off" },
                                 "attributes": {"brightness": brightness},
                             },
                             {
@@ -525,6 +541,47 @@ entity = "light.example"
         .find(|r| r["type"] == "subscribe_entities")
         .expect("subscription sent");
     assert_eq!(subscribe["entity_ids"].as_array().unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn refresh_snapshot_is_limited_to_subscribed_entities() {
+    let server = MockHaServer::start(Behaviour::Normal).await;
+    let mut app = TestApp::start(&server, "test-token");
+    app.wait_until(|state| {
+        state.connection == ConnectionState::Connected
+            && state.entities.contains_key("light.example")
+    })
+    .await;
+
+    app.commands
+        .send(HaCommand::RefreshSnapshot)
+        .await
+        .expect("refresh command");
+    loop {
+        match app.next_event().await {
+            HaEvent::Snapshot(entities) => {
+                assert_eq!(entities.len(), 2);
+                assert!(
+                    entities
+                        .iter()
+                        .any(|entity| entity.entity_id == "light.example")
+                );
+                assert!(
+                    entities
+                        .iter()
+                        .any(|entity| entity.entity_id == "weather.home")
+                );
+                assert!(
+                    entities
+                        .iter()
+                        .all(|entity| entity.entity_id != "sensor.unconfigured")
+                );
+                break;
+            }
+            HaEvent::EntitiesAdded(_) | HaEvent::EntitiesChanged(_) => continue,
+            other => panic!("expected a filtered snapshot, got {other:?}"),
+        }
+    }
 }
 
 #[tokio::test]
@@ -758,7 +815,7 @@ async fn soak_with_state_change_stream_stays_bounded() {
         app.next_event().await;
         events += 1;
 
-        if events % 20 == 0 {
+        if events.is_multiple_of(20) {
             cache.save(&app.state).expect("cache write");
             cache_writes += 1;
             let size = std::fs::metadata(&cache_path)

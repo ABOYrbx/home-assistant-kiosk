@@ -109,10 +109,12 @@ pub enum AppEvent {
     Calendar(Result<crate::state::CalendarView, SourceError>),
     AlbumArt {
         entity_id: EntityId,
+        url: String,
         image: slint::SharedPixelBuffer<slint::Rgba8Pixel>,
     },
     ImageFailed {
         entity_id: EntityId,
+        url: String,
         reason: String,
     },
 }

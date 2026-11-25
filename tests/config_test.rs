@@ -56,6 +56,7 @@ refresh_seconds = 900
 [widgets.media]
 enabled = true
 entity = "media_player.living_room"
+volume_step = 0.05
 
 [widgets.departures]
 enabled = false
@@ -205,6 +206,51 @@ fn token_redacted_in_debug() {
     let cfg = Config::load(&path).unwrap();
     let dbg = format!("{:?}", cfg);
     assert!(!dbg.contains("super-secret"));
+}
+
+#[test]
+fn cache_fingerprint_tracks_widget_refresh_and_layout_settings() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(&path, base_config("token = \"t\"")).unwrap();
+    let original = Config::load(&path).unwrap().cache_fingerprint();
+    let changed = base_config("token = \"t\"")
+        .replace("refresh_seconds = 900", "refresh_seconds = 1200")
+        .replace("columns = 2", "columns = 3");
+    fs::write(&path, changed).unwrap();
+    let updated = Config::load(&path).unwrap().cache_fingerprint();
+    assert_ne!(original, updated);
+}
+
+#[test]
+fn widget_domains_and_ranges_are_validated() {
+    let cases = [
+        (
+            "entity = \"weather.home\"",
+            "entity = \"light.not_weather\"",
+        ),
+        (
+            "entity = \"media_player.living_room\"",
+            "entity = \"switch.not_media\"",
+        ),
+        (
+            "entities = [\"calendar.family\"]",
+            "entities = [\"sensor.not_calendar\"]",
+        ),
+        ("forecast_count = 3", "forecast_count = 0"),
+        ("volume_step = 0.05", "volume_step = 0.0"),
+        ("days = 2", "days = 0"),
+    ];
+    for (from, to) in cases {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let content = base_config("token = \"t\"").replace(from, to);
+        fs::write(&path, content).unwrap();
+        assert!(
+            Config::load(&path).is_err(),
+            "accepted invalid widget setting {to}"
+        );
+    }
 }
 
 #[test]

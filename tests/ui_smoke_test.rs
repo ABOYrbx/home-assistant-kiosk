@@ -1,9 +1,11 @@
-use ha_kiosk::{AppController, Config, MainWindow};
-use i_slint_backend_testing::ElementHandle;
+use ha_kiosk::MainWindow;
+use i_slint_backend_testing::{ElementHandle, ElementRoot};
 use slint::LogicalSize;
 use slint::language::AccessibleRole;
 use slint::platform::PointerEventButton;
 use slint::{ComponentHandle, LogicalPosition, PhysicalSize};
+use std::cell::Cell;
+use std::rc::Rc;
 
 const TOUCH_TARGET: f32 = 44.0;
 
@@ -103,67 +105,6 @@ fn meets_minimum_touch_target(size: LogicalSize) -> bool {
     size.width >= MIN_TOUCH_TARGET && size.height >= MIN_TOUCH_TARGET
 }
 
-/// Drag the pointer from the centre of the page host by the given logical delta.
-async fn drag_page(app: &MainWindow, dx: f32, dy: f32) {
-    let swipe = ElementHandle::find_by_element_id(app, "MainWindow::swipe-area")
-        .next()
-        .unwrap();
-    let pos = swipe.absolute_position();
-    let size = swipe.size();
-    let start = slint::LogicalPosition::new(pos.x + size.width / 2.0, pos.y + size.height / 2.0);
-    let target = slint::LogicalPosition::new(start.x + dx, start.y + dy);
-    swipe.drag(target, PointerEventButton::Left).await;
-}
-
-fn test_config() -> Config {
-    toml::from_str(
-        r#"
-[ha]
-url = "http://127.0.0.1:8123"
-token = "test-token"
-
-[cache]
-path = "/tmp/ha-kiosk-ui-smoke-cache.json"
-"#,
-    )
-    .unwrap()
-}
-
-/// Minimum interactive hit area from `DESIGN.md` and `PLAN.md`, in logical
-/// pixels.
-const MIN_TOUCH_TARGET: f32 = 44.0;
-
-/// Roles that accept input. `Text`, `Image`, and the landmark roles are
-/// intentionally excluded: they carry information rather than hit areas.
-fn is_interactive_role(role: AccessibleRole) -> bool {
-    matches!(
-        role,
-        AccessibleRole::Button
-            | AccessibleRole::Checkbox
-            | AccessibleRole::Combobox
-            | AccessibleRole::Slider
-            | AccessibleRole::Spinbox
-            | AccessibleRole::Tab
-            | AccessibleRole::Switch
-            | AccessibleRole::TextInput
-            | AccessibleRole::RadioButton
-            | AccessibleRole::ListItem
-    )
-}
-
-fn meets_minimum_touch_target(size: LogicalSize) -> bool {
-    size.width >= MIN_TOUCH_TARGET && size.height >= MIN_TOUCH_TARGET
-}
-
-#[test]
-fn too_small_targets_fail_the_minimum_check() {
-    assert!(meets_minimum_touch_target(LogicalSize::new(44.0, 44.0)));
-    assert!(meets_minimum_touch_target(LogicalSize::new(120.0, 48.0)));
-    assert!(!meets_minimum_touch_target(LogicalSize::new(43.0, 44.0)));
-    assert!(!meets_minimum_touch_target(LogicalSize::new(44.0, 43.0)));
-    assert!(!meets_minimum_touch_target(LogicalSize::new(20.0, 20.0)));
-}
-
 #[test]
 fn too_small_targets_fail_the_minimum_check() {
     assert!(meets_minimum_touch_target(LogicalSize::new(44.0, 44.0)));
@@ -180,6 +121,10 @@ fn shell_navigation_gestures_targets_and_layouts() {
     slint::spawn_local(async move {
         let app = MainWindow::new().unwrap();
         resize(&app, 800, 480);
+        let pages = ["overview-page", "media-page", "agenda-page", "status-page"];
+        let page_count = |name: &str| {
+            ElementHandle::find_by_element_id(&app, &format!("MainWindow::{name}")).count()
+        };
 
         // Every interactive element must expose at least a 44 x 44 hit area.
         // Walk the shell by accessible role so controls added later are audited
@@ -275,6 +220,13 @@ fn shell_navigation_gestures_targets_and_layouts() {
         }
 
         // A gesture that starts on a slider changes the value, not the page.
+        tap(&app, "tab-media").await;
+        let mut media = app.get_media();
+        media.can_set_volume = true;
+        media.available = true;
+        media.volume = 0.5;
+        app.set_media(media);
+        app.set_media_slider_value(0.5);
         let slider = find(&app, "media-slider");
         assert_touch_target(&slider, "Media slider");
         assert_within(&slider, "Media slider", 800.0, 480.0);
@@ -286,6 +238,17 @@ fn shell_navigation_gestures_targets_and_layouts() {
         // A vertical swipe in the agenda Flickable scrolls the list. Neither
         // vertical nor horizontal gestures that start on the list page-flip.
         tap(&app, "tab-agenda").await;
+        let entries: Vec<ha_kiosk::AgendaEntry> = (0..12)
+            .map(|index| ha_kiosk::AgendaEntry {
+                title: format!("Example event {index}").into(),
+                when: format!("{index:02}:00").into(),
+                detail: "Meeting room".into(),
+                all_day: false,
+            })
+            .collect();
+        app.set_agenda_today(std::rc::Rc::new(slint::VecModel::from(entries)).into());
+        app.set_agenda_loading(false);
+        app.set_agenda_empty(false);
         let list = find(&app, "agenda-list");
         assert_within(&list, "Agenda list", 800.0, 480.0);
         assert_eq!(app.get_agenda_scroll_y(), 0.0);
@@ -298,6 +261,20 @@ fn shell_navigation_gestures_targets_and_layouts() {
         );
         drag_by(&app, "agenda-list", -220.0, 0.0).await;
         assert_eq!(app.get_current_page(), 2);
+
+        let tiles = vec![ha_kiosk::TileItem {
+            entity_id: "light.example".into(),
+            label: "Example light".into(),
+            icon: slint::SharedString::new(),
+            state: "on".into(),
+            detail: slint::SharedString::new(),
+            read_only: false,
+            pending: false,
+            error: slint::SharedString::new(),
+            row: 0,
+            col: 0,
+        }];
+        app.set_tiles(std::rc::Rc::new(slint::VecModel::from(tiles)).into());
 
         // Both kiosk breakpoints keep controls and touch targets in bounds.
         for (width, height) in [(800u32, 480u32), (1024u32, 600u32)] {
@@ -325,7 +302,7 @@ fn shell_navigation_gestures_targets_and_layouts() {
             );
 
             tap(&app, "tab-overview").await;
-            let tile = find(&app, "overview-tile");
+            let tile = find(&app, "tile-touch");
             assert_touch_target(&tile, "Overview tile");
             assert_within(&tile, "Overview tile", width as f32, height as f32);
 

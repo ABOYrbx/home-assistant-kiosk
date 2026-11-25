@@ -1,21 +1,146 @@
 import { Theme } from "../theme.slint";
 
+export struct AgendaEntry {
+    title: string,
+    when: string,
+    detail: string,
+    all-day: bool,
+}
+
+component AgendaRow inherits Rectangle {
+    in property <AgendaEntry> entry;
+
+    height: Theme.touch-target;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: Theme.space-3;
+
+        Text {
+            text: root.entry.when;
+            color: Theme.fg;
+            font-size: Theme.text-sm;
+            font-weight: Theme.weight-semibold;
+            width: Theme.row-time-width;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 0px;
+            min-width: 0px;
+
+            Text {
+                text: root.entry.title;
+                color: Theme.fg;
+                font-size: Theme.text-sm;
+                overflow: elide;
+            }
+            Text {
+                text: root.entry.detail;
+                color: Theme.muted;
+                font-size: Theme.text-xs;
+                overflow: elide;
+            }
+        }
+    }
+}
+
 export component CalendarWidget inherits Rectangle {
-    in property <[string]> items: [];
+    in property <[AgendaEntry]> today: [];
+    in property <[AgendaEntry]> tomorrow: [];
+    in property <bool> loading: false;
+    in property <bool> empty: false;
+    in property <string> error: "";
+    in property <string> status: "";
+    out property <float> scroll-y: agenda-list.content-y / Theme.border-width;
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
 
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-2;
-        Text { text: "Agenda"; color: Theme.fg; font-size: Theme.text-base; font-weight: 600; }
-        for item in items : Text {
-            text: item;
-            color: Theme.fg-2;
-            font-size: Theme.text-sm;
+
+        HorizontalLayout {
+            Text {
+                text: "Agenda";
+                color: Theme.fg;
+                font-size: Theme.text-base;
+                font-weight: Theme.weight-semibold;
+            }
+            Text {
+                text: root.status;
+                color: Theme.muted;
+                font-size: Theme.text-xs;
+                horizontal-stretch: 1;
+                horizontal-alignment: right;
+                overflow: elide;
+            }
+        }
+
+        if root.error != "" : Rectangle {
+            background: Theme.surface-warm;
+            border-radius: Theme.radius-sm;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+            min-height: Theme.touch-target - Theme.space-2;
+
+            HorizontalLayout {
+                padding: Theme.space-2;
+                Text {
+                    text: root.error;
+                    color: Theme.danger;
+                    font-size: Theme.text-xs;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+        }
+
+        agenda-list := Flickable {
+            vertical-stretch: 1;
+            content-width: self.width;
+            content-height: content.preferred-height;
+
+            content := VerticalLayout {
+                spacing: Theme.space-1;
+
+                if root.loading : Text {
+                    text: "Loading agenda…";
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                }
+
+                if root.empty && !root.loading : Text {
+                    text: "No events today or tomorrow.";
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                }
+
+                if root.today.length > 0 : Text {
+                    text: "Today";
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                    font-weight: Theme.weight-semibold;
+                }
+                for entry in root.today : AgendaRow {
+                    entry: entry;
+                }
+
+                if root.tomorrow.length > 0 : Text {
+                    text: "Tomorrow";
+                    color: Theme.muted;
+                    font-size: Theme.text-xs;
+                    font-weight: Theme.weight-semibold;
+                }
+                for entry in root.tomorrow : AgendaRow {
+                    entry: entry;
+                }
+            }
         }
     }
 }

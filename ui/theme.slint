@@ -1,19 +1,39 @@
 // Design tokens ported from tokens.css / DESIGN.md.
+// tokens.css is authoritative. Component-only dimensions are collected here so
+// no component invents a one-off size.
+
 export global Theme {
-    // Colors
+    // Colour
     in-out property <color> bg: #ffffff;
     in-out property <color> surface: #fafafa;
     in-out property <color> surface-warm: #f5f5f5;
     in-out property <color> fg: #111111;
     in-out property <color> fg-2: #3a3a3a;
     in-out property <color> muted: #6b6b6b;
+    in-out property <color> meta: #111111;
     in-out property <color> border: #e2e2e2;
     in-out property <color> border-soft: #eeeeee;
     in-out property <color> accent: #111111;
     in-out property <color> accent-on: #ffffff;
+    in-out property <color> accent-hover: #0e0e0e;
+    in-out property <color> accent-active: #0c0c0c;
     in-out property <color> success: #0f7a3a;
     in-out property <color> warn: #8a5a12;
     in-out property <color> danger: #c53030;
+
+    // Typography
+    in-out property <string> font-display: "Inter, system-ui, sans-serif";
+    in-out property <string> font-body: "Inter, system-ui, sans-serif";
+    in-out property <string> font-mono: "SF Mono, ui-monospace, Menlo, monospace";
+    in-out property <int> font-weight-regular: 400;
+    in-out property <int> font-weight-medium: 500;
+    in-out property <int> font-weight-semibold: 600;
+    in-out property <int> weight-regular: 400;
+    in-out property <int> weight-medium: 500;
+    in-out property <int> weight-semibold: 600;
+    in-out property <float> leading-body: 1.55;
+    in-out property <float> leading-tight: 1.08;
+    in-out property <float> tracking-display: -0.02;
 
     // Type scale
     in-out property <length> text-xs: 12px;
@@ -34,6 +54,9 @@ export global Theme {
     in-out property <length> space-6: 24px;
     in-out property <length> space-8: 32px;
     in-out property <length> space-12: 48px;
+    in-out property <length> section-y-desktop: 112px;
+    in-out property <length> section-y-tablet: 80px;
+    in-out property <length> section-y-phone: 56px;
 
     // Radius
     in-out property <length> radius-sm: 2px;
@@ -41,10 +64,56 @@ export global Theme {
     in-out property <length> radius-lg: 8px;
     in-out property <length> radius-pill: 9999px;
 
-    // Touch
-    in-out property <length> touch-target: 44px;
+    // Elevation and focus
+    in-out property <length> elev-flat: 0px;
+    in-out property <length> elev-ring: 1px;
+    in-out property <length> elev-raised-y: 12px;
+    in-out property <length> elev-raised-blur: 30px;
+    in-out property <color> elev-raised-color: rgba(0, 0, 0, 0.08);
+    in-out property <length> focus-ring-width: 3px;
+    in-out property <color> focus-ring-color: rgba(17, 17, 17, 0.18);
+    in-out property <color> focus-ring: rgba(17, 17, 17, 0.18);
 
     // Motion
     in-out property <duration> motion-fast: 140ms;
     in-out property <duration> motion-base: 220ms;
+    in-out property <easing> ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+    // Layout
+    in-out property <length> container-max: 1120px;
+    in-out property <length> container-gutter-desktop: 36px;
+    in-out property <length> container-gutter-tablet: 24px;
+    in-out property <length> container-gutter-phone: 16px;
+    in-out property <length> breakpoint-two-column: 1024px;
+    in-out property <length> breakpoint-three-column: 1280px;
+    in-out property <length> content-max-width: 1440px;
+    in-out property <length> topbar-height: 64px;
+    in-out property <length> topbar-height-compact: 56px;
+    in-out property <length> hero-compact-height: 224px;
+    in-out property <length> clock-width: 96px;
+
+    // Shared component dimensions
+    in-out property <length> touch-target: 44px;
+    in-out property <length> border-width: 1px;
+    in-out property <length> window-min-width: 320px;
+    in-out property <length> window-min-height: 240px;
+    in-out property <length> swipe-threshold: 60px;
+    in-out property <float> swipe-threshold-fraction: 0.2;
+    in-out property <length> swipe-lock-distance: 8px;
+    in-out property <length> album-art-size: 80px;
+    in-out property <length> media-art-size: 112px;
+    in-out property <length> transport-button-width: 72px;
+    in-out property <length> switch-width: 48px;
+    in-out property <length> switch-track-height: 28px;
+    in-out property <length> switch-knob-size: 22px;
+    in-out property <length> switch-inset: 3px;
+    in-out property <length> slider-knob-size: 20px;
+    in-out property <length> slider-track-height: 6px;
+    in-out property <length> status-dot-size: 8px;
+    in-out property <length> connection-pill-width: 112px;
+    in-out property <length> connection-pill-height: 28px;
+    in-out property <length> weather-icon-size: 28px;
+    in-out property <length> tile-min-height: 72px;
+    in-out property <length> row-time-width: 96px;
+    in-out property <length> volume-label-width: 48px;
 }

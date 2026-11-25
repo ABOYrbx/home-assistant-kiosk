@@ -6,7 +6,7 @@ use std::sync::Once;
 static INIT_BACKEND: Once = Once::new();
 
 fn init_backend() {
-    INIT_BACKEND.call_once(|| i_slint_backend_testing::init_integration_test_with_system_time());
+    INIT_BACKEND.call_once(i_slint_backend_testing::init_integration_test_with_system_time);
 }
 
 fn entity(id: &str) -> HaEntity {
@@ -51,61 +51,79 @@ fn controller_applies_events_and_updates_slint_on_the_ui_thread() {
     let (config, _temp_dir) = test_config();
     let window = MainWindow::new().unwrap();
     let (tx, _rx) = tokio::sync::mpsc::channel(4);
-    let mut controller = AppController::new(window.clone(), config, tx);
+    let mut controller = AppController::new(window, config, tx);
 
     // The controller publishes the initial state so the shell has no blank
     // defaults before the first event arrives.
-    assert_eq!(window.get_connection_status().as_str(), "Disconnected");
-    assert!(window.get_stale());
-    assert_eq!(window.get_entity_count(), 0);
-    assert_eq!(window.get_entity_ids().row_count(), 0);
+    {
+        let window = controller.window();
+        assert_eq!(window.get_connection_status().as_str(), "Offline");
+        assert!(window.get_stale());
+        assert_eq!(window.get_entity_count(), 0);
+        assert_eq!(window.get_entity_ids().row_count(), 0);
+    }
 
     controller.apply(AppEvent::Ha(HaEvent::Connected {
         ha_version: "2026.11.0".into(),
         time_zone: chrono_tz::Tz::UTC,
     }));
-    assert_eq!(window.get_connection_status().as_str(), "Connected");
-    assert_eq!(window.get_ha_version().as_str(), "2026.11.0");
-    assert!(!window.get_stale());
-    assert!(!window.get_last_success().is_empty());
+    {
+        let window = controller.window();
+        assert_eq!(window.get_connection_status().as_str(), "Connected");
+        assert_eq!(window.get_ha_version().as_str(), "2026.11.0");
+        assert!(!window.get_stale());
+        assert!(!window.get_last_success().is_empty());
+    }
 
     controller.apply(AppEvent::Ha(HaEvent::Snapshot(vec![
         entity("weather.home"),
         entity("light.example"),
     ])));
-    assert_eq!(window.get_entity_count(), 2);
-    let ids = window.get_entity_ids();
-    assert_eq!(ids.row_count(), 2);
-    assert_eq!(ids.row_data(0).unwrap().as_str(), "light.example");
-    assert_eq!(ids.row_data(1).unwrap().as_str(), "weather.home");
+    controller.tick_widgets(std::time::Instant::now(), chrono::Utc::now());
+    {
+        let window = controller.window();
+        assert_eq!(window.get_entity_count(), 2);
+        let ids = window.get_entity_ids();
+        assert_eq!(ids.row_count(), 2);
+        assert_eq!(ids.row_data(0).unwrap().as_str(), "light.example");
+        assert_eq!(ids.row_data(1).unwrap().as_str(), "weather.home");
+    }
 
     controller.apply(AppEvent::Ha(HaEvent::EntitiesChanged(vec![EntityChange {
         entity_id: "light.example".into(),
         state: Some("off".into()),
         attributes: serde_json::json!({}),
     }])));
-    assert_eq!(window.get_entity_count(), 2);
+    controller.tick_widgets(std::time::Instant::now(), chrono::Utc::now());
+    assert_eq!(controller.window().get_entity_count(), 2);
 
     controller.apply(AppEvent::Ha(HaEvent::EntitiesRemoved(vec![
         "light.example".into(),
     ])));
-    assert_eq!(window.get_entity_count(), 1);
-    assert_eq!(
-        window.get_entity_ids().row_data(0).unwrap().as_str(),
-        "weather.home"
-    );
+    controller.tick_widgets(std::time::Instant::now(), chrono::Utc::now());
+    {
+        let window = controller.window();
+        assert_eq!(window.get_entity_count(), 1);
+        assert_eq!(
+            window.get_entity_ids().row_data(0).unwrap().as_str(),
+            "weather.home"
+        );
+    }
 
     controller.apply(AppEvent::Ha(HaEvent::AuthFailed {
         message: "bad token".into(),
     }));
     assert_eq!(
-        window.get_connection_status().as_str(),
+        controller.window().get_connection_status().as_str(),
         "Authentication failed"
     );
 
     controller.apply(AppEvent::Ha(HaEvent::Disconnected {
         reason: "socket closed".into(),
     }));
-    assert_eq!(window.get_connection_status().as_str(), "Disconnected");
-    assert!(window.get_stale());
+    assert_eq!(
+        controller.window().get_connection_status().as_str(),
+        "Offline"
+    );
+    assert!(controller.window().get_stale());
 }

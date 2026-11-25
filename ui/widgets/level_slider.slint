@@ -12,9 +12,12 @@ export component LevelSlider inherits Rectangle {
 
     height: Theme.touch-target;
     opacity: enabled ? 1.0 : 0.45;
+    accessible-role: slider;
+    accessible-enabled: root.enabled;
+    accessible-value: root.value;
 
-    property <length> knob-size: 20px;
-    property <length> track-thickness: 6px;
+    property <length> knob-size: Theme.slider-knob-size;
+    property <length> track-thickness: Theme.slider-track-height;
     property <length> travel: Math.max(0px, self.width - knob-size);
     property <int> span: max - min;
     property <length> filled: span <= 0 ? 0px : travel * (value - min) / span;
@@ -44,7 +47,7 @@ export component LevelSlider inherits Rectangle {
         height: knob-size;
         border-radius: Theme.radius-pill;
         background: Theme.accent;
-        border-width: 2px;
+        border-width: Theme.border-width;
         border-color: Theme.bg;
     }
 

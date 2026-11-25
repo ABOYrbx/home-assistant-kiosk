@@ -1,39 +1,319 @@
 import { Theme } from "../theme.slint";
-import { ClockWidget } from "../widgets/clock.slint";
-import { WeatherWidget } from "../widgets/weather.slint";
+import { KioskModel } from "../model.slint";
+import { TopBar } from "../widgets/top_bar.slint";
+import { WeatherWidget, WeatherState, ForecastItem } from "../widgets/weather.slint";
 import { HeroLight } from "../widgets/hero_light.slint";
 import { ScenesRow } from "../widgets/scenes.slint";
-import { HaTile } from "../widgets/ha_tile.slint";
-import { DeparturesWidget } from "../widgets/departures.slint";
+import { TilesGrid, TileItem } from "../widgets/tiles_grid.slint";
+import { DeparturesWidget, DeparturesState, DepartureRow } from "../widgets/departures.slint";
+
+component SecondaryContent inherits VerticalLayout {
+    in property <[string]> scenes: [];
+    in property <[TileItem]> tiles: [];
+    in property <int> tile-columns: 3;
+    in property <bool> departures-visible: true;
+    in property <string> departures-title: "Departures";
+    in property <DeparturesState> departures-state: DeparturesState.loading;
+    in property <[DepartureRow]> departures-rows: [];
+    in property <bool> weather-visible: true;
+    in property <WeatherState> weather-state: WeatherState.loading;
+    in property <string> weather-condition: "";
+    in property <string> weather-temperature: "";
+    in property <string> weather-unit: "";
+    in property <string> weather-error: "";
+    in property <[ForecastItem]> weather-forecast: [];
+    callback scene-activated(string);
+    callback tile-tapped(string);
+
+    spacing: Theme.space-3;
+
+    overview-tile := TilesGrid {
+        tiles: root.tiles;
+        columns: root.tile-columns;
+        tapped(id) => { root.tile-tapped(id); }
+    }
+
+    WeatherWidget {
+        widget-visible: root.weather-visible;
+        state: root.weather-state;
+        condition: root.weather-condition;
+        temperature: root.weather-temperature;
+        unit: root.weather-unit;
+        error: root.weather-error;
+        forecast: root.weather-forecast;
+    }
+
+    ScenesRow {
+        items: root.scenes;
+        item-columns: 2;
+        activated(id) => { root.scene-activated(id); }
+    }
+
+    DeparturesWidget {
+        widget-visible: root.departures-visible;
+        title: root.departures-title;
+        state: root.departures-state;
+        rows: root.departures-rows;
+    }
+}
 
 export component OverviewPage inherits Rectangle {
+    in property <int> layout-mode: 0;
+    in property <[string]> scenes: [];
+    in property <[TileItem]> tiles: [];
+    in property <int> tile-columns: 3;
+    in property <bool> departures-visible: true;
+    in property <string> departures-title: "Departures";
+    in property <DeparturesState> departures-state: DeparturesState.loading;
+    in property <[DepartureRow]> departures-rows: [];
+    in property <bool> weather-visible: true;
+    in property <WeatherState> weather-state: WeatherState.loading;
+    in property <string> weather-condition: "";
+    in property <string> weather-temperature: "";
+    in property <string> weather-unit: "";
+    in property <string> weather-error: "";
+    in property <[ForecastItem]> weather-forecast: [];
+    callback scene-activated(string);
+    callback tile-tapped(string);
+
     background: Theme.bg;
+    clip: true;
+
+    property <bool> compact: root.layout-mode == 0;
+    property <bool> two-column: root.layout-mode == 1;
+    property <bool> three-column: root.layout-mode == 2;
+    property <length> page-gutter: max(Theme.space-6, (root.width - Theme.content-max-width) / 2);
 
     VerticalLayout {
-        padding: Theme.space-3;
-        spacing: Theme.space-3;
+        spacing: 0px;
 
-        // Top bar
-        HorizontalLayout {
-            spacing: Theme.space-3;
-            alignment: space-between;
-            Text { text: "Home"; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
-            ClockWidget { time: ""; date: ""; }
+        top-bar := Rectangle {
+            height: root.compact ? Theme.topbar-height-compact : Theme.topbar-height;
+
+            overview-topbar := TopBar {
+                width: 100%;
+                height: 100%;
+                compact: root.compact;
+            }
         }
 
-        // Hero light
-        HeroLight { name: ""; on: false; brightness: 0; color-temp: 0; }
+        if root.compact : compact-layout := Rectangle {
+            vertical-stretch: 1;
 
-        // Scenes
-        ScenesRow { items: []; }
+            VerticalLayout {
+                padding: Theme.space-3;
+                spacing: Theme.space-3;
 
-        // Rooms / tiles
-        HorizontalLayout {
-            spacing: Theme.space-3;
-            HaTile { label: ""; state: ""; }
+                hero := HeroLight {
+                    compact: true;
+                    height: Theme.hero-compact-height;
+                    configured: KioskModel.hero-configured;
+                    name: KioskModel.hero-name;
+                    on: KioskModel.hero-on;
+                    brightness <=> KioskModel.hero-brightness;
+                    color-temp <=> KioskModel.hero-color-temp;
+                    min-kelvin: KioskModel.hero-min-kelvin;
+                    max-kelvin: KioskModel.hero-max-kelvin;
+                    available: KioskModel.hero-available;
+                    loading: KioskModel.hero-loading;
+                    pending: KioskModel.hero-pending;
+                    brightness-supported: KioskModel.hero-brightness-supported;
+                    color-temp-supported: KioskModel.hero-color-temp-supported;
+                    brightness-text: KioskModel.hero-brightness-text;
+                    color-temp-text: KioskModel.hero-color-temp-text;
+                    state-text: KioskModel.hero-state-text;
+                    status-text: KioskModel.hero-status-text;
+                    error: KioskModel.hero-error;
+                    toggled => { KioskModel.hero-toggled(); }
+                    brightness-changed(value) => { KioskModel.hero-brightness-changed(value); }
+                    brightness-released(value) => { KioskModel.hero-brightness-released(value); }
+                    color-temp-changed(value) => { KioskModel.hero-color-temp-changed(value); }
+                    color-temp-released(value) => { KioskModel.hero-color-temp-released(value); }
+                }
+
+                compact-scroll := Flickable {
+                    vertical-stretch: 1;
+                    content-width: self.width;
+                    content-height: compact-content.preferred-height;
+
+                    compact-content := SecondaryContent {
+                        width: compact-scroll.width;
+                        scenes: root.scenes;
+                        tiles: root.tiles;
+                        tile-columns: root.tile-columns;
+                        departures-visible: root.departures-visible;
+                        departures-title: root.departures-title;
+                        departures-state: root.departures-state;
+                        departures-rows: root.departures-rows;
+                        weather-visible: root.weather-visible;
+                        weather-state: root.weather-state;
+                        weather-condition: root.weather-condition;
+                        weather-temperature: root.weather-temperature;
+                        weather-unit: root.weather-unit;
+                        weather-error: root.weather-error;
+                        weather-forecast: root.weather-forecast;
+                        scene-activated(id) => { root.scene-activated(id); }
+                        tile-tapped(id) => { root.tile-tapped(id); }
+                    }
+                }
+            }
         }
 
-        // Departures
-        DeparturesWidget { title: "Departures"; items: []; }
+        if root.two-column : two-column-layout := Rectangle {
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                padding-left: root.page-gutter;
+                padding-right: root.page-gutter;
+                padding-top: Theme.space-4;
+                padding-bottom: Theme.space-4;
+                spacing: Theme.space-4;
+
+                two-column-hero := HeroLight {
+                    compact: false;
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
+                    min-width: 0px;
+                    configured: KioskModel.hero-configured;
+                    name: KioskModel.hero-name;
+                    on: KioskModel.hero-on;
+                    brightness <=> KioskModel.hero-brightness;
+                    color-temp <=> KioskModel.hero-color-temp;
+                    min-kelvin: KioskModel.hero-min-kelvin;
+                    max-kelvin: KioskModel.hero-max-kelvin;
+                    available: KioskModel.hero-available;
+                    loading: KioskModel.hero-loading;
+                    pending: KioskModel.hero-pending;
+                    brightness-supported: KioskModel.hero-brightness-supported;
+                    color-temp-supported: KioskModel.hero-color-temp-supported;
+                    brightness-text: KioskModel.hero-brightness-text;
+                    color-temp-text: KioskModel.hero-color-temp-text;
+                    state-text: KioskModel.hero-state-text;
+                    status-text: KioskModel.hero-status-text;
+                    error: KioskModel.hero-error;
+                    toggled => { KioskModel.hero-toggled(); }
+                    brightness-changed(value) => { KioskModel.hero-brightness-changed(value); }
+                    brightness-released(value) => { KioskModel.hero-brightness-released(value); }
+                    color-temp-changed(value) => { KioskModel.hero-color-temp-changed(value); }
+                    color-temp-released(value) => { KioskModel.hero-color-temp-released(value); }
+                }
+
+                two-column-secondary := Flickable {
+                    horizontal-stretch: 1;
+                    vertical-stretch: 1;
+                    content-width: self.width;
+                    content-height: two-column-content.preferred-height;
+
+                    two-column-content := SecondaryContent {
+                        width: two-column-secondary.width;
+                        scenes: root.scenes;
+                        tiles: root.tiles;
+                        tile-columns: root.tile-columns;
+                        departures-visible: root.departures-visible;
+                        departures-title: root.departures-title;
+                        departures-state: root.departures-state;
+                        departures-rows: root.departures-rows;
+                        weather-visible: root.weather-visible;
+                        weather-state: root.weather-state;
+                        weather-condition: root.weather-condition;
+                        weather-temperature: root.weather-temperature;
+                        weather-unit: root.weather-unit;
+                        weather-error: root.weather-error;
+                        weather-forecast: root.weather-forecast;
+                        scene-activated(id) => { root.scene-activated(id); }
+                        tile-tapped(id) => { root.tile-tapped(id); }
+                    }
+                }
+            }
+        }
+
+        if root.three-column : three-column-layout := Rectangle {
+            vertical-stretch: 1;
+
+            three-column-scroll := Flickable {
+                content-width: self.width;
+                content-height: three-column-content.preferred-height;
+
+                three-column-content := HorizontalLayout {
+                    width: three-column-scroll.width;
+                    min-height: three-column-scroll.height;
+                    padding-left: root.page-gutter;
+                    padding-right: root.page-gutter;
+                    padding-top: Theme.space-6;
+                    padding-bottom: Theme.space-6;
+                    spacing: Theme.space-4;
+
+                    three-column-hero := HeroLight {
+                        compact: false;
+                        horizontal-stretch: 2;
+                        vertical-stretch: 1;
+                        min-width: 0px;
+                        configured: KioskModel.hero-configured;
+                        name: KioskModel.hero-name;
+                        on: KioskModel.hero-on;
+                        brightness <=> KioskModel.hero-brightness;
+                        color-temp <=> KioskModel.hero-color-temp;
+                        min-kelvin: KioskModel.hero-min-kelvin;
+                        max-kelvin: KioskModel.hero-max-kelvin;
+                        available: KioskModel.hero-available;
+                        loading: KioskModel.hero-loading;
+                        pending: KioskModel.hero-pending;
+                        brightness-supported: KioskModel.hero-brightness-supported;
+                        color-temp-supported: KioskModel.hero-color-temp-supported;
+                        brightness-text: KioskModel.hero-brightness-text;
+                        color-temp-text: KioskModel.hero-color-temp-text;
+                        state-text: KioskModel.hero-state-text;
+                        status-text: KioskModel.hero-status-text;
+                        error: KioskModel.hero-error;
+                        toggled => { KioskModel.hero-toggled(); }
+                        brightness-changed(value) => { KioskModel.hero-brightness-changed(value); }
+                        brightness-released(value) => { KioskModel.hero-brightness-released(value); }
+                        color-temp-changed(value) => { KioskModel.hero-color-temp-changed(value); }
+                        color-temp-released(value) => { KioskModel.hero-color-temp-released(value); }
+                    }
+
+                    three-column-secondary := VerticalLayout {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        spacing: Theme.space-3;
+
+                        ScenesRow {
+                            items: root.scenes;
+                            item-columns: 2;
+                            activated(id) => { root.scene-activated(id); }
+                        }
+
+                        TilesGrid {
+                            tiles: root.tiles;
+                            columns: root.tile-columns;
+                            tapped(id) => { root.tile-tapped(id); }
+                        }
+                    }
+
+                    three-column-tertiary := VerticalLayout {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        spacing: Theme.space-3;
+
+                        WeatherWidget {
+                            widget-visible: root.weather-visible;
+                            state: root.weather-state;
+                            condition: root.weather-condition;
+                            temperature: root.weather-temperature;
+                            unit: root.weather-unit;
+                            error: root.weather-error;
+                            forecast: root.weather-forecast;
+                        }
+
+                        DeparturesWidget {
+                            widget-visible: root.departures-visible;
+                            title: root.departures-title;
+                            state: root.departures-state;
+                            rows: root.departures-rows;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

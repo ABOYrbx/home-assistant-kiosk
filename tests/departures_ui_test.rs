@@ -5,7 +5,7 @@ use ha_kiosk::DeparturesState;
 use ha_kiosk::state::{DepartureItem, DeparturesView};
 use ha_kiosk::ui::bridge::UiBridge;
 use i_slint_backend_testing::ElementHandle;
-use slint::Model;
+use slint::{ComponentHandle, Model, PhysicalSize};
 
 #[test]
 fn departures_widget_renders_each_data_state() {
@@ -13,6 +13,8 @@ fn departures_widget_renders_each_data_state() {
 
     slint::spawn_local(async move {
         let app = ha_kiosk::MainWindow::new().unwrap();
+        app.window().set_size(PhysicalSize::new(1024, 600));
+        slint::platform::update_timers_and_animations();
         app.set_departures_visible(true);
 
         let has = |id: &str| {

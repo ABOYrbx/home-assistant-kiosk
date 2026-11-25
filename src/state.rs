@@ -179,6 +179,7 @@ impl AppState {
                 for e in entities {
                     self.entities.insert(e.entity_id.clone(), e);
                 }
+                self.stale = false;
                 self.last_success = Some(Utc::now());
             }
             HaEvent::EntitiesAdded(entities) => {
