@@ -2,11 +2,11 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, TimeZone, Utc};
 use ha_kiosk::extensions::{
@@ -86,6 +86,15 @@ impl Clock for FixedClock {
     }
 }
 
+struct SlowClock(Duration);
+
+impl Clock for SlowClock {
+    fn now(&self) -> DateTime<Utc> {
+        thread::sleep(self.0);
+        Utc.with_ymd_and_hms(2026, 11, 23, 12, 0, 0).unwrap()
+    }
+}
+
 fn fixed_clock() -> Arc<FixedClock> {
     Arc::new(FixedClock(
         Utc.with_ymd_and_hms(2026, 11, 23, 12, 0, 0).unwrap(),
@@ -95,7 +104,7 @@ fn fixed_clock() -> Arc<FixedClock> {
 struct PanicFetcher;
 
 impl HttpFetcher for PanicFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         panic!("the policy must reject before the fetcher is called");
     }
 }
@@ -119,7 +128,7 @@ impl RecordingFetcher {
 }
 
 impl HttpFetcher for RecordingFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         match &*self.response.lock().unwrap() {
             Ok(value) => Ok(value.clone()),
@@ -137,7 +146,9 @@ struct DelayedFetcher {
 }
 
 impl HttpFetcher for DelayedFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
+        // Intentionally ignore the timeout to verify the host rejects late data
+        // even when a fetcher violates its contract.
         self.calls.fetch_add(1, Ordering::SeqCst);
         thread::sleep(self.delay);
         Ok(json!({
@@ -164,7 +175,7 @@ impl FlakyFetcher {
 }
 
 impl HttpFetcher for FlakyFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         if self.failing.load(Ordering::SeqCst) {
             Err(HttpError::RequestFailed {
                 url: "https://api.example.com/fixture".into(),
@@ -252,6 +263,7 @@ fn loopback_host(port: u16, script: &str, limits: Limits) -> ExtensionHost {
 struct TestServer {
     port: u16,
     calls: Arc<AtomicUsize>,
+    requests: Arc<Mutex<Vec<String>>>,
 }
 
 impl TestServer {
@@ -260,21 +272,58 @@ impl TestServer {
         let port = listener.local_addr().unwrap().port();
         let calls = Arc::new(AtomicUsize::new(0));
         let request_count = Arc::clone(&calls);
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let request_lines = Arc::clone(&requests);
         thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
                 request_count.fetch_add(1, Ordering::SeqCst);
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+                let mut request = Vec::new();
                 let mut buffer = [0u8; 4096];
-                let _ = stream.read(&mut buffer);
+                while request.len() < 16 * 1024 {
+                    match stream.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(count) => {
+                            request.extend_from_slice(&buffer[..count]);
+                            if request.ends_with(b"\r\n\r\n") {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                let request_line = String::from_utf8_lossy(&request)
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .to_string();
+                request_lines.lock().unwrap().push(request_line);
                 thread::sleep(delay);
                 let _ = stream.write_all(&response);
                 let _ = stream.flush();
             }
         });
-        Self { port, calls }
+        Self {
+            port,
+            calls,
+            requests,
+        }
     }
 
     fn calls(&self) -> usize {
         self.calls.load(Ordering::SeqCst)
+    }
+
+    fn request_lines(&self) -> Vec<String> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        // Wake a destination server that is intentionally never contacted.
+        let address = SocketAddr::from(([127, 0, 0, 1], self.port));
+        let _ = TcpStream::connect_timeout(&address, Duration::from_millis(100));
     }
 }
 
@@ -805,13 +854,13 @@ fn wall_clock_limit_stops_a_slow_script() {
 fn wall_clock_deadline_covers_a_slow_fetch() {
     let fetcher = Arc::new(DelayedFetcher {
         calls: AtomicUsize::new(0),
-        delay: Duration::from_millis(500),
+        delay: Duration::from_secs(2),
     });
     let mut config = key_value_config(
         r#"fn refresh(config) { http_get_json("https://api.example.com/departures") }"#,
     );
     config.fetcher = Some(fetcher.clone());
-    config.limits.wall_clock = Duration::from_millis(250);
+    config.limits.wall_clock = Duration::from_secs(1);
     let host = ExtensionHost::new(config).unwrap();
 
     assert!(matches!(
@@ -819,6 +868,52 @@ fn wall_clock_deadline_covers_a_slow_fetch() {
         ExtensionError::Timeout
     ));
     assert_eq!(fetcher.calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn wall_clock_deadline_bounds_a_slow_http_request() {
+    let server = TestServer::start(
+        http_response(
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"late"}"#,
+        ),
+        Duration::from_secs(2),
+    );
+    let limits = Limits {
+        wall_clock: Duration::from_millis(200),
+        http_timeout: Duration::from_secs(2),
+        ..Limits::default()
+    };
+    let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
+    let host = loopback_host(server.port, &script, limits);
+    let started = Instant::now();
+
+    let error = host.refresh().unwrap_err();
+    assert!(matches!(error, ExtensionError::Timeout), "{error}");
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "the fetch ignored the remaining wall-clock budget: {:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn wall_clock_deadline_rejects_output_after_a_slow_host_call() {
+    let mut config = key_value_config(
+        r#"fn refresh(config) {
+            let timestamp = now();
+            #{ kind: "key_value", items: [ #{ label: "now", value: timestamp } ] }
+        }"#,
+    );
+    config.clock = Some(Arc::new(SlowClock(Duration::from_millis(500))));
+    config.limits.wall_clock = Duration::from_millis(100);
+    let host = ExtensionHost::new(config).unwrap();
+
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::Timeout
+    ));
 }
 
 #[test]
@@ -851,7 +946,7 @@ fn allocation_limits_are_enforced() {
     let host = ExtensionHost::new(array_config).unwrap();
     assert!(matches!(
         host.refresh().unwrap_err(),
-        ExtensionError::ResourceLimit { .. }
+        ExtensionError::ResourceLimit { what } if what == "Size of array/BLOB"
     ));
 
     limits.max_map_entries = 8;
@@ -865,7 +960,7 @@ fn allocation_limits_are_enforced() {
     let host = ExtensionHost::new(map_config).unwrap();
     assert!(matches!(
         host.refresh().unwrap_err(),
-        ExtensionError::ResourceLimit { .. }
+        ExtensionError::ResourceLimit { what } if what == "Size of object map"
     ));
 }
 
@@ -955,7 +1050,12 @@ fn loopback_http_fetch_returns_json() {
     );
     let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
     let host = loopback_host(server.port, &script, Limits::default());
-    match host.refresh().unwrap() {
+    let output = host.refresh().unwrap();
+    assert_eq!(
+        server.request_lines(),
+        vec!["GET /data HTTP/1.1".to_string()]
+    );
+    match output {
         ExtensionOutput::KeyValue(view) => assert_eq!(view.items[0].value, "ok"),
         other => panic!("unexpected output: {other:?}"),
     }

@@ -274,6 +274,7 @@ impl ExtensionHost {
     fn build_engine(&self, start: Instant) -> Engine {
         let limits = self.limits.clone();
         let wall_clock = limits.wall_clock;
+        let http_timeout = limits.http_timeout;
         let mut engine = Engine::new();
         engine.set_max_operations(limits.max_operations);
         engine.set_max_string_size(limits.max_string_bytes);
@@ -299,10 +300,13 @@ impl ExtensionHost {
                 let url = policy
                     .check(url)
                     .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))?;
-                let value = fetcher
-                    .get_json(&url)
-                    .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))?;
+                let result = fetcher.get_json(
+                    &url,
+                    http_timeout.min(wall_clock.saturating_sub(start.elapsed())),
+                );
                 check_deadline(start, wall_clock)?;
+                let value =
+                    result.map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))?;
                 rhai::serde::to_dynamic(value)
                     .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))
             },
