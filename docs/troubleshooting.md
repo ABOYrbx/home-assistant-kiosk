@@ -244,14 +244,30 @@ The entity ID is validated syntactically but not checked against the server at s
 
 The hard gate is resident set size below 150 MB, with a target below 100 MB at idle. The first frame must appear within 3 seconds.
 
-Measure on the device:
+Measure on the device and keep the method with the evidence:
 
 ```bash
-systemctl show ha-kiosk -p MemoryCurrent
-/usr/bin/time -v ./ha-kiosk --config /etc/ha-kiosk/config.toml
+python3 scripts/perf-memory.py systemd --unit ha-kiosk \
+  --output /tmp/ha-kiosk-memory.json
+python3 scripts/perf-memory.py time --output /tmp/ha-kiosk-time.json -- \
+  /usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
 ```
 
-On x86_64, `heaptrack` finds allocation hotspots. Common causes of high memory:
+The systemd values describe the service cgroup and can include page cache. GNU
+time reports peak process RSS only after the process exits; stop the service
+before the direct run and start it again afterwards. Neither value alone is an
+idle RSS measurement. See [the performance record](performance.md) for the
+full procedure and the collector that builds the JSON record.
+
+On x86_64 Linux, the guarded `heaptrack` workflow builds a separate profiling
+binary and writes a compressed report plus a text summary:
+
+```bash
+scripts/perf-heaptrack.sh -- --config config.example.toml
+```
+
+Quit the kiosk normally after reproducing the workload so heaptrack flushes.
+Common causes of high memory:
 
 - album art from a large image; the cache is capped, but a huge source image still costs memory during decoding,
 - a Home Assistant instance with a very large state set; the kiosk subscribes only to configured entities, so check for an accidental global subscription,

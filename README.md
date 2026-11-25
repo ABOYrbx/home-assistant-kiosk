@@ -155,7 +155,20 @@ A recorded measurement is checked against those budgets with:
 python3 scripts/perf-budget.py perf-record.json
 ```
 
-The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
+`scripts/perf-record.py` builds that record from saved systemd, `strace`, and
+`pidstat` evidence, and `scripts/perf-memory.py` captures the memory values
+(GNU `time -v` or the systemd cgroup). On x86_64 Linux,
+`scripts/perf-heaptrack.sh` produces a symbol-enabled profiling run and a text
+summary. The exact commands and the metric differences are in
+[`docs/performance.md`](docs/performance.md).
+
+The current status is **not verified on hardware**: no Pi Zero 2 W record exists
+yet, so the Wave 5 performance gate stays open. A reachable Pi 3 Model B+ was
+checked on 2026-11-25 and cannot run the kiosk (no connected display, no
+X11/Wayland, Rust 1.85); the details and the blocked measurements are in
+[`docs/performance.md`](docs/performance.md). The budget thresholds, measurement
+helpers, soak check, and release profile (`opt-level = "s"`, LTO, `strip`,
+`panic = "abort"`) are verified in CI.
 
 ## Design in one paragraph
 
