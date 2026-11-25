@@ -308,6 +308,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
@@ -316,6 +317,11 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
 | `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries. |
 | `widgets.weather.refresh_seconds` | integer | `900` | Forecast refresh interval. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the hero light card. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity controlled by the hero card. |
+| `widgets.hero_light.name` | string | unset | Optional display name; empty uses the entity friendly name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Minimum colour temperature in kelvin. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Maximum colour temperature in kelvin. |
 | `widgets.media.enabled` | bool | `true` | Enable the media widget. |
 | `widgets.media.entity` | string | unset | A `media_player.*` entity. |
 | `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
@@ -345,6 +351,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.store_path` | string | `"/var/lib/ha-kiosk/extensions"` | Installed extensions and the last verified catalog index. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
@@ -383,6 +390,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
 | `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
@@ -391,6 +399,11 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
 | `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries. |
 | `widgets.weather.refresh_seconds` | integer | `900` | Forecast refresh interval. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the hero light card. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity controlled by the hero card. |
+| `widgets.hero_light.name` | string | unset | Optional display name; empty uses the entity friendly name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Minimum colour temperature in kelvin. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Maximum colour temperature in kelvin. |
 | `widgets.media.enabled` | bool | `true` | Enable the media widget. |
 | `widgets.media.entity` | string | unset | A `media_player.*` entity. |
 | `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
@@ -420,6 +433,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
+| `extensions.store_path` | string | `"/var/lib/ha-kiosk/extensions"` | Installed extensions and the last verified catalog index. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
 
 The full deployment guide, including seat models, hardening, upgrade, rollback,
