@@ -251,7 +251,9 @@ The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub 
 3. Check that the script cannot reach a host or entity outside its manifest.
 4. Check that an invalid output shape shows an error and keeps the last good data.
 5. Check the operation/time limits with a deliberately slow or looping script.
-6. Test the shop at 800 x 480 with touch emulation.
+6. Test disable, remove, and catalog withdrawal; confirm that settings and the secret file are retained after removal.
+7. Test the shop at 800 x 480 with touch emulation.
+8. Record the commands, fixtures, results, and limitations using the catalog guide's [test-evidence requirements](extension-catalog.md#test-evidence).
 
 ## Publishing
 
@@ -259,9 +261,12 @@ The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub 
 2. Include `manifest.toml`, `main.rhai`, `README.md`, `LICENSE`, and tests or a test plan.
 3. Keep permissions minimal. A bus widget should not request Home Assistant entities it does not display.
 4. Do not include secrets, personal stop IDs, home addresses, or real API keys.
-5. Wait for CI validation and review.
-6. A maintainer publishes the release asset and signs the catalog index offline.
-7. Never sign a package whose contents you have not reviewed.
+5. Include the submission evidence required by the catalog [community review process](extension-catalog.md#community-review).
+6. Wait for CI validation and maintainer review. The review covers the license, permissions, secret scan, read-only Home Assistant access, data-only output, tests, and removal process.
+7. A maintainer publishes the release asset and signs the catalog index offline only after the exact source revision and package have been approved.
+8. Never sign a package whose contents, checksum, or size you have not verified.
+
+The extension README must explain how an operator disables and removes the extension, which settings and secret files remain after removal, and how to delete them when they are no longer needed. Catalog withdrawal is not a remote uninstall; follow the [catalog removal and deprecation process](extension-catalog.md#catalog-removal-and-deprecation).
 
 ## Versioning and deprecation
 
@@ -269,6 +274,15 @@ The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub 
 - Minor: new optional config fields or output fields; keep old configs working.
 - Major: breaking config or output changes; update `min_app_version` if the kiosk API changed.
 - Removing a package from the catalog does not uninstall it from existing kiosks; the shop marks it unavailable.
+
+## Disabling and removing an extension
+
+- **Disable:** Open **Shop → Installed**, select the extension, and choose **Disable**. Execution stops, but files, settings, and secrets remain so the extension can be enabled again.
+- **Remove:** Choose **Remove** in the same installed card. This deletes every installed version and the `installed.json` record. It does not delete `[extensions.settings."<id>"]` or `/etc/ha-kiosk/extensions/<id>.secret.toml`.
+- **Clean up retained data:** When it is no longer needed, remove that configuration table and delete the secret file as the service user. Never paste either file into an issue or review.
+- **Catalog withdrawal:** Removing an entry from the signed catalog prevents new installs and updates but does not uninstall or disable existing copies. Operators must use **Disable** or **Remove**.
+
+See the [catalog removal and deprecation process](extension-catalog.md#catalog-removal-and-deprecation) for security withdrawals and migration guidance.
 
 ## Security checklist
 

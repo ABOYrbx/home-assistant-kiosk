@@ -124,6 +124,51 @@ FORBIDDEN = [
     "192.168.",
 ]
 
+REVIEW_AREAS = (
+    "License",
+    "Permissions",
+    "Secrets",
+    "Home Assistant access",
+    "UI",
+    "Tests",
+    "Removal",
+)
+
+REVIEW_EVIDENCE_ITEMS = (
+    "License",
+    "Permissions",
+    "Secrets",
+    "Home Assistant access",
+    "UI",
+    "Tests",
+    "Removal",
+)
+
+REVIEW_DECISION_FIELDS = (
+    "Reviewer",
+    "Commit or package",
+    "Decision",
+    "Evidence",
+    "Follow-up",
+)
+
+REVIEW_TEST_CASES = (
+    "Successful refresh",
+    "API failure",
+    "Empty or missing data",
+    "Forbidden host or entity",
+    "Malformed output",
+    "Resource limits",
+    "Removal",
+)
+
+REMOVAL_ACTIONS = (
+    "Disable",
+    "Remove",
+    "Catalog withdrawal",
+    "Security withdrawal",
+)
+
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 errors: list[str] = []
@@ -132,6 +177,111 @@ warnings: list[str] = []
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def markdown_sections(text: str) -> dict[str, str]:
+    """Split Markdown by heading, retaining each section's own body."""
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        heading = re.fullmatch(r"(#{1,6})\s+(.+?)\s*#*\s*", line)
+        if heading:
+            current = heading.group(2).strip()
+            sections.setdefault(current, [])
+        elif current is not None:
+            sections[current].append(line)
+    return {heading: "\n".join(lines) for heading, lines in sections.items()}
+
+
+def markdown_table_rows(text: str) -> dict[str, list[str]]:
+    rows: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or not cells[1]:
+            continue
+        label = cells[0]
+        if not label or set(label) <= {"-", ":"} or label.lower() in {
+            "area",
+            "scenario",
+            "action",
+        }:
+            continue
+        rows.setdefault(label, []).append(cells[1])
+    return rows
+
+
+def validate_extension_review_doc(text: str) -> list[str]:
+    """Return missing structural requirements in the community-review guide."""
+    problems: list[str] = []
+    sections = markdown_sections(text)
+    review = sections.get("Community review")
+    if review is None:
+        problems.append("missing section: ## Community review")
+        review = ""
+
+    review_body = review.split("###", 1)[0]
+    review_rows = markdown_table_rows(review_body)
+    for area in REVIEW_AREAS:
+        if area not in review_rows:
+            problems.append(f"missing review area: {area}")
+
+    evidence = sections.get("Submission evidence", "")
+    evidence_labels = set(re.findall(r"^- \*\*([^*:]+):\*\*", evidence, re.MULTILINE))
+    for item in REVIEW_EVIDENCE_ITEMS:
+        if item not in evidence_labels:
+            problems.append(f"missing submission evidence: {item}")
+
+    decision = sections.get("Review decision and record", "")
+    decision_labels = set(re.findall(r"^- ([^:\n]+):", decision, re.MULTILINE))
+    for field in REVIEW_DECISION_FIELDS:
+        if field not in decision_labels:
+            problems.append(f"missing decision field: {field}")
+
+    test_evidence = sections.get("Test evidence", "")
+    test_rows = markdown_table_rows(test_evidence)
+    for case in REVIEW_TEST_CASES:
+        if case not in test_rows:
+            problems.append(f"missing test scenario: {case}")
+
+    isolation_text = test_evidence.lower()
+    if not all(
+        phrase in isolation_text
+        for phrase in (
+            "recorded fixtures",
+            "never require a live home assistant",
+            "credentials",
+        )
+    ):
+        problems.append("test evidence must use fixtures without live Home Assistant access")
+
+    removal_rows = markdown_table_rows(sections.get("Catalog removal and deprecation", ""))
+    for action in REMOVAL_ACTIONS:
+        if action not in removal_rows:
+            problems.append(f"missing removal action: {action}")
+
+    remove_effect = " ".join(removal_rows.get("Remove", [])).lower()
+    retention_words = ("retained", "keep", "keeps", "kept", "left")
+    if not (
+        "settings" in remove_effect
+        and "secret" in remove_effect
+        and any(word in remove_effect for word in retention_words)
+        and not re.search(r"\b(?:not|never)\s+(?:be\s+)?(?:retained|kept|left)\b", remove_effect)
+    ):
+        problems.append('removal action "Remove" must explain retained settings and secrets')
+
+    withdrawal_effect = " ".join(removal_rows.get("Catalog withdrawal", [])).lower()
+    if not (
+        "installed" in withdrawal_effect
+        and any(word in withdrawal_effect for word in ("remain", "kept", "keep"))
+        and not re.search(r"\b(?:do|does|did|is|are|was|were)?\s*not\s+remain\b", withdrawal_effect)
+    ):
+        problems.append(
+            'removal action "Catalog withdrawal" must explain installed-extension behavior'
+        )
+
+    return problems
 
 
 def load_toml(path: Path):
@@ -389,6 +539,9 @@ def check_content() -> None:
     for item in REQUIRED_RELEASE_CHECKLIST_ITEMS:
         if item not in checklist:
             errors.append(f"docs/release-checklist.md is missing the item: {item}")
+    review_doc = read(ROOT / "docs/extension-catalog.md")
+    for problem in validate_extension_review_doc(review_doc):
+        errors.append(f"docs/extension-catalog.md: {problem}")
     changelog = read(ROOT / "CHANGELOG.md")
     if "## [Unreleased]" not in changelog:
         errors.append("CHANGELOG.md is missing an Unreleased section")
