@@ -302,6 +302,7 @@ impl ExtensionHost {
                 let value = fetcher
                     .get_json(&url)
                     .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))?;
+                check_deadline(start, wall_clock)?;
                 rhai::serde::to_dynamic(value)
                     .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))
             },

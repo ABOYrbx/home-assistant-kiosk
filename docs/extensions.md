@@ -122,7 +122,7 @@ The host registers only these functions:
 
 No other host functions are registered. Rhai's own language has no filesystem, process, environment, or network access.
 
-Limits: 1,000,000 operations, 64 KB strings, 1,000 array/map entries, max call depth, no modules/imports, 10 s wall clock. Scripts run off the UI thread.
+Limits: 1,000,000 operations, 64 KB strings, 1,000 array/map entries, max call depth, no modules/imports, 10 s wall clock. Scripts run off the UI thread. The wall-clock limit includes blocking host calls: a fetch that returns after the deadline fails the run.
 
 ### Bus departures example
 

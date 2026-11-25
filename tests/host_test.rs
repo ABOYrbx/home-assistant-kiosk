@@ -131,6 +131,22 @@ impl HttpFetcher for RecordingFetcher {
     }
 }
 
+struct DelayedFetcher {
+    calls: AtomicUsize,
+    delay: Duration,
+}
+
+impl HttpFetcher for DelayedFetcher {
+    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        thread::sleep(self.delay);
+        Ok(json!({
+            "kind": "key_value",
+            "items": [{ "label": "value", "value": "late" }]
+        }))
+    }
+}
+
 struct FlakyFetcher {
     failing: AtomicBool,
 }
@@ -235,14 +251,18 @@ fn loopback_host(port: u16, script: &str, limits: Limits) -> ExtensionHost {
 
 struct TestServer {
     port: u16,
+    calls: Arc<AtomicUsize>,
 }
 
 impl TestServer {
     fn start(response: Vec<u8>, delay: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let request_count = Arc::clone(&calls);
         thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
+                request_count.fetch_add(1, Ordering::SeqCst);
                 let mut buffer = [0u8; 4096];
                 let _ = stream.read(&mut buffer);
                 thread::sleep(delay);
@@ -250,7 +270,11 @@ impl TestServer {
                 let _ = stream.flush();
             }
         });
-        Self { port }
+        Self { port, calls }
+    }
+
+    fn calls(&self) -> usize {
+        self.calls.load(Ordering::SeqCst)
     }
 }
 
@@ -489,6 +513,34 @@ fn forbidden_host_is_rejected_before_the_fetcher_runs() {
 }
 
 #[test]
+fn unsafe_http_requests_never_reach_the_fetcher() {
+    let cases = [
+        (
+            false,
+            loopback_manifest(8000),
+            "http://127.0.0.1:8000/data",
+            "HTTPS",
+        ),
+        (true, manifest(), "http://api.example.com/data", "HTTPS"),
+        (
+            false,
+            manifest(),
+            "https://user:pass@api.example.com/data",
+            "credentials",
+        ),
+    ];
+
+    for (dev_mode, manifest, url, expected) in cases {
+        let mut config = HostConfig::new(manifest, fetch_script(url));
+        config.dev_mode = dev_mode;
+        config.fetcher = Some(Arc::new(PanicFetcher));
+        let host = ExtensionHost::new(config).unwrap();
+        let error = host.refresh().unwrap_err().to_string();
+        assert!(error.contains(expected), "{url}: {error}");
+    }
+}
+
+#[test]
 fn allowed_host_uses_the_fetcher() {
     let fetcher = Arc::new(RecordingFetcher::ok(json!({"value": "ok"})));
     let mut config = key_value_config(&fetch_script("https://api.example.com/departures?stop=1"));
@@ -527,7 +579,19 @@ fn ha_state_is_read_only_and_allowlisted() {
         ha_state("sensor.private");
         #{ kind: "key_value", items: [] }
     }"#;
-    let error = key_value_host(forbidden).refresh().unwrap_err();
+    let mut forbidden_config = key_value_config(forbidden);
+    forbidden_config.entities.insert(
+        "sensor.private".into(),
+        EntitySnapshot {
+            state: "secret".into(),
+            attributes: json!({"private": true}),
+        },
+    );
+    let error = ExtensionHost::new(forbidden_config)
+        .unwrap()
+        .refresh()
+        .unwrap_err();
+    assert!(matches!(error, ExtensionError::Runtime(_)));
     assert!(error.to_string().contains("not declared"));
 }
 
@@ -738,6 +802,26 @@ fn wall_clock_limit_stops_a_slow_script() {
 }
 
 #[test]
+fn wall_clock_deadline_covers_a_slow_fetch() {
+    let fetcher = Arc::new(DelayedFetcher {
+        calls: AtomicUsize::new(0),
+        delay: Duration::from_millis(500),
+    });
+    let mut config = key_value_config(
+        r#"fn refresh(config) { http_get_json("https://api.example.com/departures") }"#,
+    );
+    config.fetcher = Some(fetcher.clone());
+    config.limits.wall_clock = Duration::from_millis(250);
+    let host = ExtensionHost::new(config).unwrap();
+
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::Timeout
+    ));
+    assert_eq!(fetcher.calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn allocation_limits_are_enforced() {
     let mut limits = Limits {
         max_string_bytes: 1_024,
@@ -878,19 +962,32 @@ fn loopback_http_fetch_returns_json() {
 }
 
 #[test]
-fn redirects_are_rejected() {
-    let server = TestServer::start(
+fn redirects_are_rejected_without_contacting_the_destination() {
+    let destination = TestServer::start(
+        http_response(
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"kind":"key_value","items":[]}"#,
+        ),
+        Duration::ZERO,
+    );
+    let source = TestServer::start(
         http_response(
             "302 Found",
-            &[("Location", "https://evil.example/steal")],
+            &[(
+                "Location",
+                &format!("http://127.0.0.1:{}/escaped", destination.port),
+            )],
             "",
         ),
         Duration::ZERO,
     );
-    let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
-    let host = loopback_host(server.port, &script, Limits::default());
+    let script = fetch_script(&format!("http://127.0.0.1:{}/data", source.port));
+    let host = loopback_host(source.port, &script, Limits::default());
     let error = host.refresh().unwrap_err().to_string();
     assert!(error.contains("redirects are not allowed"), "{error}");
+    assert_eq!(source.calls(), 1);
+    assert_eq!(destination.calls(), 0);
 }
 
 #[test]
