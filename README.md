@@ -16,7 +16,7 @@ The visual design is adopted, not a placeholder. [`DESIGN.md`](DESIGN.md) and [`
 
 The Overview follows the prototype: top bar, hero light with brightness/colour temperature, scenes/quick actions, and a configurable rooms/tile group. The layout must also work at 800 × 480 and 1024 × 600. Energy and Schedule are post-v1. The prototype's mock values are not production data.
 
-## Planned v1 features
+## Features
 
 - Clock and date.
 - Weather and a short forecast from a Home Assistant `weather` entity.
@@ -102,6 +102,13 @@ sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev 
   libxcb-shape0-dev libxcb-xfixes0-dev libseat-dev libinput-dev libudev-dev
 cargo build --release --no-default-features --features kiosk
 sudo install -m 0755 target/release/ha-kiosk /usr/local/bin/ha-kiosk
+```
+
+### Release installer
+
+```bash
+sudo deploy/install.sh --binary dist/ha-kiosk-example
+sudo deploy/kiosk-setup.sh --rotation 0
 ```
 
 ### Verify the installation
@@ -307,6 +314,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.rotation` | integer | `0` | `0`, `90`, `180`, or `270`; maps to `SLINT_KMS_ROTATION` on LinuxKMS. |
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
+| `pages.<name>.title` | string | empty | Page title shown in the top bar. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
@@ -320,6 +328,11 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `widgets.media.entity` | string | unset | A `media_player.*` entity. |
 | `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
 | `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.0–1.0. |
+| `widgets.hero_light.enabled` | bool | `true` | Enable the hero light card. |
+| `widgets.hero_light.entity` | string | unset | A `light.*` entity. |
+| `widgets.hero_light.name` | string | unset | Optional display name. |
+| `widgets.hero_light.min_kelvin` | integer | `2700` | Minimum colour temperature in kelvin. |
+| `widgets.hero_light.max_kelvin` | integer | `6500` | Maximum colour temperature in kelvin. |
 | `widgets.departures.enabled` | bool | `true` | Enable the departures widget. |
 | `widgets.departures.entity` | string | unset | A sensor with the documented `departures` attribute. |
 | `widgets.departures.title` | string | `"Departures"` | Widget heading. |
@@ -346,6 +359,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
 | `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
 | `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
+| `extensions.store_path` | string | required | Installed extensions and the last verified catalog index. |
 
 The departures sensor contract is documented in [`docs/departures-entity-contract.md`](docs/departures-entity-contract.md). Supported tile domains and actions are in `PLAN.md` section 4.3; an unsupported domain renders read-only.
 
@@ -369,131 +383,8 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 [`CHANGELOG.md`](CHANGELOG.md) records released and unreleased changes. [`docs/release-checklist.md`](docs/release-checklist.md) is the release procedure: automated gates, cross artifacts, checksums, changelog, hardware evidence, known limitations, publication, and rollback. Releases and `v*` tags are created by `ABOYrbx` from `main`. No binary is distributed while the Slint license decision is open.
 
-| Key | Type | Default | Meaning |
-| --- | --- | --- | --- |
-| `ha.url` | string | required | Home Assistant base URL, `http://` or `https://`, optional path prefix. |
-| `ha.token_file` | string | unset | Absolute path to a `0600` file holding the long-lived token. |
-| `ha.token` | string | unset | Development only. Prefer `token_file` or `HA_TOKEN`. |
-| `ha.allow_invalid_certs` | bool | `false` | Disables TLS validation. Last resort for a local self-signed certificate. |
-| `ha.time_zone` | string | unset | IANA fallback when `get_config` provides no timezone. |
-| `ha.extra_entity_ids` | array of strings | `[]` | Additional entity IDs to subscribe to. |
-| `display.width` | integer | `800` | Desktop window width and layout-test reference. LinuxKMS uses the DRM mode. |
-| `display.height` | integer | `480` | Desktop window height and layout-test reference. |
-| `display.rotation` | integer | `0` | `0`, `90`, `180`, or `270`; maps to `SLINT_KMS_ROTATION` on LinuxKMS. |
-| `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
-| `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
-| `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
-| `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
-| `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
-| `widgets.clock.use_24_hour` | bool | `true` | 24-hour format. |
-| `widgets.weather.enabled` | bool | `true` | Enable the weather widget. |
-| `widgets.weather.entity` | string | unset | A `weather.*` entity. |
-| `widgets.weather.forecast_type` | string | `"daily"` | `daily` or `hourly`. |
-| `widgets.weather.forecast_count` | integer | `3` | Number of forecast entries. |
-| `widgets.weather.refresh_seconds` | integer | `900` | Forecast refresh interval. |
-| `widgets.media.enabled` | bool | `true` | Enable the media widget. |
-| `widgets.media.entity` | string | unset | A `media_player.*` entity. |
-| `widgets.media.show_album_art` | bool | `true` | Fetch and show album art. |
-| `widgets.media.volume_step` | float | `0.05` | Volume slider step in the range 0.0–1.0. |
-| `widgets.departures.enabled` | bool | `true` | Enable the departures widget. |
-| `widgets.departures.entity` | string | unset | A sensor with the documented `departures` attribute. |
-| `widgets.departures.title` | string | `"Departures"` | Widget heading. |
-| `widgets.departures.max_items` | integer | `6` | Maximum rows. |
-| `widgets.departures.refresh_seconds` | integer | `60` | Optional periodic refresh. |
-| `widgets.calendar.enabled` | bool | `true` | Enable the calendar widget. |
-| `widgets.calendar.entities` | array of strings | unset | One or more `calendar.*` entities. |
-| `widgets.calendar.days` | integer | `2` | Number of days to fetch. |
-| `widgets.calendar.refresh_seconds` | integer | `300` | Refresh interval. |
-| `tiles.columns` | integer | `3` | Grid columns. |
-| `tiles.items[].entity` | string | required | Entity ID for a tile. |
-| `tiles.items[].label` | string | entity name | Tile label. |
-| `tiles.items[].icon` | string | unset | Bundled icon name. |
-| `cache.path` | string | required | Absolute cache file path. The directory must be writable by the service user. |
-| `cache.write_debounce_seconds` | integer | `10` | Debounce for cache writes; minimum 2 seconds. |
-| `cache.max_bytes` | integer | `262144` | Upper bound for the cache file. |
-| `extensions.enabled` | bool | `false` | Wave 6 shop. Disabled in v1. |
-| `extensions.catalog_url` | string | unset | HTTPS URL of the signed catalog index. |
-| `extensions.public_keys` | array of strings | `[]` | Minisign public keys for the catalog. |
-| `extensions.allow_unsigned` | bool | `false` | Development only. Never enable in production. |
-| `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs. |
-| `extensions.refresh_hours` | integer | `24` | Catalog refresh interval. |
-| `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
-| `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
-| `extensions.max_script_operations` | integer | `1000000` | Rhai operation limit per run. |
-| `extensions.settings.<id>` | table | unset | Per-extension settings declared by the extension. |
-
 The full deployment guide, including seat models, hardening, upgrade, rollback,
 logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).
-
-### Release builds
-
-## Troubleshooting
-
-The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md). The most common failures:
-
-| Symptom | First check |
-| --- | --- |
-| Startup rejects the token or config file | Mode is `0600` and the service user owns the file. |
-| "Authentication failed" and no retry | The token is invalid or revoked; create a new one. |
-| Service runs but the screen is black | `SLINT_BACKEND=linuxkms-software`, `/dev/dri`, the `seat` group, and `seatd`. |
-| `GLIBC_2.35 not found` | The target is Bullseye; use Bookworm or build natively. |
-| Touch is rotated or offset | `display.rotation` / `SLINT_KMS_ROTATION` and the input transform. |
-| Values stay after Home Assistant stops | Expected: the stale badge and last update time are shown. |
-| Calendar times are shifted | `get_config` timezone, `ha.time_zone`, and the device timezone. |
-| The service restarts in a loop | `journalctl -u ha-kiosk` shows the configuration or display error. |
-| RSS is above budget | Album art, debug logging, or an accidental global subscription. |
-
-## Releases and changelog
-
-```bash
-sudo ./deploy/install.sh /path/to/ha-kiosk-<version>-aarch64-unknown-linux-gnu
-sudo ./deploy/kiosk-setup.sh
-```
-
-The installer creates the `ha-kiosk` user, installs the binary to `/usr/local/bin/ha-kiosk`, creates `/etc/ha-kiosk` (0750) and `/var/lib/ha-kiosk` (0700), installs the systemd unit, and enables the service. Copy your config to `/etc/ha-kiosk/config.toml` (mode 0600) and the token file to `/etc/ha-kiosk/ha_token` before starting.
-
-### Upgrade and rollback
-
-```bash
-# Upgrade: replace the binary and restart
-sudo install -m 0755 new-binary /usr/local/bin/ha-kiosk
-sudo systemctl restart ha-kiosk.service
-
-# Rollback: reinstall the previous binary and restart
-sudo install -m 0755 previous-binary /usr/local/bin/ha-kiosk
-sudo systemctl restart ha-kiosk.service
-```
-
-### Logs
-
-```bash
-journalctl -u ha-kiosk -f
-```
-
-### Uninstall
-
-```bash
-sudo ./deploy/uninstall.sh          # keeps config and data
-sudo ./deploy/uninstall.sh --purge  # removes everything
-```
-
-### Display backends
-
-The kiosk resolves the display before it opens a window. If no backend is available it exits with an error that names the missing setting, so a service that cannot open the display fails visibly instead of showing a blank screen.
-
-- LinuxKMS (primary): `SLINT_BACKEND=linuxkms-software`, `SLINT_KMS_ROTATION`, `SLINT_DRM_OUTPUT`, `SLINT_DRM_MODE`. Requires `seatd` and the `video`/`input`/`render` groups. No cursor or compositor is involved.
-- X11 fallback: build with the `desktop` feature, run under a minimal window manager (openbox/matchbox) with `unclutter`, `xset s off -dpms`. Without a window manager fullscreen may not cover the screen.
-- `display.rotation` accepts `0`, `90`, `180`, and `270` and is passed to Slint as `SLINT_KMS_ROTATION`. An explicit environment value wins.
-
-Rotation, DRM output selection, console blanking, touch calibration, fonts, and NTP are documented in [`docs/kiosk-display.md`](docs/kiosk-display.md).
-
-### Troubleshooting
-
-- No display backend: verify `SLINT_BACKEND`, seatd, and group membership; check `journalctl -u ha-kiosk`.
-- Console blanking: ensure `consoleblank=0` is in `/boot/firmware/cmdline.txt` and reboot.
-- Touch rotation: set `SLINT_KMS_ROTATION`; calibrate per panel, do not hardcode a matrix.
-- Wrong clock: verify NTP (`timedatectl set-ntp true`) and the device timezone.
-- More display symptoms and fixes: [`docs/kiosk-display.md`](docs/kiosk-display.md#troubleshooting).
 
 ## Assets
 

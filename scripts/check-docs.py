@@ -57,6 +57,8 @@ REQUIRED_FILES = [
 ]
 
 REQUIRED_README_SECTIONS = [
+    "## Features",
+    "## Supported hardware",
     "## Installation",
     "### Configuration reference",
     "## Troubleshooting",
@@ -64,6 +66,19 @@ REQUIRED_README_SECTIONS = [
     "## Releases and changelog",
     "## License",
 ]
+
+REQUIRED_README_TOPICS = [
+    "2023.9",
+    "glibc 2.35",
+    "not verified on hardware",
+]
+
+REQUIRED_INSTALL_COMMANDS = [
+    "sudo deploy/install.sh --binary",
+    "sudo deploy/kiosk-setup.sh --rotation",
+]
+
+OBSOLETE_INSTALL_COMMAND = re.compile(r"sudo\s+\./deploy/install\.sh\s+/")
 
 REQUIRED_TROUBLESHOOTING_TOPICS = [
     "glibc",
@@ -87,34 +102,12 @@ REQUIRED_RELEASE_CHECKLIST_ITEMS = [
 
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]
 
-REQUIRED_README_SECTIONS = [
-    "## Installation",
-    "### Configuration reference",
-    "## Troubleshooting",
-    "## Security",
-    "## Releases and changelog",
-    "## License",
-]
-
-REQUIRED_TROUBLESHOOTING_TOPICS = [
-    "glibc",
-    "SLINT_BACKEND",
-    "rotation",
-    "0600",
-    "2023.9",
-    "cross",
-]
-
-REQUIRED_RELEASE_CHECKLIST_ITEMS = [
-    "cargo fmt --check",
-    "cargo clippy --all-targets -- -D warnings",
-    "cargo test",
-    "cargo audit",
-    "SHA256SUMS",
-    "CHANGELOG.md",
-    "Known limitations",
-    "Rollback",
-]
+RELEASE_PROFILE = {
+    "opt-level": "s",
+    "lto": True,
+    "strip": True,
+    "panic": "abort",
+}
 
 FORBIDDEN = [
     "Dohlenweg",
@@ -199,31 +192,21 @@ def config_paths(value: object, prefix: str = "") -> list[str]:
     return paths
 
 
-def check_config_reference() -> None:
-    data = load_example_config()
-    if not isinstance(data, dict):
-        return
-    readme = read(ROOT / "README.md")
-    for path in config_paths(data):
-        if path.startswith("pages.") and path.endswith(".widgets"):
-            path = "pages.<name>.widgets"
-        if path not in readme:
-            errors.append(f"README.md configuration reference is missing: {path}")
-
-
-def config_paths(value: object, prefix: str = "") -> list[str]:
-    paths: list[str] = []
-    if not isinstance(value, dict):
-        return [prefix] if prefix else paths
-    for key, child in value.items():
-        path = f"{prefix}.{key}" if prefix else key
-        if isinstance(child, dict):
-            paths.extend(config_paths(child, path))
-        elif isinstance(child, list) and child and isinstance(child[0], dict):
-            paths.extend(config_paths(child[0], f"{path}[]"))
-        else:
-            paths.append(path)
-    return paths
+def configuration_reference_keys(readme: str) -> set[str]:
+    """Return keys documented as rows in the configuration reference table."""
+    lines = readme.splitlines()
+    in_reference = False
+    keys: set[str] = set()
+    for line in lines:
+        if line.startswith("#"):
+            in_reference = line == "### Configuration reference"
+            continue
+        if not in_reference:
+            continue
+        match = re.match(r"^\|\s*`([^`]+)`\s*\|", line)
+        if match:
+            keys.add(match.group(1))
+    return keys
 
 
 def check_config_reference() -> None:
@@ -236,61 +219,14 @@ def check_config_reference() -> None:
         return
     if not isinstance(data, dict):
         return
-    readme = read(ROOT / "README.md")
-    for path in config_paths(data):
-        if path.startswith("pages.") and path.endswith(".widgets"):
-            path = "pages.<name>.widgets"
-        if path not in readme:
-            errors.append(f"README.md configuration reference is missing: {path}")
-
-
-def check_cargo_profile() -> None:
-    path = ROOT / "Cargo.toml"
-    if not path.is_file():
-        return
-    try:
-        data = load_toml(path)
-    except Exception as exc:  # noqa: BLE001 - report the parser error as-is
-        errors.append(f"Cargo.toml is not valid TOML: {exc}")
-        return
-    profile = data.get("profile", {}).get("release") if isinstance(data, dict) else None
-    if not isinstance(profile, dict):
-        errors.append("Cargo.toml is missing [profile.release]")
-        return
-    for key, expected in RELEASE_PROFILE.items():
-        if profile.get(key) != expected:
-            errors.append(
-                f"Cargo.toml [profile.release] {key} must be {expected!r} "
-                "(PLAN.md section 8, Wave 5)"
-            )
-
-
-def check_performance_doc() -> None:
-    doc = ROOT / "docs" / "performance.md"
-    script = ROOT / "scripts" / "perf-budget.py"
-    if not doc.is_file() or not script.is_file():
-        return
-    try:
-        spec = importlib.util.spec_from_file_location("perf_budget", script)
-        if spec is None or spec.loader is None:
-            raise ImportError("cannot load scripts/perf-budget.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 - report the loader error as-is
-        errors.append(f"scripts/perf-budget.py could not be loaded: {exc}")
-        return
-    text = read(doc)
-    budgets = [
-        f"{module.RSS_HARD_MB:.0f} MB",
-        f"{module.RSS_TARGET_MB:.0f} MB",
-        f"{module.FIRST_FRAME_HARD_MS:.0f} ms",
-        f"{module.IDLE_CPU_HARD_PERCENT:.0f} %",
-        f"{module.SOAK_MIN_HOURS:.0f} h",
-        f"{module.SOAK_GROWTH_HARD_MB:.0f} MB",
-    ]
-    for budget in budgets:
-        if budget not in text:
-            errors.append(f"docs/performance.md does not state the budget: {budget}")
+    documented = configuration_reference_keys(read(ROOT / "README.md"))
+    for config_path in config_paths(data):
+        if config_path.startswith("pages."):
+            parts = config_path.split(".")
+            if len(parts) == 3 and parts[2] in {"title", "widgets"}:
+                config_path = f"pages.<name>.{parts[2]}"
+        if config_path not in documented:
+            errors.append(f"README.md configuration reference is missing: {config_path}")
 
 
 def check_cargo_profile() -> None:
@@ -381,6 +317,21 @@ def check_content() -> None:
     for section in REQUIRED_README_SECTIONS:
         if section not in readme:
             errors.append(f"README.md is missing the section: {section}")
+    # Duplicate section detection
+    for section in REQUIRED_README_SECTIONS:
+        if readme.count(section) > 1:
+            errors.append(f"README.md has a duplicate README.md section: {section}")
+    # Required topics
+    for topic in REQUIRED_README_TOPICS:
+        if topic not in readme:
+            errors.append(f"README.md is missing the topic: {topic}")
+    # Required install commands
+    for command in REQUIRED_INSTALL_COMMANDS:
+        if command not in readme:
+            errors.append(f"README.md is missing the install command: {command}")
+    # Obsolete installer invocation
+    if OBSOLETE_INSTALL_COMMAND.search(readme):
+        errors.append("README.md uses an obsolete deploy/install.sh invocation")
     troubleshooting = read(ROOT / "docs/troubleshooting.md")
     for topic in REQUIRED_TROUBLESHOOTING_TOPICS:
         if topic not in troubleshooting:
@@ -402,7 +353,7 @@ def check_content() -> None:
     release = read(ROOT / "docs/release-builds.md")
     for needle in ("glibc 2.35", "Bookworm", "native build", "SOURCE_DATE_EPOCH"):
         if needle not in release:
-            errors.append(f"docs/release-builds.md is missing: {needle}")
+            errors.append(f"docs/release-builds.md is missing the needle: {needle}")
     for wave in REQUIRED_WAVES:
         text = read(ROOT / wave)
         if "Acceptance gate" not in text:
