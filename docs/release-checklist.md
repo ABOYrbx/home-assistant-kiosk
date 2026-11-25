@@ -14,7 +14,14 @@ Do not distribute a binary until the license decision is recorded in `PLAN.md` s
 
 ## 2. Automated gates
 
-Run from a clean checkout of the release commit:
+Run from a clean checkout of the release commit. The automated gates are also
+available as a single fail-fast command:
+
+```bash
+scripts/check-release.sh
+```
+
+Equivalent manual sequence:
 
 ```bash
 cargo fmt --check
@@ -22,6 +29,14 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 cargo audit
 python3 scripts/check-docs.py
+python3 -m unittest discover -s tests -p 'test_*.py'
+bash tests/deploy_scripts_test.sh
+```
+
+Cross artifacts and checksums are covered by:
+
+```bash
+scripts/check-release.sh --with-artifacts
 ```
 
 - [ ] `cargo fmt --check` passes.
@@ -50,7 +65,8 @@ cross build --release --target x86_64-unknown-linux-gnu \
   --no-default-features --features kiosk
 ```
 
-Or run `scripts/build-all.sh`, which produces the same targets and writes them to `dist/`.
+Or run `scripts/build-all.sh` (or `scripts/check-release.sh --with-artifacts`),
+which produces the same targets, writes them to `dist/`, and verifies `SHA256SUMS`.
 
 - [ ] All three targets build from the release commit with the pinned `Cross.toml` digests.
 - [ ] Artifact names contain the version and the target triple.
@@ -67,6 +83,10 @@ cd dist
 sha256sum ./* > SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
+
+`scripts/build-all.sh` performs this verification automatically and prints
+`Verified SHA256SUMS`.
+
 
 - [ ] `SHA256SUMS` is generated from the final artifacts, after the last rebuild.
 - [ ] `sha256sum -c SHA256SUMS` passes on a second machine or a fresh directory.

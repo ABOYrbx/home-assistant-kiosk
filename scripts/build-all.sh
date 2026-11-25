@@ -31,6 +31,18 @@ CROSS="${CROSS:-cross}"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 
+# Validate the version and target names before touching the artifact directory.
+if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z]+)*$'; then
+    echo "error: VERSION must be a semver-like value: $VERSION" >&2
+    exit 1
+fi
+for target in $TARGETS; do
+    if ! printf '%s' "$target" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*$'; then
+        echo "error: invalid target triple: $target" >&2
+        exit 1
+    fi
+done
+
 # A fixed timestamp removes the most common source of run-to-run differences.
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$ROOT" log -1 --format=%ct 2>/dev/null || true)}"
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-0}"
@@ -70,6 +82,8 @@ done
 (
     cd "$DIST_DIR"
     sha256sum ha-kiosk-* | sort -k2 > SHA256SUMS
+    sha256sum -c SHA256SUMS
 )
 
+echo "Verified SHA256SUMS"
 echo "Wrote $(find "$DIST_DIR" -maxdepth 1 -name 'ha-kiosk-*' | wc -l) artifact(s) to ${DIST_DIR} (version ${VERSION}, SOURCE_DATE_EPOCH ${SOURCE_DATE_EPOCH})"
