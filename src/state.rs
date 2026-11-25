@@ -169,6 +169,9 @@ impl AppState {
             }
             HaEvent::AuthFailed { .. } => {
                 self.connection = ConnectionState::AuthFailed;
+                // A rejected token means no live data can arrive; cached values
+                // must not keep looking current behind the error badge.
+                self.stale = true;
             }
             HaEvent::Disconnected { .. } => {
                 self.connection = ConnectionState::Disconnected;
@@ -179,6 +182,9 @@ impl AppState {
                 for e in entities {
                     self.entities.insert(e.entity_id.clone(), e);
                 }
+                // A fresh snapshot is live data: it clears the stale badge even
+                // when it arrives without a new Connected event after resync.
+                self.stale = false;
                 self.last_success = Some(Utc::now());
             }
             HaEvent::EntitiesAdded(entities) => {
