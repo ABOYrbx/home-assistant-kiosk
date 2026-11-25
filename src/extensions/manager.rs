@@ -207,7 +207,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             .get(id)
             .ok_or_else(|| ManagerError::NotInstalled(id.to_string()))?;
         let entry = self.catalog_entry(id).ok_or(ManagerError::NoCatalog)?;
-        if entry.version == record.version {
+        if entry.version <= record.version {
             return Err(ManagerError::NoUpdate(id.to_string()));
         }
         self.install_from_catalog(id)
@@ -353,14 +353,13 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 .collect(),
             installed_version: None,
             enabled: false,
-            configured: false,
+            configured: self.configured(&entry.id),
             error: None,
             available: true,
         };
         if let Some(record) = installed {
             shop.installed_version = Some(record.version.to_string());
             shop.enabled = record.enabled;
-            shop.configured = self.configured(&entry.id);
             shop.error = self
                 .health
                 .get(&entry.id)

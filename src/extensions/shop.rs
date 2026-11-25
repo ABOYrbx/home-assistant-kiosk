@@ -140,16 +140,27 @@ impl ShopEntry {
             return ExtensionStatus::Error;
         }
         match &self.installed_version {
-            Some(installed) => {
-                if !self.enabled {
-                    ExtensionStatus::Disabled
-                } else if self.available && self.version != *installed {
-                    ExtensionStatus::UpdateAvailable
-                } else {
-                    ExtensionStatus::Installed
-                }
-            }
+            Some(_) if self.has_update() => ExtensionStatus::UpdateAvailable,
+            Some(_) if !self.enabled => ExtensionStatus::Disabled,
+            Some(_) => ExtensionStatus::Installed,
             None => ExtensionStatus::Available,
+        }
+    }
+
+    /// True only when the verified catalog offers a newer compatible version.
+    pub fn has_update(&self) -> bool {
+        let Some(installed) = &self.installed_version else {
+            return false;
+        };
+        if !self.available {
+            return false;
+        }
+        match (
+            semver::Version::parse(&self.version),
+            semver::Version::parse(installed),
+        ) {
+            (Ok(catalog), Ok(installed)) => catalog > installed,
+            _ => false,
         }
     }
 
@@ -232,6 +243,8 @@ pub enum ShopError {
     NotInstalled(String),
     #[error("no update is available for {0}")]
     NoUpdate(String),
+    #[error("no extension action is pending")]
+    NoPending,
     #[error("another extension action is already pending")]
     Busy,
 }
@@ -438,9 +451,8 @@ impl ShopView {
         action: ShopAction,
         result: Result<(), String>,
     ) -> Result<(), ShopError> {
-        if let Some(pending) = &self.pending
-            && (pending.id != id || pending.action != action)
-        {
+        let pending = self.pending.as_ref().ok_or(ShopError::NoPending)?;
+        if pending.id != id || pending.action != action {
             return Err(ShopError::Busy);
         }
         let entry = self
@@ -453,14 +465,16 @@ impl ShopView {
             Ok(()) => {
                 entry.error = None;
                 match action {
-                    ShopAction::Install | ShopAction::Update => {
+                    ShopAction::Install => {
                         entry.installed_version = Some(entry.version.clone());
                         entry.enabled = true;
+                    }
+                    ShopAction::Update => {
+                        entry.installed_version = Some(entry.version.clone());
                     }
                     ShopAction::Remove => {
                         entry.installed_version = None;
                         entry.enabled = false;
-                        entry.configured = false;
                     }
                     ShopAction::Enable => entry.enabled = true,
                     ShopAction::Disable => entry.enabled = false,

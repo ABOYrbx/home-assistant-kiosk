@@ -23,29 +23,36 @@ component ShopButton inherits Rectangle {
     in property <string> label: "";
     in property <bool> primary: false;
     in property <bool> destructive: false;
+    in property <bool> enabled: true;
     callback clicked();
 
     min-width: Theme.touch-target;
     min-height: Theme.touch-target;
     border-radius: Theme.radius-md;
-    background: primary ? Theme.accent : Theme.surface;
+    background: !root.enabled ? Theme.surface-warm : (primary ? Theme.accent : Theme.surface);
     border-width: 1px;
-    border-color: destructive ? Theme.danger : Theme.border;
+    border-color: !root.enabled ? Theme.border-soft : (destructive ? Theme.danger : Theme.border);
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
 
     Text {
         text: root.label;
-        color: primary ? Theme.accent-on : (destructive ? Theme.danger : Theme.fg);
+        color: !root.enabled ? Theme.muted : (primary ? Theme.accent-on : (destructive ? Theme.danger : Theme.fg));
         font-size: Theme.text-sm;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
 
     ta := TouchArea {
-        clicked => { root.clicked(); }
+        enabled: root.enabled;
+        clicked => {
+            if root.enabled { root.clicked(); }
+        }
     }
 
     states [
-        pressed when ta.pressed: {
+        pressed when ta.pressed && root.enabled: {
             background: Theme.border;
         }
     ]
@@ -53,6 +60,7 @@ component ShopButton inherits Rectangle {
 
 component ShopEntryCard inherits Rectangle {
     in property <ShopEntryView> entry;
+    in property <bool> pending: false;
     callback install(string);
     callback update(string);
     callback remove(string);
@@ -145,23 +153,27 @@ component ShopEntryCard inherits Rectangle {
             if entry.update-available : update-button := ShopButton {
                 label: "Update";
                 primary: true;
+                enabled: !root.pending;
                 clicked => { root.update(entry.id); }
             }
 
             if entry.installed : toggle-button := ShopButton {
                 label: entry.enabled ? "Disable" : "Enable";
+                enabled: !root.pending;
                 clicked => { root.set-enabled(entry.id, !entry.enabled); }
             }
 
             if entry.installed : remove-button := ShopButton {
                 label: "Remove";
                 destructive: true;
+                enabled: !root.pending;
                 clicked => { root.remove(entry.id); }
             }
 
             if !entry.installed && entry.available : install-button := ShopButton {
                 label: "Install";
                 primary: true;
+                enabled: !root.pending;
                 clicked => { root.install(entry.id); }
             }
         }
@@ -212,6 +224,7 @@ export component ShopPage inherits Rectangle {
             Rectangle { horizontal-stretch: 1; }
             refresh-button := ShopButton {
                 label: "Refresh";
+                enabled: root.pending-id == "";
                 clicked => { root.refresh(); }
             }
         }
@@ -267,6 +280,7 @@ export component ShopPage inherits Rectangle {
 
                 for item in installed : ShopEntryCard {
                     entry: item;
+                    pending: root.pending-id != "";
                     install(id) => {
                         root.confirm-id = id;
                         root.confirm-name = item.name;
@@ -293,6 +307,7 @@ export component ShopPage inherits Rectangle {
 
                 for item in available : ShopEntryCard {
                     entry: item;
+                    pending: root.pending-id != "";
                     install(id) => {
                         root.confirm-id = id;
                         root.confirm-name = item.name;

@@ -1,5 +1,6 @@
 use i_slint_backend_testing::ElementHandle;
 use slint::ComponentHandle;
+use slint::language::AccessibleRole;
 use slint::platform::PointerEventButton;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -113,6 +114,17 @@ fn shop_page_navigation_actions_offline_and_error_states() {
         click(&app, "ShopPage::cancel-button").await;
         assert_eq!(installs.borrow().len(), 1);
 
+        // A pending store action disables further install input.
+        app.set_shop_pending_id("org.example.bus-departures".into());
+        let install = ElementHandle::find_by_element_id(&app, "ShopEntryCard::install-button")
+            .next()
+            .expect("install button");
+        assert_eq!(install.accessible_role(), Some(AccessibleRole::Button));
+        assert_eq!(install.accessible_enabled(), Some(false));
+        click(&app, "ShopEntryCard::install-button").await;
+        assert_eq!(installs.borrow().len(), 1);
+        app.set_shop_pending_id("".into());
+
         // Installed entry: update, enable/disable, and remove actions are wired.
         app.set_shop_available(
             Rc::new(slint::VecModel::from(Vec::<ha_kiosk::ShopEntryView>::new())).into(),
@@ -138,6 +150,26 @@ fn shop_page_navigation_actions_offline_and_error_states() {
             removes.borrow().as_slice(),
             &["org.example.bus-departures".to_string()]
         );
+
+        // Pending input is disabled for every installed-entry action.
+        app.set_shop_pending_id("org.example.bus-departures".into());
+        for id in [
+            "ShopEntryCard::update-button",
+            "ShopEntryCard::toggle-button",
+            "ShopEntryCard::remove-button",
+        ] {
+            let button = ElementHandle::find_by_element_id(&app, id)
+                .next()
+                .unwrap_or_else(|| panic!("element {id} not found"));
+            assert_eq!(button.accessible_enabled(), Some(false));
+        }
+        click(&app, "ShopEntryCard::update-button").await;
+        click(&app, "ShopEntryCard::toggle-button").await;
+        click(&app, "ShopEntryCard::remove-button").await;
+        assert_eq!(updates.borrow().len(), 1);
+        assert_eq!(toggles.borrow().len(), 1);
+        assert_eq!(removes.borrow().len(), 1);
+        app.set_shop_pending_id("".into());
 
         // Offline state keeps the page usable and does not crash.
         app.set_shop_catalog_online(false);

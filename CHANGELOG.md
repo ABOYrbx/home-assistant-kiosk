@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Troubleshooting guide for cross-compilation, glibc mismatch, display backends, touch rotation, token permissions, Home Assistant version, offline state, timezone, and memory in [`docs/troubleshooting.md`](docs/troubleshooting.md).
 - Release checklist covering gates, cross artifacts, checksums, changelog, hardware evidence, known limitations, publication, and rollback in [`docs/release-checklist.md`](docs/release-checklist.md).
 
+### Fixed
+
+- Extension shop lifecycle actions now reject downgrade attempts, preserve disabled and configured state across update/removal, and block duplicate input while a store action is pending.
+
 ### Security
 
 - Documented token handling, file permissions, TLS validation, and the offline-cache exposure model.

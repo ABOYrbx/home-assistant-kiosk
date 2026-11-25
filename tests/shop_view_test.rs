@@ -162,6 +162,58 @@ fn update_requires_an_installed_extension_with_a_newer_version() {
 }
 
 #[test]
+fn older_or_equal_catalog_versions_are_not_updates() {
+    let id = "org.example.bus-departures";
+    for catalog_version in ["1.9.0", "2.0.0"] {
+        let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+        view.set_installed(vec![InstalledExtension {
+            id: id.to_string(),
+            version: "2.0.0".to_string(),
+            enabled: true,
+            configured: true,
+            error: None,
+        }]);
+        view.apply_catalog(vec![entry(id, "Bus Departures", catalog_version)]);
+
+        assert_eq!(
+            view.entry(id).unwrap().status(),
+            ExtensionStatus::Installed,
+            "catalog version {catalog_version} must not be offered as an update"
+        );
+        assert_eq!(
+            view.request(id, ShopAction::Update, true).unwrap_err(),
+            ShopError::NoUpdate(id.to_string())
+        );
+    }
+}
+
+#[test]
+fn updating_a_disabled_extension_preserves_its_disabled_state() {
+    let id = "org.example.bus-departures";
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: id.to_string(),
+        version: "1.0.0".to_string(),
+        enabled: false,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry(id, "Bus Departures", "1.1.0")]);
+
+    assert_eq!(
+        view.entry(id).unwrap().status(),
+        ExtensionStatus::UpdateAvailable
+    );
+    view.request(id, ShopAction::Update, true).unwrap();
+    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+
+    let updated = view.entry(id).unwrap();
+    assert_eq!(updated.installed_version.as_deref(), Some("1.1.0"));
+    assert!(!updated.enabled);
+    assert_eq!(updated.status(), ExtensionStatus::Disabled);
+}
+
+#[test]
 fn remove_flow_clears_the_installation() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
@@ -175,8 +227,18 @@ fn remove_flow_clears_the_installation() {
     let removed = view.entry(id).unwrap();
     assert!(removed.installed_version.is_none());
     assert!(!removed.enabled);
-    assert!(!removed.configured);
+    assert!(removed.configured, "removal retains extension settings");
     assert_eq!(removed.status(), ExtensionStatus::Available);
+}
+
+#[test]
+fn completion_without_a_pending_request_is_rejected() {
+    let mut view = view_with_catalog();
+    let id = "org.example.bus-departures";
+
+    assert!(view.complete(id, ShopAction::Install, Ok(())).is_err());
+    assert!(view.entry(id).unwrap().installed_version.is_none());
+    assert!(view.pending.is_none());
 }
 
 #[test]
