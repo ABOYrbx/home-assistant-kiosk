@@ -155,6 +155,16 @@ A recorded measurement is checked against those budgets with:
 python3 scripts/perf-budget.py perf-record.json
 ```
 
+The record is built from saved measurement evidence with:
+
+```bash
+python3 scripts/perf-record.py --base-record base.json --rss rss.txt \
+  --first-frame frames.log --idle-cpu cpu.log --os /etc/os-release \
+  --device /proc/device-tree/model --output perf-record.json
+```
+
+See [`docs/performance.md`](docs/performance.md) for the full method.
+
 The current status is **not verified on hardware**: no Pi Zero 2 W record exists yet, so the Wave 5 performance gate stays open. The budget thresholds and the release profile (`opt-level = "s"`, LTO, `strip`, `panic = "abort"`) are verified in CI.
 
 ## Design in one paragraph

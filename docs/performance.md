@@ -64,7 +64,7 @@ load, and the first Home Assistant snapshot have settled. Then read the service
 cgroup:
 
 ```bash
-systemctl show ha-kiosk -p MemoryCurrent -p MemoryPeak
+systemctl show ha-kiosk -p MemoryCurrent -p MemoryPeak | tee /tmp/ha-kiosk-rss.txt
 ```
 
 Both values are bytes; divide by 1048576 for MB. `MemoryCurrent` is the value
@@ -89,33 +89,17 @@ the LinuxKMS software backend the first presented frame follows the first
 presentation ioctl. Trace ioctls with absolute timestamps:
 
 ```bash
-sudo timeout 30 strace -f -tt -e trace=ioctl -o /tmp/ha-kiosk-frames.log \
+sudo LC_ALL=C timeout 30 strace -f -ttt -e trace=ioctl -o /tmp/ha-kiosk-frames.log \
   /usr/local/bin/ha-kiosk --config /etc/ha-kiosk/config.toml
 ```
 
-```bash
-python3 - <<'PY'
-import re
-from datetime import datetime
-
-stamp = "%H:%M:%S.%f"
-pattern = re.compile(r"(\d{2}:\d{2}:\d{2}\.\d+)\s+ioctl\(")
-lines = [line for line in open("/tmp/ha-kiosk-frames.log") if pattern.search(line)]
-start = datetime.strptime(pattern.search(lines[0]).group(1), stamp)
-present = next(
-    datetime.strptime(pattern.search(line).group(1), stamp)
-    for line in lines
-    if "DRM_IOCTL_MODE_PAGE_FLIP" in line or "DRM_IOCTL_MODE_ATOMIC" in line
-)
-print(f"{(present - start).total_seconds() * 1000:.0f} ms")
-PY
-```
-
-The snippet assumes `-f`, so each syscall line carries a thread ID before the
-timestamp. If a future backend presents frames through a different call, record
-the first presentation call in `notes` and use that timestamp. Do not measure
-the time until the Home Assistant connection is established: the first frame
-must come from cached data, and the connection is asynchronous by design.
+The collector in `scripts/perf-record.py` reads this log and computes the
+elapsed time from the successful `execve` to the first `DRM_IOCTL_MODE_PAGE_FLIP`
+or `DRM_IOCTL_MODE_ATOMIC` presentation call. The trace uses epoch timestamps
+(`-ttt`) so the calculation is safe across midnight.
+Do not measure the time until the Home Assistant connection is established:
+the first frame must come from cached data, and the connection is asynchronous
+by design.
 
 ### Idle CPU
 
@@ -125,7 +109,7 @@ instance, sample one-minute averages for ten minutes:
 ```bash
 sudo apt install sysstat
 pid=$(systemctl show -p MainPID --value ha-kiosk)
-pidstat -u -p "$pid" 60 10
+LC_ALL=C pidstat -u -p "$pid" 60 10 | tee /tmp/ha-kiosk-cpu.log
 ```
 
 Record the mean of the `%CPU` column in `idle_cpu_percent`. `pidstat` reports
@@ -233,6 +217,33 @@ record and requires a new one.
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
 | Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
 | Pi Zero 2 W RSS, first frame, idle CPU, soak | this record | not verified on hardware |
+
+## Building the record with the collector
+
+The measurements above are saved as raw evidence. The collector turns that
+evidence into a schema-v1 record without inventing or transcribing numbers:
+
+```bash
+python3 scripts/perf-record.py \\
+  --base-record /tmp/ha-kiosk-soak-record.json \\
+  --rss /tmp/ha-kiosk-rss.txt \\
+  --first-frame /tmp/ha-kiosk-frames.log \\
+  --idle-cpu /tmp/ha-kiosk-cpu.log \\
+  --os /etc/os-release \\
+  --device /proc/device-tree/model \\
+  --recorded-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+  --notes "First frame from the first DRM page flip." \\
+  --output docs/performance/2026-11-24-raspberry-pi-zero-2-w.json
+```
+
+`--base-record` is a schema-v1 record that already carries the soak metrics
+(`soak_hours`, `soak_rss_growth_mb`, `throttled`) from the 24-hour run. The
+collector replaces only `rss_idle_mb`, `first_frame_ms`, and `idle_cpu_percent`,
+and preserves the soak values. It rejects malformed evidence, a non-Pi-Zero-2-W
+device model, and an invalid base record before writing the output file.
+
+The collector does not fabricate a Pi Zero 2 W result. Until it is run on that
+hardware, the record stays absent and the Wave 5 performance gate remains open.
 
 ## Recording and checking a record
 
