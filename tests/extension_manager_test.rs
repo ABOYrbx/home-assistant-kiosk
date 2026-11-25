@@ -252,6 +252,36 @@ fn manager_marks_a_verified_cache_fallback_as_cached() {
 }
 
 #[test]
+fn manager_loads_permissions_for_installed_only_entries() {
+    let dir = tempfile::tempdir().unwrap();
+    let package = build_package("1.0.0");
+    let catalog = FakeFetcher::default();
+    let packages = FakeFetcher::default();
+    catalog.set_catalog("1.0.0", &package);
+    packages.set_catalog("1.0.0", &package);
+    let mut manager =
+        ExtensionManager::new(options(dir.path().to_path_buf()), catalog, packages).unwrap();
+    manager.refresh_catalog().unwrap();
+    manager.install(ID).unwrap();
+
+    let mut offline_options = options(dir.path().to_path_buf());
+    offline_options.catalog_url = None;
+    let mut offline = ExtensionManager::new(
+        offline_options,
+        FakeFetcher::default(),
+        FakeFetcher::default(),
+    )
+    .unwrap();
+    let entry = offline.shop_entries().remove(0);
+    assert_eq!(entry.name, "Bus Departures");
+    assert_eq!(
+        entry.permissions_summary(),
+        "No network or Home Assistant access"
+    );
+    assert!(!entry.permissions_unavailable);
+}
+
+#[test]
 fn manager_rejects_an_install_that_no_longer_matches_its_confirmation() {
     let dir = tempfile::tempdir().unwrap();
     let package_v1 = build_package("1.0.0");

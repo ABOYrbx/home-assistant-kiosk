@@ -117,6 +117,8 @@ pub struct ShopEntry {
     #[serde(default)]
     pub permissions: ExtensionPermissions,
     #[serde(default)]
+    pub permissions_unavailable: bool,
+    #[serde(default)]
     pub config_schema: Vec<ConfigField>,
     #[serde(default)]
     pub installed_version: Option<String>,
@@ -175,6 +177,9 @@ impl ShopEntry {
     }
 
     pub fn permissions_summary(&self) -> String {
+        if self.permissions_unavailable {
+            return "Permissions unavailable for this installed extension".to_string();
+        }
         self.permissions.summary()
     }
 
@@ -523,6 +528,7 @@ impl ShopEntry {
             description: String::new(),
             provides: String::new(),
             permissions: ExtensionPermissions::default(),
+            permissions_unavailable: true,
             config_schema: Vec::new(),
             installed_version: None,
             enabled: false,

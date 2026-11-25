@@ -155,7 +155,7 @@ export component MainWindow inherits Window {
                 config-path: root.shop-config-path;
                 secret-dir: root.shop-secret-dir;
                 pending-id: root.shop-pending-id;
-                confirm-id: root.shop-confirm-id;
+                confirm-id <=> root.shop-confirm-id;
                 refresh() => { root.shop-refresh(); }
                 confirm-install(id) => { root.shop-install(id); }
                 update(id) => { root.shop-update(id); }

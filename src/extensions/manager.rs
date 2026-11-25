@@ -178,6 +178,29 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             entry.installed_version = Some(record.version.to_string());
             entry.enabled = record.enabled;
             entry.configured = self.configured(&record.id);
+            let directory = self.store.extension_dir(&record.id, &record.version);
+            if let Ok(manifest) = super::package::load_manifest(&directory) {
+                entry.name = manifest.name;
+                entry.author = manifest.author;
+                entry.license = manifest.license;
+                entry.description = manifest.description;
+                entry.provides = kind_name(manifest.provides);
+                entry.permissions = ExtensionPermissions {
+                    http_hosts: manifest.permissions.http_hosts,
+                    ha_entities: manifest.permissions.ha_entities,
+                };
+                entry.permissions_unavailable = false;
+                entry.config_schema = manifest
+                    .config_schema
+                    .into_iter()
+                    .map(|field| ConfigField {
+                        key: field.key,
+                        label: field.label,
+                        kind: field_type_name(field.field_type),
+                        required: field.required,
+                    })
+                    .collect();
+            }
             entry.error = self
                 .health
                 .get(&record.id)
@@ -372,6 +395,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 http_hosts: entry.permissions.http_hosts.clone(),
                 ha_entities: entry.permissions.ha_entities.clone(),
             },
+            permissions_unavailable: false,
             config_schema: entry
                 .config_schema
                 .iter()
@@ -450,6 +474,7 @@ fn placeholder_shop_entry(id: &str) -> ShopEntry {
         description: String::new(),
         provides: String::new(),
         permissions: ExtensionPermissions::default(),
+        permissions_unavailable: true,
         config_schema: Vec::new(),
         installed_version: None,
         enabled: false,

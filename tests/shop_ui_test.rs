@@ -197,6 +197,50 @@ fn shop_page_navigation_actions_offline_and_error_states() {
                 .is_some()
         );
 
+        // Maximum-size permission lists must remain reviewable at the primary
+        // kiosk resolution, with both confirmation actions still reachable.
+        app.set_shop_installed(
+            Rc::new(slint::VecModel::from(Vec::<ha_kiosk::ShopEntryView>::new())).into(),
+        );
+        let mut permission_heavy = entry_view(false, false, false, "");
+        permission_heavy.permissions = (0..32)
+            .map(|index| format!("Network: api{index}.example.com"))
+            .chain((0..64).map(|index| format!("Home Assistant: sensor.entity_{index}")))
+            .collect::<Vec<_>>()
+            .join("; ")
+            .into();
+        app.set_shop_available(Rc::new(slint::VecModel::from(vec![permission_heavy])).into());
+        let install = ElementHandle::find_by_element_id(&app, "ShopEntryCard::install-button")
+            .next()
+            .expect("install button");
+        assert_eq!(
+            install.accessible_label().as_deref(),
+            Some("Bus Departures: Install")
+        );
+        click(&app, "ShopEntryCard::install-button").await;
+        app.window().set_size(slint::PhysicalSize::new(800, 480));
+        for id in ["ShopPage::cancel-button", "ShopPage::confirm-button"] {
+            let button = ElementHandle::find_by_element_id(&app, id)
+                .next()
+                .unwrap_or_else(|| panic!("element {id} not found"));
+            let position = button.absolute_position();
+            let size = button.size();
+            assert!(size.width >= 44.0 && size.height >= 44.0);
+            assert!(position.y >= 0.0);
+            assert!(
+                position.y + size.height <= 480.0,
+                "{id} is outside the 800x480 viewport: {position:?} {size:?}"
+            );
+        }
+
+        // A catalog update invalidates an open confirmation.
+        app.set_shop_confirm_id("".into());
+        assert!(
+            ElementHandle::find_by_element_id(&app, "ShopPage::confirm-button")
+                .next()
+                .is_none()
+        );
+
         slint::quit_event_loop().unwrap();
     })
     .unwrap();

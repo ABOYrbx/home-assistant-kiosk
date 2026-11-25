@@ -1,4 +1,5 @@
 import { Theme } from "../theme.slint";
+import { TouchTarget } from "../widgets/touch_target.slint";
 
 export struct ShopEntryView {
     id: string,
@@ -21,6 +22,7 @@ export struct ShopEntryView {
 
 component ShopButton inherits Rectangle {
     in property <string> label: "";
+    in property <string> accessible-name: "";
     in property <bool> primary: false;
     in property <bool> destructive: false;
     in property <bool> enabled: true;
@@ -33,7 +35,7 @@ component ShopButton inherits Rectangle {
     border-width: 1px;
     border-color: !root.enabled ? Theme.border-soft : (destructive ? Theme.danger : Theme.border);
     accessible-role: button;
-    accessible-label: root.label;
+    accessible-label: root.accessible-name != "" ? root.accessible-name : root.label;
     accessible-enabled: root.enabled;
 
     Text {
@@ -44,15 +46,15 @@ component ShopButton inherits Rectangle {
         vertical-alignment: center;
     }
 
-    ta := TouchArea {
+    target := TouchTarget {
+        width: 100%;
+        height: 100%;
         enabled: root.enabled;
-        clicked => {
-            if root.enabled { root.clicked(); }
-        }
+        clicked => { root.clicked(); }
     }
 
     states [
-        pressed when ta.pressed && root.enabled: {
+        pressed when target.pressed && root.enabled: {
             background: Theme.border;
         }
     ]
@@ -152,6 +154,7 @@ component ShopEntryCard inherits Rectangle {
 
             if entry.update-available : update-button := ShopButton {
                 label: "Update";
+                accessible-name: entry.name + ": Update";
                 primary: true;
                 enabled: !root.pending;
                 clicked => { root.update(entry.id); }
@@ -159,12 +162,14 @@ component ShopEntryCard inherits Rectangle {
 
             if entry.installed : toggle-button := ShopButton {
                 label: entry.enabled ? "Disable" : "Enable";
+                accessible-name: entry.name + ": " + (entry.enabled ? "Disable" : "Enable");
                 enabled: !root.pending;
                 clicked => { root.set-enabled(entry.id, !entry.enabled); }
             }
 
             if entry.installed : remove-button := ShopButton {
                 label: "Remove";
+                accessible-name: entry.name + ": Remove";
                 destructive: true;
                 enabled: !root.pending;
                 clicked => { root.remove(entry.id); }
@@ -172,6 +177,7 @@ component ShopEntryCard inherits Rectangle {
 
             if !entry.installed && entry.available : install-button := ShopButton {
                 label: "Install";
+                accessible-name: entry.name + ": Install";
                 primary: true;
                 enabled: !root.pending;
                 clicked => { root.install(entry.id); }
@@ -355,14 +361,17 @@ export component ShopPage inherits Rectangle {
                 wrap: word-wrap;
             }
 
-            Text {
-                text: "Permissions: " + confirm-permissions;
-                color: Theme.muted;
-                font-size: Theme.text-sm;
-                wrap: word-wrap;
+            permissions-scroll := Flickable {
+                vertical-stretch: 1;
+                content-height: permissions-content.preferred-height;
+                permissions-content := Text {
+                    width: permissions-scroll.width;
+                    text: "Permissions: " + confirm-permissions;
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                    wrap: word-wrap;
+                }
             }
-
-            Rectangle { vertical-stretch: 1; }
 
             HorizontalLayout {
                 spacing: Theme.space-2;
@@ -370,11 +379,13 @@ export component ShopPage inherits Rectangle {
 
                 cancel-button := ShopButton {
                     label: "Cancel";
+                    accessible-name: "Cancel extension installation";
                     clicked => { root.confirm-id = ""; }
                 }
 
                 confirm-button := ShopButton {
                     label: "Install";
+                    accessible-name: "Confirm installation of " + confirm-name;
                     primary: true;
                     clicked => {
                         let id = root.confirm-id;

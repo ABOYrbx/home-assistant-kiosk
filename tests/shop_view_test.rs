@@ -18,6 +18,7 @@ fn entry(id: &str, name: &str, version: &str) -> ShopEntry {
             http_hosts: vec!["api.example.com".to_string()],
             ha_entities: vec!["sensor.example".to_string()],
         },
+        permissions_unavailable: false,
         config_schema: vec![
             ConfigField {
                 key: "stop_id".to_string(),
@@ -382,6 +383,25 @@ fn installed_extension_missing_from_the_catalog_stays_installed() {
     assert!(entry.is_installed());
     assert!(!entry.available);
     assert_eq!(entry.status(), ExtensionStatus::Installed);
+}
+
+#[test]
+fn installed_only_entry_does_not_invent_empty_permissions() {
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: "org.example.retired".to_string(),
+        version: "0.9.0".to_string(),
+        enabled: true,
+        configured: true,
+        error: None,
+    }]);
+
+    assert_eq!(
+        view.entry("org.example.retired")
+            .unwrap()
+            .permissions_summary(),
+        "Permissions unavailable for this installed extension"
+    );
 }
 
 #[test]
