@@ -53,6 +53,7 @@ The `.hkext` archive stores these files at its root; do not wrap them in an extr
 
 ## Manifest
 
+<!-- example:manifest -->
 ```toml
 id = "org.example.bus-departures"
 name = "Bus Departures"
@@ -75,7 +76,7 @@ key = "stop_id"
 label = "Stop ID"
 type = "string"
 required = true
-help = "The stop identifier used by the transit API."
+help = "Use ASCII letters, digits, '-', '_', '.', or '~' only."
 
 [[config_schema]]
 key = "limit"
@@ -86,6 +87,7 @@ default = 6
 min = 1
 max = 20
 ```
+<!-- /example:manifest -->
 
 Rules:
 
@@ -128,13 +130,29 @@ Limits: 1,000,000 operations, 64 KB strings, 1,000 array/map entries, max call d
 
 The example is provider-neutral. Replace the API URL and field names with the ones your provider documents; keep the host in `http_hosts`.
 
+<!-- example:script -->
 ```rhai
 fn refresh(config) {
-    let url = "https://api.example.com/departures?stop=" + config.stop_id;
+    let stop_id = config.stop_id;
+    stop_id.trim();
+    if stop_id.is_empty() {
+        throw "stop_id must not be empty";
+    }
+    for ch in stop_id.chars() {
+        if !(ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~") {
+            throw "stop_id may contain only ASCII letters, digits, '-', '_', '.', or '~'";
+        }
+    }
+
+    let url = "https://api.example.com/departures?stop=" + stop_id
+        + "&limit=" + config.limit.to_string();
     let data = http_get_json(url);
     let items = [];
 
     for d in data.departures {
+        if items.len() >= config.limit {
+            break;
+        }
         items.push(#{
             line: d.line,
             destination: d.destination,
@@ -149,8 +167,70 @@ fn refresh(config) {
     #{ kind: "departures", title: "Bus", items: items }
 }
 ```
+<!-- /example:script -->
 
 `??` is Rhai's null-coalescing operator; use the syntax supported by the pinned Rhai version. The host validates and caps the result.
+
+The marked manifest and script above are the canonical example. CI extracts all four marked package files, builds a `.hkext` in memory, and runs the script through the real sandbox with in-memory fixtures via `cargo test --test extension_example_test`. `api.example.com` is a placeholder: a real adapter must replace the host and response field names and update `http_hosts` to match.
+
+The example trims `stop_id` and accepts only ASCII letters, digits, `-`, `_`, `.`, or `~`, so the value cannot alter the query string. It requests at most `limit` rows. An empty `departures` array returns a valid empty view. HTTP failures and malformed provider responses propagate to the host, which keeps the last good output and reports the error.
+
+The complete package also includes these companion files:
+
+<!-- example:readme -->
+```markdown
+# Bus Departures
+
+Provider-neutral example extension for the Home Assistant Kiosk extension shop.
+
+## Configuration
+
+- `stop_id` (required): ASCII letters, digits, `-`, `_`, `.`, or `~` only.
+- `limit` (optional): maximum number of rows, from 1 to 20; defaults to 6.
+
+Replace `api.example.com` and the response field names with the transit API you
+intend to use, and update `http_hosts` to match. Do not commit a real stop ID,
+API key, personal address, or provider URL to a public example.
+
+## Permissions and behavior
+
+The example makes HTTPS GET requests to `api.example.com` only. It does not read
+Home Assistant entities, call services, or use secrets. An empty response shows
+an empty departures view. HTTP or malformed-response errors are reported while
+the kiosk keeps the last good data.
+
+## Removal
+
+Disable or remove the extension in the Shop. Settings are retained unless the
+operator explicitly purges them.
+```
+<!-- /example:readme -->
+
+<!-- example:license -->
+```text
+MIT License
+
+Copyright (c) 2026 The Example Authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+<!-- /example:license -->
 
 ### Other output kinds
 
