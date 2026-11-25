@@ -4,11 +4,14 @@
 //! rejects unknown fields, and caps the number of items. The built-in widgets
 //! render the result; extensions never draw their own UI.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
 use super::manifest::OutputKind;
+
+/// Hard ceiling for rows or items in any extension output.
+pub const MAX_OUTPUT_ITEMS: usize = 100;
 
 /// A validated extension view model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,7 +47,6 @@ pub struct DeparturesView {
     pub kind: OutputKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    #[serde(default)]
     pub items: Vec<DepartureItem>,
 }
 
@@ -73,7 +75,7 @@ pub struct ListView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub columns: Vec<String>,
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_rows")]
     pub rows: Vec<Vec<String>>,
 }
 
@@ -84,7 +86,6 @@ pub struct KeyValueView {
     pub kind: OutputKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    #[serde(default)]
     pub items: Vec<KeyValueItem>,
 }
 
@@ -93,7 +94,40 @@ pub struct KeyValueView {
 #[serde(deny_unknown_fields)]
 pub struct KeyValueItem {
     pub label: String,
+    #[serde(deserialize_with = "deserialize_text")]
     pub value: String,
+}
+
+fn deserialize_rows<'de, D>(deserializer: D) -> Result<Vec<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let rows = Vec::<Vec<Value>>::deserialize(deserializer)?;
+    rows.into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(output_text)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(serde::de::Error::custom)
+        })
+        .collect()
+}
+
+fn deserialize_text<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    output_text(value).map_err(serde::de::Error::custom)
+}
+
+fn output_text(value: Value) -> Result<String, &'static str> {
+    match value {
+        Value::String(text) => Ok(text),
+        Value::Number(number) => Ok(number.to_string()),
+        Value::Bool(value) => Ok(value.to_string()),
+        _ => Err("expected a string, number, or boolean"),
+    }
 }
 
 /// Output validation errors.
@@ -116,13 +150,14 @@ pub enum OutputError {
 
 /// Validate a raw script result against the declared output kind.
 ///
-/// Items beyond `max_items` are dropped. Every retained item is validated
-/// first, so a malformed item cannot hide behind the cap.
+/// Items beyond the effective cap are dropped after every item is validated,
+/// so malformed output cannot hide behind truncation.
 pub fn validate_output(
     value: Value,
     expected: OutputKind,
     max_items: usize,
 ) -> Result<ExtensionOutput, OutputError> {
+    let max_items = max_items.min(MAX_OUTPUT_ITEMS);
     let object = value.as_object().ok_or(OutputError::NotAMap)?;
     let kind_value = object.get("kind").ok_or(OutputError::MissingKind)?;
     let kind: OutputKind = serde_json::from_value(kind_value.clone())

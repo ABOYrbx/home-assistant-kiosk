@@ -172,7 +172,7 @@ Output is data only. The built-in widgets decide fonts, colors, layout, and touc
 
 ## Output schema
 
-Every `refresh` result is a map. The host validates it against the manifest's `provides` value, rejects unknown fields and wrong types, and caps the item count at 100. A rejected result shows an error and keeps the last good data.
+Every `refresh` result is a map. The host validates it against the manifest's `provides` value, rejects unknown fields and wrong types, and caps the item count at 100. Every item is validated before excess items are dropped, so malformed output beyond the cap still rejects the refresh. A rejected result shows an error and keeps the last good data.
 
 `departures`:
 
@@ -184,7 +184,7 @@ Every `refresh` result is a map. The host validates it against the manifest's `p
 | `items[].line` | string | yes | Line or route label. |
 | `items[].destination` | string | yes | Destination label. |
 | `items[].departure` | string | yes | RFC 3339 timestamp; an offset is preferred. |
-| `items[].delay_minutes` | integer | no | Defaults to `0`. |
+| `items[].delay_minutes` | integer | no | Signed delay in minutes; defaults to no delay. |
 | `items[].platform` | string or null | no | Omit or return `()`. |
 | `items[].cancelled` | boolean | no | Defaults to `false`. |
 | `items[].remarks` | string or null | no | Short status text. |

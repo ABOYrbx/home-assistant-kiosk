@@ -195,6 +195,15 @@ fn key_value_host(script: &str) -> ExtensionHost {
     ExtensionHost::new(key_value_config(script)).unwrap()
 }
 
+fn list_host(script: &str) -> ExtensionHost {
+    let text = MANIFEST.replace("provides = \"departures\"", "provides = \"list\"");
+    let manifest = Manifest::parse(&text).unwrap();
+    let mut config = HostConfig::new(manifest, script);
+    config.fetcher = Some(Arc::new(PanicFetcher));
+    config.clock = Some(fixed_clock());
+    ExtensionHost::new(config).unwrap()
+}
+
 fn fetch_script(url: &str) -> String {
     r#"fn refresh(config) {
         let data = http_get_json("__URL__");
@@ -633,6 +642,7 @@ fn malformed_output_is_rejected() {
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: "1", departure: "x" } ] } }"#,
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: 1, destination: "x", departure: "y" } ] } }"#,
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: "1", destination: "x", departure: "y", extra: true } ] } }"#,
+        r#"fn refresh(config) { #{ kind: "departures", items: [], extra: true } }"#,
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: "", destination: "x", departure: "y" } ] } }"#,
         r#"fn refresh(config) { 42 }"#,
     ];
@@ -662,6 +672,40 @@ fn malformed_output_is_rejected() {
 }
 
 #[test]
+fn required_output_arrays_must_be_present() {
+    let list_manifest =
+        Manifest::parse(&MANIFEST.replace("provides = \"departures\"", "provides = \"list\""))
+            .unwrap();
+    let cases = [
+        (
+            manifest(),
+            r#"fn refresh(config) { #{ kind: "departures" } }"#,
+        ),
+        (
+            list_manifest,
+            r#"fn refresh(config) { #{ kind: "list", columns: ["Value"] } }"#,
+        ),
+        (
+            key_value_manifest(),
+            r#"fn refresh(config) { #{ kind: "key_value" } }"#,
+        ),
+    ];
+    let mut accepted = Vec::new();
+    for (manifest, script) in cases {
+        let mut config = HostConfig::new(manifest, script);
+        config.fetcher = Some(Arc::new(PanicFetcher));
+        match ExtensionHost::new(config).unwrap().refresh() {
+            Ok(_) => accepted.push(script),
+            Err(error) => assert!(
+                matches!(error, ExtensionError::Output(OutputError::Malformed { .. })),
+                "{script} should fail as malformed, got {error:?}"
+            ),
+        }
+    }
+    assert!(accepted.is_empty(), "missing arrays accepted: {accepted:?}");
+}
+
+#[test]
 fn list_output_is_validated() {
     let text = MANIFEST.replace("provides = \"departures\"", "provides = \"list\"");
     let manifest = Manifest::parse(&text).unwrap();
@@ -680,6 +724,8 @@ fn list_output_is_validated() {
     for script in [
         r#"fn refresh(config) { #{ kind: "list", columns: [], rows: [] } }"#,
         r#"fn refresh(config) { #{ kind: "list", columns: ["a"], rows: [["1", "2"]] } }"#,
+        r#"fn refresh(config) { #{ kind: "list", columns: [1], rows: [] } }"#,
+        r#"fn refresh(config) { #{ kind: "list", columns: ["a"], rows: [], extra: true } }"#,
     ] {
         let mut config = HostConfig::new(manifest.clone(), script);
         config.fetcher = Some(Arc::new(PanicFetcher));
@@ -688,6 +734,88 @@ fn list_output_is_validated() {
             host.refresh().unwrap_err(),
             ExtensionError::Output(OutputError::Malformed { .. })
         ));
+    }
+}
+
+#[test]
+fn list_cells_accept_documented_primitive_text_values() {
+    let script = r#"fn refresh(config) {
+        #{ kind: "list", columns: ["Count", "Ready"], rows: [[12, true], ["", false]] }
+    }"#;
+    match list_host(script).refresh().unwrap() {
+        ExtensionOutput::List(view) => {
+            assert_eq!(view.rows, vec![vec!["12", "true"], vec!["", "false"]]);
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn key_value_values_accept_documented_primitive_text_values() {
+    let script = r#"fn refresh(config) {
+        #{ kind: "key_value", items: [
+            #{ label: "Count", value: 12 },
+            #{ label: "Ready", value: true },
+            #{ label: "Name", value: "Central" }
+        ] }
+    }"#;
+    match key_value_host(script).refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => {
+            assert_eq!(view.items[0].value, "12");
+            assert_eq!(view.items[1].value, "true");
+            assert_eq!(view.items[2].value, "Central");
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn key_value_output_rejects_unknown_fields_and_empty_labels() {
+    for script in [
+        r#"fn refresh(config) { #{ kind: "key_value", items: [], extra: true } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Value", value: "x", extra: true }] } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: " ", value: "x" }] } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Value" }] } }"#,
+    ] {
+        assert!(
+            matches!(
+                key_value_host(script).refresh().unwrap_err(),
+                ExtensionError::Output(OutputError::Malformed { .. })
+            ),
+            "{script} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn non_primitive_list_cells_are_rejected() {
+    for cell in ["()", "[]", "#{ value: 1 }"] {
+        let script = format!(
+            r#"fn refresh(config) {{ #{{ kind: "list", columns: ["Value"], rows: [[{cell}]] }} }}"#
+        );
+        assert!(
+            matches!(
+                list_host(&script).refresh().unwrap_err(),
+                ExtensionError::Output(OutputError::Malformed { .. })
+            ),
+            "cell {cell} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn non_primitive_key_values_are_rejected() {
+    for value in ["()", "[]", "#{ value: 1 }"] {
+        let script = format!(
+            r#"fn refresh(config) {{ #{{ kind: "key_value", items: [#{{ label: "Value", value: {value} }}] }} }}"#
+        );
+        assert!(
+            matches!(
+                key_value_host(&script).refresh().unwrap_err(),
+                ExtensionError::Output(OutputError::Malformed { .. })
+            ),
+            "value {value} should be rejected"
+        );
     }
 }
 
@@ -704,6 +832,69 @@ fn output_is_capped_at_one_hundred_items() {
         ExtensionOutput::Departures(view) => assert_eq!(view.items.len(), 100),
         other => panic!("unexpected output: {other:?}"),
     }
+}
+
+#[test]
+fn output_limit_cannot_be_raised_above_one_hundred() {
+    let script = r#"fn refresh(config) {
+        let items = [];
+        for i in 0..150 {
+            items.push(#{ line: "1", destination: "Central", departure: "2026-11-23T12:05:00Z" });
+        }
+        #{ kind: "departures", items: items }
+    }"#;
+    let mut config = config(script);
+    config.limits.max_items = 150;
+    match ExtensionHost::new(config).unwrap().refresh().unwrap() {
+        ExtensionOutput::Departures(view) => assert_eq!(view.items.len(), 100),
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn list_output_is_capped_at_one_hundred_rows() {
+    let script = r#"fn refresh(config) {
+        let rows = [];
+        for i in 0..150 {
+            rows.push(["value"]);
+        }
+        #{ kind: "list", columns: ["Value"], rows: rows }
+    }"#;
+    match list_host(script).refresh().unwrap() {
+        ExtensionOutput::List(view) => assert_eq!(view.rows.len(), 100),
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn key_value_output_is_capped_at_one_hundred_items() {
+    let script = r#"fn refresh(config) {
+        let items = [];
+        for i in 0..150 {
+            items.push(#{ label: "Value", value: "value" });
+        }
+        #{ kind: "key_value", items: items }
+    }"#;
+    match key_value_host(script).refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => assert_eq!(view.items.len(), 100),
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn malformed_departure_after_the_cap_rejects_the_output() {
+    let script = r#"fn refresh(config) {
+        let items = [];
+        for i in 0..100 {
+            items.push(#{ line: "1", destination: "Central", departure: "2026-11-23T12:05:00Z" });
+        }
+        items.push(#{ line: "", destination: "Central", departure: "2026-11-23T12:05:00Z" });
+        #{ kind: "departures", items: items }
+    }"#;
+    assert!(matches!(
+        refresh(script).unwrap_err(),
+        ExtensionError::Output(OutputError::Malformed { .. })
+    ));
 }
 
 #[test]

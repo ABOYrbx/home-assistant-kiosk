@@ -42,7 +42,7 @@ pub use manager::{ExtensionHealth, ExtensionManager, ManagerError, ManagerOption
 pub use manifest::{Manifest, ManifestError, OutputKind};
 pub use output::{
     DepartureItem, DeparturesView, ExtensionOutput, KeyValueItem, KeyValueView, ListView,
-    OutputError,
+    MAX_OUTPUT_ITEMS, OutputError,
 };
 pub use package::{
     MAX_DECOMPRESSED_BYTES, PackageError, extract_package, extract_package_with_limit,
