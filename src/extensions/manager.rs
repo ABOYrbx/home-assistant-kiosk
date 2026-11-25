@@ -169,6 +169,10 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 .health
                 .get(&record.id)
                 .and_then(|health| health.last_error.clone());
+            entry.degraded = self
+                .health
+                .get(&record.id)
+                .is_some_and(|health| health.degraded);
             entries.push(entry);
         }
         entries
@@ -188,6 +192,10 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                     .health
                     .get(&record.id)
                     .and_then(|health| health.last_error.clone()),
+                degraded: self
+                    .health
+                    .get(&record.id)
+                    .is_some_and(|health| health.degraded),
             })
             .collect()
     }
@@ -266,26 +274,29 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             return Err(ManagerError::NotInstalled(id.to_string()));
         }
         let directory = self.store.extension_dir(id, &record.version);
-        let catalog_manifest = super::package::load_manifest(&directory)
-            .map_err(|error| ManagerError::Manifest(error.to_string()))?;
-        let manifest = host_manifest(&catalog_manifest)?;
-        let script_path = directory.join(&manifest.entry);
-        let script = std::fs::read_to_string(&script_path)?;
-        let settings = self.settings_for(id);
-        let secrets = self.secrets_for(id)?;
-        let allowed_entities = manifest.permissions.ha_entities.clone();
-        let entities: BTreeMap<_, _> = entities
-            .into_iter()
-            .filter(|(entity, _)| allowed_entities.iter().any(|allowed| allowed == entity))
-            .collect();
+        let result = (|| -> Result<ExtensionOutput, ManagerError> {
+            let catalog_manifest = super::package::load_manifest(&directory)
+                .map_err(|error| ManagerError::Manifest(error.to_string()))?;
+            let manifest = host_manifest(&catalog_manifest)?;
+            let script_path = directory.join(&manifest.entry);
+            let script = std::fs::read_to_string(&script_path)?;
+            let settings = self.settings_for(id);
+            let secrets = self.secrets_for(id)?;
+            let allowed_entities = manifest.permissions.ha_entities.clone();
+            let entities: BTreeMap<_, _> = entities
+                .into_iter()
+                .filter(|(entity, _)| allowed_entities.iter().any(|allowed| allowed == entity))
+                .collect();
 
-        let mut config = HostConfig::new(manifest, script);
-        config.settings = settings;
-        config.secrets = secrets;
-        config.entities = entities;
-        config.dev_mode = self.options.dev_mode;
-        let mut runner = ExtensionRunner::new(ExtensionHost::new(config)?);
-        match runner.refresh() {
+            let mut config = HostConfig::new(manifest, script);
+            config.settings = settings;
+            config.secrets = secrets;
+            config.entities = entities;
+            config.dev_mode = self.options.dev_mode;
+            let mut runner = ExtensionRunner::new(ExtensionHost::new(config)?);
+            runner.refresh().map_err(ManagerError::from)
+        })();
+        match result {
             Ok(output) => {
                 self.health
                     .entry(id.to_string())
@@ -296,7 +307,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             Err(error) => {
                 let health = self.health.entry(id.to_string()).or_default();
                 health.mark_failure(error.to_string());
-                Err(ManagerError::Host(error))
+                Err(error)
             }
         }
     }
@@ -309,10 +320,13 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
         self.health
             .iter()
             .filter_map(|(id, health)| {
-                health
-                    .last_error
-                    .as_ref()
-                    .map(|error| format!("{id}: {error}"))
+                health.last_error.as_ref().map(|error| {
+                    if health.degraded {
+                        format!("{id} (degraded): {error}")
+                    } else {
+                        format!("{id}: {error}")
+                    }
+                })
             })
             .collect()
     }
@@ -355,6 +369,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             enabled: false,
             configured: false,
             error: None,
+            degraded: false,
             available: true,
         };
         if let Some(record) = installed {
@@ -365,6 +380,10 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 .health
                 .get(&entry.id)
                 .and_then(|health| health.last_error.clone());
+            shop.degraded = self
+                .health
+                .get(&entry.id)
+                .is_some_and(|health| health.degraded);
         }
         shop
     }
@@ -424,6 +443,7 @@ fn placeholder_shop_entry(id: &str) -> ShopEntry {
         enabled: false,
         configured: false,
         error: None,
+        degraded: false,
         available: false,
     }
 }

@@ -83,7 +83,7 @@ component ShopEntryCard inherits Rectangle {
             }
             Text {
                 text: entry.status;
-                color: entry.status == "Error" ? Theme.danger : (entry.status == "Disabled" ? Theme.warn : Theme.muted);
+                color: entry.status == "Error" ? Theme.danger : ((entry.status == "Disabled" || entry.status == "Degraded") ? Theme.warn : Theme.muted);
                 font-size: Theme.text-sm;
                 horizontal-alignment: right;
             }

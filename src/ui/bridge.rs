@@ -2,7 +2,7 @@
 
 use crate::AppState;
 use crate::ShopEntryView;
-use crate::extensions::shop::{ExtensionStatus, ShopEntry, ShopView};
+use crate::extensions::shop::{ShopEntry, ShopView};
 use slint::{ModelRc, SharedString, VecModel};
 use std::path::Path;
 use std::rc::Rc;
@@ -35,7 +35,7 @@ pub fn shop_entry_view(entry: &ShopEntry, view: &ShopView) -> ShopEntryView {
         error: entry.error.clone().unwrap_or_default().into(),
         installed: entry.is_installed(),
         enabled: entry.enabled,
-        update_available: entry.status() == ExtensionStatus::UpdateAvailable,
+        update_available: entry.update_available(),
         available: entry.available,
     }
 }

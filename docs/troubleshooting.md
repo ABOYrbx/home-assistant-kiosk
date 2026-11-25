@@ -227,6 +227,14 @@ The entity ID is validated syntactically but not checked against the server at s
 - If the badge never clears after Home Assistant returns, check the journal for a failed re-authentication or a rejected subscription.
 - The cache directory is `0700` and the cache file `0600`. A cache owned by the wrong user is not writable and the service logs a warning. Fix the ownership; do not widen the permissions.
 
+## Extension failures
+
+- A failed extension refresh keeps the last validated data for the current kiosk session and shows the error on its Shop card and the Status page.
+- The first two consecutive failures show **Error**. From the third consecutive failure the card shows **Degraded**, and the Status message includes `(degraded)`.
+- A later successful refresh clears the failure state. Installing, updating, rolling back, or removing the extension also clears its health record.
+- Check the displayed error first. Common causes are an expired provider response, malformed extension output, changed settings, or an unreadable per-extension secret file. Secret files must be mode `0600` and owned by the service user.
+- A degraded extension still offers **Update** when the catalog has a newer version. A catalog outage is reported separately and does not discard installed-extension health.
+
 ## Timezone and clock
 
 - The primary timezone source is `get_config.time_zone` from Home Assistant. `ha.time_zone` is the fallback, then the device timezone.

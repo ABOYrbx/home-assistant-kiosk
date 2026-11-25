@@ -21,6 +21,7 @@ pub enum ExtensionStatus {
     UpdateAvailable,
     Disabled,
     Error,
+    Degraded,
 }
 
 impl ExtensionStatus {
@@ -31,6 +32,7 @@ impl ExtensionStatus {
             ExtensionStatus::UpdateAvailable => "Update available",
             ExtensionStatus::Disabled => "Disabled",
             ExtensionStatus::Error => "Error",
+            ExtensionStatus::Degraded => "Degraded",
         }
     }
 }
@@ -124,6 +126,10 @@ pub struct ShopEntry {
     pub configured: bool,
     #[serde(default)]
     pub error: Option<String>,
+    /// True after repeated refresh failures. The last good output remains
+    /// available, but the error is highlighted as a degraded extension.
+    #[serde(default)]
+    pub degraded: bool,
     /// True when the entry came from the verified catalog. Installed entries
     /// that disappeared from the catalog stay installed but are not available.
     #[serde(default)]
@@ -136,14 +142,17 @@ impl ShopEntry {
     }
 
     pub fn status(&self) -> ExtensionStatus {
+        if self.degraded {
+            return ExtensionStatus::Degraded;
+        }
         if self.error.is_some() {
             return ExtensionStatus::Error;
         }
         match &self.installed_version {
-            Some(installed) => {
+            Some(_) => {
                 if !self.enabled {
                     ExtensionStatus::Disabled
-                } else if self.available && self.version != *installed {
+                } else if self.update_available() {
                     ExtensionStatus::UpdateAvailable
                 } else {
                     ExtensionStatus::Installed
@@ -153,11 +162,27 @@ impl ShopEntry {
         }
     }
 
+    /// Whether the verified catalog offers a different version. Health and
+    /// enabled state do not prevent an operator from updating the extension.
+    pub fn update_available(&self) -> bool {
+        self.available
+            && self
+                .installed_version
+                .as_ref()
+                .is_some_and(|installed| installed != &self.version)
+    }
+
     pub fn primary_action(&self) -> Option<ShopAction> {
+        if self.update_available() {
+            return Some(ShopAction::Update);
+        }
         match self.status() {
             ExtensionStatus::Available => Some(ShopAction::Install),
-            ExtensionStatus::UpdateAvailable => Some(ShopAction::Update),
-            ExtensionStatus::Installed | ExtensionStatus::Disabled | ExtensionStatus::Error => None,
+            ExtensionStatus::UpdateAvailable
+            | ExtensionStatus::Installed
+            | ExtensionStatus::Disabled
+            | ExtensionStatus::Error
+            | ExtensionStatus::Degraded => None,
         }
     }
 
@@ -201,6 +226,8 @@ pub struct InstalledExtension {
     pub configured: bool,
     #[serde(default)]
     pub error: Option<String>,
+    #[serde(default)]
+    pub degraded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -278,6 +305,7 @@ impl ShopView {
                 entry.enabled = record.enabled;
                 entry.configured = record.configured;
                 entry.error = record.error;
+                entry.degraded = record.degraded;
             } else {
                 let mut entry = ShopEntry::default_for(&record.id);
                 entry.version = record.version.clone();
@@ -285,6 +313,7 @@ impl ShopView {
                 entry.enabled = record.enabled;
                 entry.configured = record.configured;
                 entry.error = record.error;
+                entry.degraded = record.degraded;
                 self.entries.push(entry);
             }
         }
@@ -301,6 +330,7 @@ impl ShopView {
                 incoming.enabled = existing.enabled;
                 incoming.configured = existing.configured;
                 incoming.error = existing.error.clone();
+                incoming.degraded = existing.degraded;
             }
             merged.push(incoming);
         }
@@ -335,6 +365,7 @@ impl ShopView {
     pub fn clear_error(&mut self, id: &str) {
         if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
             entry.error = None;
+            entry.degraded = false;
         }
     }
 
@@ -360,9 +391,13 @@ impl ShopView {
         self.entries
             .iter()
             .filter_map(|e| {
-                e.error
-                    .as_ref()
-                    .map(|message| format!("{}: {}", e.name, message))
+                e.error.as_ref().map(|message| {
+                    if e.degraded {
+                        format!("{} (degraded): {}", e.name, message)
+                    } else {
+                        format!("{}: {}", e.name, message)
+                    }
+                })
             })
             .collect()
     }
@@ -403,7 +438,7 @@ impl ShopView {
                 if !entry.is_installed() {
                     return Err(ShopError::NotInstalled(id.to_string()));
                 }
-                if entry.status() != ExtensionStatus::UpdateAvailable {
+                if !entry.update_available() {
                     return Err(ShopError::NoUpdate(id.to_string()));
                 }
             }
@@ -451,7 +486,13 @@ impl ShopView {
         self.pending = None;
         match result {
             Ok(()) => {
-                entry.error = None;
+                if matches!(
+                    action,
+                    ShopAction::Install | ShopAction::Update | ShopAction::Remove
+                ) {
+                    entry.error = None;
+                    entry.degraded = false;
+                }
                 match action {
                     ShopAction::Install | ShopAction::Update => {
                         entry.installed_version = Some(entry.version.clone());
@@ -497,6 +538,7 @@ impl ShopEntry {
             enabled: false,
             configured: false,
             error: None,
+            degraded: false,
             available: false,
         }
     }

@@ -35,6 +35,7 @@ fn entry(id: &str, name: &str, version: &str) -> ShopEntry {
         enabled: false,
         configured: false,
         error: None,
+        degraded: false,
         available: true,
     }
 }
@@ -122,6 +123,7 @@ fn update_flow_uses_the_catalog_version() {
         enabled: true,
         configured: true,
         error: None,
+        degraded: false,
     }]);
     view.apply_catalog(vec![entry(
         "org.example.bus-departures",
@@ -219,6 +221,7 @@ fn offline_catalog_keeps_installed_extensions_usable() {
         enabled: true,
         configured: true,
         error: None,
+        degraded: false,
     }]);
     view.apply_catalog(vec![
         entry("org.example.bus-departures", "Bus Departures", "1.1.0"),
@@ -246,6 +249,7 @@ fn installed_extension_missing_from_the_catalog_stays_installed() {
         enabled: true,
         configured: true,
         error: None,
+        degraded: false,
     }]);
     view.apply_catalog(Vec::new());
 
@@ -335,6 +339,75 @@ fn bridge_exposes_permissions_config_and_paths_to_the_ui() {
     );
     assert!(!ui.installed);
     assert!(ui.available);
+}
+
+#[test]
+fn degraded_entries_show_status_error_and_still_offer_updates() {
+    let id = "org.example.bus-departures";
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.apply_catalog(vec![entry(id, "Bus Departures", "1.1.0")]);
+    let installed: InstalledExtension = serde_json::from_value(serde_json::json!({
+        "id": id,
+        "version": "1.0.0",
+        "enabled": true,
+        "configured": true,
+        "error": "upstream unavailable",
+        "degraded": true,
+    }))
+    .unwrap();
+    view.set_installed(vec![installed]);
+
+    let entry = view.entry(id).unwrap();
+    assert_eq!(entry.status().label(), "Degraded");
+    assert_eq!(
+        view.extension_errors(),
+        vec!["Bus Departures (degraded): upstream unavailable".to_string()]
+    );
+    let request = view.request(id, ShopAction::Update, true).unwrap();
+    assert_eq!(request.action, ShopAction::Update);
+    assert_eq!(request.version, "1.1.0");
+}
+
+#[test]
+fn catalog_and_offline_snapshots_preserve_degraded_state_until_recovery() {
+    let id = "org.example.bus-departures";
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    let mut degraded = entry(id, "Bus Departures", "1.0.0");
+    degraded.installed_version = Some("1.0.0".to_string());
+    degraded.enabled = true;
+    degraded.configured = true;
+    degraded.error = Some("upstream unavailable".to_string());
+    let mut value = serde_json::to_value(&degraded).unwrap();
+    value["degraded"] = serde_json::json!(true);
+    let degraded: ShopEntry = serde_json::from_value(value).unwrap();
+    view.apply_catalog(vec![degraded]);
+    assert_eq!(view.entry(id).unwrap().status().label(), "Degraded");
+
+    let installed: InstalledExtension = serde_json::from_value(serde_json::json!({
+        "id": id,
+        "version": "1.0.0",
+        "enabled": true,
+        "configured": true,
+        "error": "upstream unavailable",
+        "degraded": true,
+    }))
+    .unwrap();
+    view.mark_catalog_offline("network unreachable");
+    view.set_installed(vec![installed]);
+    assert_eq!(view.entry(id).unwrap().status().label(), "Degraded");
+
+    let recovered: InstalledExtension = serde_json::from_value(serde_json::json!({
+        "id": id,
+        "version": "1.0.0",
+        "enabled": true,
+        "configured": true,
+        "error": null,
+        "degraded": false,
+    }))
+    .unwrap();
+    view.set_installed(vec![recovered]);
+    assert_eq!(view.entry(id).unwrap().status().label(), "Installed");
+    assert!(view.extension_errors().is_empty());
 }
 
 #[test]

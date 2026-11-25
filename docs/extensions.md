@@ -31,11 +31,18 @@ The Shop is a fifth page. It appears only when `extensions.enabled = true`; with
 - **Available** lists catalog entries that are not installed. Each card shows the name, version, author, license, description, status, declared permissions, configuration keys, and the exact settings and secret file paths.
 - **Actions:** Install, Update, Remove, and Enable/Disable. Install opens a first-install trust confirmation that repeats the warning and permissions; nothing is installed until the user confirms. Update is offered only when the catalog version differs from the installed version.
 - **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success.
+- **Runtime failures:** a failed refresh keeps the last validated output for the current kiosk session. The first two consecutive failures show **Error**; the third and later failures show **Degraded**. A successful refresh clears the error and degraded state.
 - **Offline:** installed extensions stay usable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
-- **Errors** are also collected on the Status page.
+- **Errors** are also collected on the Status page. Degraded entries are labelled `(degraded)` there.
 - **No on-screen keyboard:** the page shows the configuration keys and the exact TOML and secret file paths. Edit those files directly.
 
 The shop view model is backed by `extensions::manager`. The manager refreshes the signed catalog, downloads and verifies packages, drives the store, and runs installed scripts only on a background thread. The Shop page never blocks the UI thread and never reports an action as successful before the store confirms it.
+
+### Refresh failures and recovery
+
+Every refresh first loads and validates the installed manifest, script, settings, and secrets, then executes the sandbox and validates its output. Any failure in that path is recorded against the installed extension. The manager retains the previous validated `ExtensionOutput` in `ExtensionHealth::last_good`; callers can keep rendering it while showing the error separately.
+
+Failure state is per kiosk session and per installed version. Installing, updating, rolling back, or removing an extension clears its health record. Disabling an extension does not hide an existing runtime error. The Shop card and Status page show the latest error, and the card offers Update whenever the verified catalog has a newer version, even while the extension is degraded.
 
 ## Package layout
 
@@ -249,7 +256,7 @@ The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub 
 1. Start a local catalog (plain HTTP is allowed only with `allow_unsigned = true` and `extensions.dev_mode`).
 2. Install the package in a scratch directory.
 3. Check that the script cannot reach a host or entity outside its manifest.
-4. Check that an invalid output shape shows an error and keeps the last good data.
+4. Check that an invalid output shape shows an error, keeps the last good data, and becomes degraded after three consecutive failures.
 5. Check the operation/time limits with a deliberately slow or looping script.
 6. Test the shop at 800 x 480 with touch emulation.
 
