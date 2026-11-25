@@ -2,7 +2,7 @@
 
 The community catalog is a **separate, public GitHub repository**. The kiosk never clones it; it fetches a signed index and package release assets over HTTPS. This keeps catalog maintenance independent of the kiosk release cycle.
 
-Repository: [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions). It is public for community use. `ABOYrbx` holds the production Minisign private key on encrypted offline storage (see `PLAN.md` section 12).
+Repository: [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions). It is public for community use. `ABOYrbx` is the designated production-key custodian and will generate the Minisign private key on encrypted offline storage before the first real release; no production key exists yet (see `PLAN.md` section 12).
 
 See also: [Extension Author Guide](extensions.md) for the manifest, script API, output schema, configuration, packaging, and author checklist.
 
@@ -200,26 +200,30 @@ The kiosk keeps installed extensions under `store_path`:
 2. `scripts/package.sh <id> <version>` builds the `.hkext` and prints SHA-256 and size.
 3. The package is attached to a GitHub release.
 4. `index.json` is regenerated with the package URL, checksum, and size.
-5. A maintainer signs `index.json` offline with Minisign.
-6. Both `index.json` and `index.json.minisig` are committed to the catalog repository.
-7. CI verifies the schema and signature with the public key.
-8. The kiosk refreshes its catalog on its next daily refresh or manual request.
+5. `scripts/validate.sh` checks the complete catalog and source tree before signing.
+6. A maintainer signs `index.json` offline with Minisign.
+7. Both `index.json` and `index.json.minisig` are committed to the catalog repository.
+8. CI verifies the schema and signature with the public key.
+9. The kiosk refreshes its catalog on its next daily refresh or manual request.
 
 The private signing key never enters CI, the catalog repository, or the kiosk repository.
 
 ## CI validation
 
-The catalog CI checks:
+The current catalog CI checks:
 
-- JSON Schema for `index.json` and every manifest.
+- JSON Schema for `index.json` and every indexed manifest.
 - Unique, reverse-DNS IDs.
-- Semver versions and `api_version`.
-- Package SHA-256 and size match the GitHub release asset.
-- No real secrets, personal stop IDs, home addresses, or API keys.
-- `manifest.toml` permissions match the index.
-- Rhai scripts compile with the pinned Rhai engine (no execution during CI).
-- The example bus extension runs against a fixture in a sandbox test.
+- Semver versions and integer `api_version` values.
+- Source-tree safety, including symlinks, native/UI files, and common secret patterns.
+- `manifest.toml` permissions and configuration match the index.
 - The index signature verifies with the public key.
+
+The following release checks are planned but are not implemented by the scaffold workflow yet:
+
+- Package SHA-256 and size match the GitHub release asset.
+- Rhai scripts compile with the pinned Rhai engine, without execution during CI.
+- The example bus extension runs against a fixture in a sandbox test.
 
 ## Community review
 
@@ -232,7 +236,7 @@ Every catalog pull request is reviewed by a maintainer before packaging and sign
 | Secrets | No API keys, tokens, personal stop IDs, home addresses, or real provider URLs appear in the source, fixtures, README, or screenshots. |
 | Home Assistant access | `ha_state` reads only declared entities; the script never calls a service and never receives the HA token. |
 | UI | Output is data only: `departures`, `list`, or `key_value`. No native code, Slint files, HTML, images, or arbitrary UI. |
-| Tests | The extension has a test or a recorded test plan, and CI validates the schema, manifest, script, checksum, and fixture run. |
+| Tests | The extension has a test or a recorded test plan. CI validates the schema, manifest, package safety, and signature; release-asset and fixture checks remain planned. |
 | Removal | The README states how to disable or remove the extension, and the catalog entry can be withdrawn without breaking installed kiosks. |
 
 A reviewer may approve, request changes, or reject a submission. A maintainer never signs an index entry that has not passed review. Security removals follow the process below.

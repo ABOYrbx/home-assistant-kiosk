@@ -237,7 +237,7 @@ From the companion catalog repository, use its deterministic packager:
 scripts/package.sh org.example.bus-departures 1.0.0
 ```
 
-The packager validates the manifest and source tree, keeps `manifest.toml` at the archive root, normalizes tar/gzip metadata, and prints the package path, SHA-256, and byte size as JSON. Do not substitute a manual `tar -czf` command for releases because source timestamps, ownership, and gzip metadata would make the package nondeterministic.
+The packager keeps `manifest.toml` at the archive root, normalizes tar/gzip metadata, and prints the package path, SHA-256, and byte size as JSON. It does not replace catalog validation: after adding the package metadata to `index.json`, run `scripts/validate.sh` before signing. Do not substitute a manual `tar -czf` command for releases because source timestamps, ownership, and gzip metadata would make the package nondeterministic.
 
 The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub release asset or another stable HTTPS URL. Do not change a published package; publish a new version.
 
