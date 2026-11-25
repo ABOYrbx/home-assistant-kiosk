@@ -12,6 +12,7 @@ use ha_kiosk::events::{HaCommand, HaError, HaEvent, PendingAction, ServiceCall};
 use ha_kiosk::ha;
 use ha_kiosk::sources::{media, tiles, weather};
 use ha_kiosk::state::{AppState, CacheStore, ConnectionState};
+use ha_kiosk::ui::top_bar::connection_view;
 use secrecy::{ExposeSecret, SecretString};
 use serde_json::{Value, json};
 use std::net::SocketAddr;
@@ -338,7 +339,7 @@ async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(),
                         "c": [
                             {
                                 "entity_id": "light.example",
-                                "state": if tick % 2 == 0 { "on" } else { "off" },
+                                "state": if tick.is_multiple_of(2) { "on" } else { "off" },
                                 "attributes": {"brightness": brightness},
                             },
                             {
@@ -590,11 +591,29 @@ async fn invalid_token_reports_an_error_without_retrying() {
     }
     assert_eq!(app.state.connection, ConnectionState::AuthFailed);
 
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // The badge view model is what the UI consumes. A rejected token must be
+    // an error, not a transient warning that looks like a network hiccup.
+    let badge = connection_view(&app.state.connection, app.state.stale);
+    assert!(badge.error, "an auth failure must be shown as an error");
+    assert!(!badge.warning && !badge.connected);
+    assert_eq!(badge.label, "Auth failed");
+
+    // Wait through several reconnect backoff windows. A client that retried a
+    // rejected token would open another socket during this time.
+    tokio::time::sleep(Duration::from_millis(2_500)).await;
     assert_eq!(
         server.connections(),
         1,
         "a bad token must stop retrying instead of looping"
+    );
+    let auth_attempts = server
+        .requests()
+        .into_iter()
+        .filter(|request| request.get("type").and_then(Value::as_str) == Some("auth"))
+        .count();
+    assert_eq!(
+        auth_attempts, 1,
+        "the rejected token must be offered to Home Assistant exactly once"
     );
     match app.events.try_recv() {
         Err(mpsc::error::TryRecvError::Empty | mpsc::error::TryRecvError::Disconnected) => {}
@@ -758,7 +777,7 @@ async fn soak_with_state_change_stream_stays_bounded() {
         app.next_event().await;
         events += 1;
 
-        if events % 20 == 0 {
+        if events.is_multiple_of(20) {
             cache.save(&app.state).expect("cache write");
             cache_writes += 1;
             let size = std::fs::metadata(&cache_path)
