@@ -892,3 +892,115 @@ fn store_rejects_unsafe_ids() {
         StoreError::InvalidId(_)
     ));
 }
+
+#[test]
+fn install_keeps_only_the_active_and_one_previous_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let mut store = ExtensionStore::open(&root).unwrap();
+
+    for version in ["1.0.0", "2.0.0", "3.0.0"] {
+        let (entry, package) = entry_and_package(ID, version);
+        store
+            .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+            .unwrap();
+    }
+
+    let version_dir = |version: &str| root.join(ID).join(version);
+    assert!(!version_dir("1.0.0").exists());
+    assert!(version_dir("2.0.0").exists());
+    assert!(version_dir("3.0.0").exists());
+    assert_eq!(
+        store.previous_version(ID),
+        Some(Version::parse("2.0.0").unwrap())
+    );
+
+    store.rollback(ID).unwrap();
+    assert!(!version_dir("3.0.0").exists());
+    assert!(version_dir("2.0.0").exists());
+    assert_eq!(
+        store.get(ID).unwrap().version,
+        Version::parse("2.0.0").unwrap()
+    );
+}
+
+#[test]
+fn a_failed_install_leaves_no_partial_version_or_staging_directory() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let mut store = ExtensionStore::open(&root).unwrap();
+
+    // The package declares 2.0.0 but the signed entry declares 1.0.0, so the
+    // mismatch is detected after extraction and before the rename.
+    let package = build_package(ID, "2.0.0");
+    let index = index_json(vec![catalog_entry(ID, "1.0.0", &package)]);
+    let entry = entry_from_index(&index);
+    assert!(matches!(
+        store
+            .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+            .unwrap_err(),
+        StoreError::ManifestMismatch(_)
+    ));
+
+    assert!(store.get(ID).is_none());
+    assert!(!root.join(ID).join("1.0.0").exists());
+    assert!(!root.join(ID).join("2.0.0").exists());
+    let leftovers: Vec<_> = fs::read_dir(&root)
+        .unwrap()
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(".staging-"))
+        .collect();
+    assert!(leftovers.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn install_removes_the_new_version_when_the_index_cannot_be_saved() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let mut store = ExtensionStore::open(&root).unwrap();
+
+    // A directory at the index path makes the atomic rename in `save` fail.
+    fs::create_dir(root.join("installed.json")).unwrap();
+    let (entry, package) = entry_and_package(ID, "1.0.0");
+    assert!(
+        store
+            .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+            .is_err()
+    );
+
+    assert!(store.get(ID).is_none());
+    assert!(!root.join(ID).join("1.0.0").exists());
+    assert!(!root.join(".installed.json.tmp").exists());
+}
+
+#[test]
+fn rollback_restores_the_manifest_hash_of_the_retained_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let mut store = ExtensionStore::open(&root).unwrap();
+
+    let (entry_v1, package_v1) = entry_and_package(ID, "1.0.0");
+    store
+        .install(&entry_v1, &package_v1, CATALOG_URL, MAX_PACKAGE_BYTES)
+        .unwrap();
+    let v1_hash = sha256_hex(
+        &fs::read(
+            store
+                .extension_dir(ID, &Version::parse("1.0.0").unwrap())
+                .join("manifest.toml"),
+        )
+        .unwrap(),
+    );
+
+    let (entry_v2, package_v2) = entry_and_package(ID, "2.0.0");
+    store
+        .install(&entry_v2, &package_v2, CATALOG_URL, MAX_PACKAGE_BYTES)
+        .unwrap();
+    assert_ne!(store.get(ID).unwrap().manifest_sha256, v1_hash);
+
+    store.rollback(ID).unwrap();
+    drop(store);
+    let store = ExtensionStore::open(&root).unwrap();
+    assert_eq!(store.get(ID).unwrap().manifest_sha256, v1_hash);
+}
