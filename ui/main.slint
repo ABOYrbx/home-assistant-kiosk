@@ -144,6 +144,8 @@ export component MainWindow inherits Window {
             if current-page == 3 : StatusPage {
                 x: 0px; y: 0px; width: 100%; height: 100%;
                 extension-errors: root.extension-errors;
+                catalog-online: root.shop-catalog-online;
+                catalog-error: root.shop-catalog-error;
             }
             if current-page == 4 && extensions-enabled : ShopPage {
                 x: 0px; y: 0px; width: 100%; height: 100%;

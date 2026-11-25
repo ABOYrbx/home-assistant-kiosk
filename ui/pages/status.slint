@@ -2,8 +2,11 @@ import { Theme } from "../theme.slint";
 
 export component StatusPage inherits Rectangle {
     background: Theme.bg;
+    clip: true;
 
     in property <[string]> extension-errors: [];
+    in property <bool> catalog-online: true;
+    in property <string> catalog-error: "";
 
     VerticalLayout {
         padding: Theme.space-3;
@@ -15,26 +18,68 @@ export component StatusPage inherits Rectangle {
             font-size: Theme.text-xl;
         }
 
-        if extension-errors.length > 0 : Rectangle {
-            background: Theme.surface-warm;
-            border-radius: Theme.radius-md;
-            border-width: 1px;
-            border-color: Theme.border;
+        status-list := Flickable {
+            vertical-stretch: 1;
+            mouse-drag-pan-enabled: true;
+            content-width: self.width;
+            content-height: Math.max(self.height, status-content.preferred-height);
 
-            VerticalLayout {
-                padding: Theme.space-3;
-                spacing: Theme.space-1;
-                Text {
-                    text: "Extension errors";
-                    color: Theme.fg;
-                    font-size: Theme.text-base;
-                    font-weight: 600;
+            status-content := VerticalLayout {
+                width: 100%;
+                spacing: Theme.space-3;
+
+                if !catalog-online : Rectangle {
+                    background: Theme.surface-warm;
+                    border-radius: Theme.radius-md;
+                    border-width: 1px;
+                    border-color: Theme.border;
+
+                    VerticalLayout {
+                        padding: Theme.space-3;
+                        spacing: Theme.space-1;
+                        Text {
+                            text: "Catalog offline";
+                            color: Theme.warn;
+                            font-size: Theme.text-base;
+                            font-weight: 600;
+                        }
+                        Text {
+                            text: "Installed extensions remain available. Refresh the Shop when the catalog is reachable.";
+                            color: Theme.fg-2;
+                            font-size: Theme.text-sm;
+                            wrap: word-wrap;
+                        }
+                        if catalog-error != "" : Text {
+                            text: catalog-error;
+                            color: Theme.muted;
+                            font-size: Theme.text-sm;
+                            wrap: word-wrap;
+                        }
+                    }
                 }
-                for message in extension-errors : Text {
-                    text: message;
-                    color: Theme.danger;
-                    font-size: Theme.text-sm;
-                    wrap: word-wrap;
+
+                if extension-errors.length > 0 : Rectangle {
+                    background: Theme.surface-warm;
+                    border-radius: Theme.radius-md;
+                    border-width: 1px;
+                    border-color: Theme.border;
+
+                    VerticalLayout {
+                        padding: Theme.space-3;
+                        spacing: Theme.space-1;
+                        Text {
+                            text: "Extension errors";
+                            color: Theme.fg;
+                            font-size: Theme.text-base;
+                            font-weight: 600;
+                        }
+                        for message in extension-errors : status-error-message := Text {
+                            text: message;
+                            color: Theme.danger;
+                            font-size: Theme.text-sm;
+                            wrap: word-wrap;
+                        }
+                    }
                 }
             }
         }

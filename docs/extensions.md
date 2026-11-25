@@ -32,7 +32,7 @@ The Shop is a fifth page. It appears only when `extensions.enabled = true`; with
 - **Actions:** Install, Update, Remove, and Enable/Disable. Install opens a first-install trust confirmation that repeats the warning and permissions; nothing is installed until the user confirms. Update is offered only when the catalog version differs from the installed version.
 - **Honest state:** an action is shown as pending until the store confirms it. A failed action shows the error on the card; it is never rendered as a success.
 - **Offline:** installed extensions stay usable. Install and update are unavailable, and the page shows the catalog error instead of hiding the page.
-- **Errors** are also collected on the Status page.
+- **Status diagnostics:** extension failures and catalog-offline reasons also appear on the Status page. A successful catalog refresh clears the offline reason. Long error lists scroll within the page and do not block navigation.
 - **No on-screen keyboard:** the page shows the configuration keys and the exact TOML and secret file paths. Edit those files directly.
 
 The shop view model is backed by `extensions::manager`. The manager refreshes the signed catalog, downloads and verifies packages, drives the store, and runs installed scripts only on a background thread. The Shop page never blocks the UI thread and never reports an action as successful before the store confirms it.
