@@ -11,7 +11,7 @@ This file tells every agent and contributor how to work in this repository. Read
 
 ## 2. GitHub identity and push rules
 
-- The repository is private and belongs to the GitHub account **`ABOYrbx`**.
+- The repository is public and belongs to the GitHub account **`ABOYrbx`**.
 - **Every push must be made with the `ABOYrbx` account.** Do not push with another account, a shared account, a bot account, or an unauthenticated remote.
 - Before the first push in a session, and again before a merge or release push, verify:
 
@@ -38,10 +38,10 @@ This file tells every agent and contributor how to work in this repository. Read
 
 ### 2.1 Repository governance
 
-- The repository is private and **`ABOYrbx` is the only collaborator**. Do not invite users, teams, bots, or deploy keys.
+- The repository is public and **`ABOYrbx` is the only collaborator**. Anyone may read and fork it; only `ABOYrbx` may push. Do not invite users, teams, bots, or deploy keys.
 - `main` is the only long-lived branch. Use short-lived `wave-N/...`, `docs/...`, or `fix/...` branches.
 - The policy is pull-request-only, squash-merge-only, linear history, no force-push, no deletion of `main`, and a passing `docs` check. Use the pull request template and CODEOWNERS.
-- GitHub Free does **not** support branch protection or rulesets for private repositories. Until the repository is public or on GitHub Pro, these are process rules, not a technical block. Never treat the missing block as permission to push directly. The remaining technical step is tracked in issue #10.
+- The `main-protection` repository ruleset enforces that policy, including for administrators: `bypass_actors` is empty, the `docs` check must pass on an up-to-date branch, conversations must be resolved, and force-pushes and deletion are blocked. Reapply and verify it with `scripts/apply-github-settings.sh`. The ruleset is the technical block; never bypass it even when the platform would allow it.
 - Apply the available settings with `scripts/apply-github-settings.sh`; the full policy is in [`docs/github-rules.md`](docs/github-rules.md).
 - Releases and `v*` tags are made by `ABOYrbx` from `main`, with checksums and a changelog.
 - Workflows run with read-only `GITHUB_TOKEN` permissions by default and may not approve pull requests. Prefer GitHub-owned or verified actions.
