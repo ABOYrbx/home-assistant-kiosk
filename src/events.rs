@@ -93,6 +93,7 @@ pub enum ShopEvent {
         reason: String,
     },
     ActionResult {
+        request_id: u64,
         id: String,
         action: crate::extensions::ShopAction,
         result: Result<(), String>,

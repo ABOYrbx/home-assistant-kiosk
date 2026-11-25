@@ -9,6 +9,7 @@ fn entry(id: &str, name: &str, version: &str) -> ShopEntry {
         id: id.to_string(),
         name: name.to_string(),
         version: version.to_string(),
+        package_sha256: "a".repeat(64),
         author: "Example Author".to_string(),
         license: "MIT".to_string(),
         description: "Shows upcoming bus departures for a configured stop.".to_string(),
@@ -49,6 +50,11 @@ fn view_with_catalog() -> ShopView {
     view
 }
 
+fn complete_pending(view: &mut ShopView, id: &str, action: ShopAction, result: Result<(), String>) {
+    let request_id = view.pending.as_ref().unwrap().request_id;
+    view.complete(request_id, id, action, result).unwrap();
+}
+
 #[test]
 fn catalog_entries_are_listed_as_available() {
     let view = view_with_catalog();
@@ -81,7 +87,7 @@ fn install_flow_marks_the_extension_installed_after_store_success() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
     view.request(id, ShopAction::Install, true).unwrap();
-    view.complete(id, ShopAction::Install, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Install, Ok(()));
 
     let installed = view.entry(id).unwrap();
     assert_eq!(installed.installed_version.as_deref(), Some("1.0.0"));
@@ -98,12 +104,12 @@ fn failed_install_is_not_reported_as_success() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
     view.request(id, ShopAction::Install, true).unwrap();
-    view.complete(
+    complete_pending(
+        &mut view,
         id,
         ShopAction::Install,
         Err("checksum mismatch".to_string()),
-    )
-    .unwrap();
+    );
 
     let installed = view.entry(id).unwrap();
     assert!(installed.installed_version.is_none());
@@ -136,7 +142,7 @@ fn update_flow_uses_the_catalog_version() {
 
     let request = view.request(id, ShopAction::Update, true).unwrap();
     assert_eq!(request.version, "1.1.0");
-    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Update, Ok(()));
     assert_eq!(
         view.entry(id).unwrap().installed_version.as_deref(),
         Some("1.1.0")
@@ -154,7 +160,7 @@ fn update_requires_an_installed_extension_with_a_newer_version() {
     );
 
     view.request(id, ShopAction::Install, true).unwrap();
-    view.complete(id, ShopAction::Install, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Install, Ok(()));
     assert_eq!(
         view.request(id, ShopAction::Update, true).unwrap_err(),
         ShopError::NoUpdate(id.to_string())
@@ -205,7 +211,7 @@ fn updating_a_disabled_extension_preserves_its_disabled_state() {
         ExtensionStatus::UpdateAvailable
     );
     view.request(id, ShopAction::Update, true).unwrap();
-    view.complete(id, ShopAction::Update, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Update, Ok(()));
 
     let updated = view.entry(id).unwrap();
     assert_eq!(updated.installed_version.as_deref(), Some("1.1.0"));
@@ -218,11 +224,11 @@ fn remove_flow_clears_the_installation() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
     view.request(id, ShopAction::Install, true).unwrap();
-    view.complete(id, ShopAction::Install, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Install, Ok(()));
     view.set_configured(id, true);
 
     view.request(id, ShopAction::Remove, true).unwrap();
-    view.complete(id, ShopAction::Remove, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Remove, Ok(()));
 
     let removed = view.entry(id).unwrap();
     assert!(removed.installed_version.is_none());
@@ -236,8 +242,68 @@ fn completion_without_a_pending_request_is_rejected() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
 
-    assert!(view.complete(id, ShopAction::Install, Ok(())).is_err());
+    assert_eq!(
+        view.complete(0, id, ShopAction::Install, Ok(())),
+        Err(ShopError::NoPending)
+    );
     assert!(view.entry(id).unwrap().installed_version.is_none());
+    assert!(view.pending.is_none());
+}
+
+#[test]
+fn stale_completion_does_not_finish_a_newer_same_action() {
+    let id = "org.example.bus-departures";
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    view.set_installed(vec![InstalledExtension {
+        id: id.to_string(),
+        version: "1.0.0".to_string(),
+        enabled: true,
+        configured: true,
+        error: None,
+    }]);
+    view.apply_catalog(vec![entry(id, "Bus Departures", "1.1.0")]);
+    let first_request = view.request(id, ShopAction::Update, true).unwrap();
+    view.complete(first_request.request_id, id, ShopAction::Update, Ok(()))
+        .unwrap();
+
+    view.apply_catalog(vec![entry(id, "Bus Departures", "1.2.0")]);
+    let second_request = view.request(id, ShopAction::Update, true).unwrap();
+    assert_eq!(
+        view.complete(
+            first_request.request_id,
+            id,
+            ShopAction::Update,
+            Err("stale failure".to_string()),
+        ),
+        Err(ShopError::StaleRequest)
+    );
+    assert!(
+        view.pending.is_some(),
+        "a replayed result must not clear the newer request"
+    );
+    assert_eq!(
+        view.entry(id).unwrap().installed_version.as_deref(),
+        Some("1.1.0")
+    );
+    view.complete(second_request.request_id, id, ShopAction::Update, Ok(()))
+        .unwrap();
+    assert_eq!(
+        view.entry(id).unwrap().installed_version.as_deref(),
+        Some("1.2.0")
+    );
+}
+
+#[test]
+fn completion_for_a_vanished_entry_consumes_the_pending_request() {
+    let mut view = view_with_catalog();
+    let id = "org.example.bus-departures";
+    let request = view.request(id, ShopAction::Install, true).unwrap();
+    view.apply_catalog(Vec::new());
+
+    assert_eq!(
+        view.complete(request.request_id, id, ShopAction::Install, Ok(())),
+        Err(ShopError::Unknown(id.to_string()))
+    );
     assert!(view.pending.is_none());
 }
 
@@ -246,15 +312,15 @@ fn disable_and_enable_flow_updates_status() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
     view.request(id, ShopAction::Install, true).unwrap();
-    view.complete(id, ShopAction::Install, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Install, Ok(()));
 
     view.request(id, ShopAction::Disable, true).unwrap();
-    view.complete(id, ShopAction::Disable, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Disable, Ok(()));
     assert!(!view.entry(id).unwrap().enabled);
     assert_eq!(view.entry(id).unwrap().status(), ExtensionStatus::Disabled);
 
     view.request(id, ShopAction::Enable, true).unwrap();
-    view.complete(id, ShopAction::Enable, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Enable, Ok(()));
     assert!(view.entry(id).unwrap().enabled);
     assert_eq!(view.entry(id).unwrap().status(), ExtensionStatus::Installed);
 }
@@ -268,7 +334,7 @@ fn a_pending_action_blocks_a_second_request() {
         view.request(id, ShopAction::Install, true).unwrap_err(),
         ShopError::Busy
     );
-    view.complete(id, ShopAction::Install, Ok(())).unwrap();
+    complete_pending(&mut view, id, ShopAction::Install, Ok(()));
     assert!(view.pending.is_none());
 }
 
@@ -358,12 +424,12 @@ fn extension_errors_are_collected_for_the_status_page() {
     let mut view = view_with_catalog();
     let id = "org.example.bus-departures";
     view.request(id, ShopAction::Install, true).unwrap();
-    view.complete(
+    complete_pending(
+        &mut view,
         id,
         ShopAction::Install,
         Err("network unreachable".to_string()),
-    )
-    .unwrap();
+    );
     assert_eq!(
         view.extension_errors(),
         vec!["Bus Departures: network unreachable".to_string()]

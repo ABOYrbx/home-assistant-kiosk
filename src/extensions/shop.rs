@@ -105,6 +105,8 @@ pub struct ShopEntry {
     pub name: String,
     pub version: String,
     #[serde(default)]
+    pub package_sha256: String,
+    #[serde(default)]
     pub author: String,
     #[serde(default)]
     pub license: String,
@@ -216,6 +218,8 @@ pub struct InstalledExtension {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopPending {
+    #[serde(default)]
+    pub request_id: u64,
     pub id: String,
     pub action: ShopAction,
 }
@@ -224,9 +228,12 @@ pub struct ShopPending {
 /// off the UI thread and reports back with `ShopView::complete`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopRequest {
+    #[serde(default)]
+    pub request_id: u64,
     pub id: String,
     pub action: ShopAction,
     pub version: String,
+    pub package_sha256: String,
 }
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
@@ -245,6 +252,8 @@ pub enum ShopError {
     NoUpdate(String),
     #[error("no extension action is pending")]
     NoPending,
+    #[error("the extension action result is stale")]
+    StaleRequest,
     #[error("another extension action is already pending")]
     Busy,
 }
@@ -257,6 +266,8 @@ pub struct ShopView {
     pub config_path: String,
     pub secret_dir: String,
     pub pending: Option<ShopPending>,
+    #[serde(default)]
+    pub next_request_id: u64,
 }
 
 impl Default for ShopView {
@@ -268,6 +279,7 @@ impl Default for ShopView {
             config_path: String::new(),
             secret_dir: DEFAULT_SECRET_DIR.to_string(),
             pending: None,
+            next_request_id: 0,
         }
     }
 }
@@ -431,12 +443,17 @@ impl ShopView {
                 }
             }
         }
+        let request_id = self.next_request_id;
+        self.next_request_id = self.next_request_id.saturating_add(1);
         let request = ShopRequest {
+            request_id,
             id: id.to_string(),
             action,
             version: entry.version.clone(),
+            package_sha256: entry.package_sha256.clone(),
         };
         self.pending = Some(ShopPending {
+            request_id,
             id: id.to_string(),
             action,
         });
@@ -447,20 +464,19 @@ impl ShopView {
     /// failed action into an apparent success.
     pub fn complete(
         &mut self,
+        request_id: u64,
         id: &str,
         action: ShopAction,
         result: Result<(), String>,
     ) -> Result<(), ShopError> {
         let pending = self.pending.as_ref().ok_or(ShopError::NoPending)?;
-        if pending.id != id || pending.action != action {
-            return Err(ShopError::Busy);
+        if pending.request_id != request_id || pending.id != id || pending.action != action {
+            return Err(ShopError::StaleRequest);
         }
-        let entry = self
-            .entries
-            .iter_mut()
-            .find(|e| e.id == id)
-            .ok_or_else(|| ShopError::Unknown(id.to_string()))?;
         self.pending = None;
+        let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) else {
+            return Err(ShopError::Unknown(id.to_string()));
+        };
         match result {
             Ok(()) => {
                 entry.error = None;
@@ -501,6 +517,7 @@ impl ShopEntry {
             id: id.to_string(),
             name: id.to_string(),
             version: String::new(),
+            package_sha256: String::new(),
             author: String::new(),
             license: String::new(),
             description: String::new(),

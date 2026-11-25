@@ -16,10 +16,10 @@ type SharedShop = Rc<RefCell<ShopView>>;
 /// Work sent to the background extension worker.
 enum ShopTask {
     Refresh,
-    Install(String),
-    Update(String),
-    Remove(String),
-    SetEnabled(String, bool),
+    Install(u64, String),
+    Update(u64, String),
+    Remove(u64, String),
+    SetEnabled(u64, String, bool),
 }
 
 #[allow(dead_code)]
@@ -231,8 +231,13 @@ impl AppController {
                         ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
                         ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
                         ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
-                        ShopEvent::ActionResult { id, action, result } => {
-                            let _ = shop.complete(&id, action, result);
+                        ShopEvent::ActionResult {
+                            request_id,
+                            id,
+                            action,
+                            result,
+                        } => {
+                            let _ = shop.complete(request_id, &id, action, result);
                         }
                     }
                 }
@@ -309,18 +314,33 @@ fn run_shop_action(
     {
         let mut shop = shop.borrow_mut();
         match shop.request(id, action, confirmed) {
-            Ok(_request) => {
+            Ok(request) => {
                 let task = match action {
-                    ShopAction::Install => Some(ShopTask::Install(id.to_string())),
-                    ShopAction::Update => Some(ShopTask::Update(id.to_string())),
-                    ShopAction::Remove => Some(ShopTask::Remove(id.to_string())),
-                    ShopAction::Enable => Some(ShopTask::SetEnabled(id.to_string(), true)),
-                    ShopAction::Disable => Some(ShopTask::SetEnabled(id.to_string(), false)),
+                    ShopAction::Install => {
+                        Some(ShopTask::Install(request.request_id, id.to_string()))
+                    }
+                    ShopAction::Update => {
+                        Some(ShopTask::Update(request.request_id, id.to_string()))
+                    }
+                    ShopAction::Remove => {
+                        Some(ShopTask::Remove(request.request_id, id.to_string()))
+                    }
+                    ShopAction::Enable => Some(ShopTask::SetEnabled(
+                        request.request_id,
+                        id.to_string(),
+                        true,
+                    )),
+                    ShopAction::Disable => Some(ShopTask::SetEnabled(
+                        request.request_id,
+                        id.to_string(),
+                        false,
+                    )),
                 };
                 if let (Some(tasks), Some(task)) = (tasks, task) {
                     let _ = tasks.send(task);
                 } else {
                     let _ = shop.complete(
+                        request.request_id,
                         id,
                         action,
                         Err("The extension shop is not enabled.".to_string()),
@@ -357,8 +377,15 @@ fn apply_shop_event(shop: &mut ShopView, event: ShopEvent) {
         ShopEvent::InstalledLoaded(installed) => shop.set_installed(installed),
         ShopEvent::CatalogLoaded(catalog) => shop.apply_catalog(catalog),
         ShopEvent::CatalogOffline { reason } => shop.mark_catalog_offline(reason),
-        ShopEvent::ActionResult { id, action, result } => {
-            let _ = shop.complete(&id, action, result);
+        ShopEvent::ActionResult {
+            request_id,
+            id,
+            action,
+            result,
+        } => {
+            if let Err(error) = shop.complete(request_id, &id, action, result) {
+                tracing::debug!(%error, %id, "ignored stale extension action result");
+            }
         }
     }
 }
@@ -428,26 +455,58 @@ fn run_shop_worker(
                     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
                 }
             },
-            ShopTask::Install(id) => {
-                report_action(&events, &id, ShopAction::Install, manager.install(&id));
-                refresh_after_action(manager, &events, catalog_online);
+            ShopTask::Install(request_id, id) => {
+                let result = manager.install(&id);
+                finish_shop_action(
+                    manager,
+                    &events,
+                    catalog_online,
+                    request_id,
+                    &id,
+                    ShopAction::Install,
+                    result,
+                );
             }
-            ShopTask::Update(id) => {
-                report_action(&events, &id, ShopAction::Update, manager.update(&id));
-                refresh_after_action(manager, &events, catalog_online);
+            ShopTask::Update(request_id, id) => {
+                let result = manager.update(&id);
+                finish_shop_action(
+                    manager,
+                    &events,
+                    catalog_online,
+                    request_id,
+                    &id,
+                    ShopAction::Update,
+                    result,
+                );
             }
-            ShopTask::Remove(id) => {
-                report_action(&events, &id, ShopAction::Remove, manager.remove(&id));
-                refresh_after_action(manager, &events, catalog_online);
+            ShopTask::Remove(request_id, id) => {
+                let result = manager.remove(&id);
+                finish_shop_action(
+                    manager,
+                    &events,
+                    catalog_online,
+                    request_id,
+                    &id,
+                    ShopAction::Remove,
+                    result,
+                );
             }
-            ShopTask::SetEnabled(id, enabled) => {
+            ShopTask::SetEnabled(request_id, id, enabled) => {
                 let action = if enabled {
                     ShopAction::Enable
                 } else {
                     ShopAction::Disable
                 };
-                report_action(&events, &id, action, manager.set_enabled(&id, enabled));
-                refresh_after_action(manager, &events, catalog_online);
+                let result = manager.set_enabled(&id, enabled);
+                finish_shop_action(
+                    manager,
+                    &events,
+                    catalog_online,
+                    request_id,
+                    &id,
+                    action,
+                    result,
+                );
             }
         }
     }
@@ -455,11 +514,13 @@ fn run_shop_worker(
 
 fn report_action(
     events: &std_mpsc::Sender<ShopEvent>,
+    request_id: u64,
     id: &str,
     action: ShopAction,
     result: Result<(), crate::extensions::ManagerError>,
 ) {
     let _ = events.send(ShopEvent::ActionResult {
+        request_id,
         id: id.to_string(),
         action,
         result: result.map_err(|error| error.to_string()),
@@ -477,5 +538,116 @@ fn refresh_after_action<
     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
+    }
+}
+
+fn finish_shop_action<
+    C: crate::extensions::CatalogFetcher,
+    P: crate::extensions::CatalogFetcher,
+>(
+    manager: &mut ExtensionManager<C, P>,
+    events: &std_mpsc::Sender<ShopEvent>,
+    catalog_online: bool,
+    request_id: u64,
+    id: &str,
+    action: ShopAction,
+    result: Result<(), crate::extensions::ManagerError>,
+) {
+    refresh_after_action(manager, events, catalog_online);
+    report_action(events, request_id, id, action, result);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::extensions::{CatalogFetcher, FetchError, ManagerError};
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::Path;
+    use url::Url;
+
+    const ID: &str = "org.example.bus-departures";
+
+    struct UnusedFetcher;
+
+    impl CatalogFetcher for UnusedFetcher {
+        fn get(&mut self, url: &Url, _max_bytes: u64) -> Result<Vec<u8>, FetchError> {
+            Err(FetchError::Status {
+                status: 500,
+                url: url.to_string(),
+            })
+        }
+    }
+
+    fn manager_with_installed(root: &Path) -> ExtensionManager<UnusedFetcher, UnusedFetcher> {
+        let store_path = root.join("extensions");
+        fs::create_dir_all(&store_path).unwrap();
+        fs::write(
+            store_path.join("installed.json"),
+            serde_json::to_vec_pretty(&serde_json::json!({
+                "schema_version": 1,
+                "extensions": [{
+                    "id": ID,
+                    "version": "1.0.0",
+                    "enabled": true,
+                    "manifest_sha256": "0".repeat(64),
+                    "source_catalog": "",
+                    "installed_at": "2026-11-25T00:00:00Z",
+                }],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        ExtensionManager::new(
+            ManagerOptions {
+                app_version: semver::Version::new(0, 1, 0),
+                catalog_url: None,
+                public_keys: Vec::new(),
+                allow_unsigned: false,
+                dev_mode: false,
+                max_catalog_bytes: 1024,
+                max_package_bytes: 1024,
+                store_path,
+                secret_dir: root.join("secrets"),
+                settings: BTreeMap::new(),
+            },
+            UnusedFetcher,
+            UnusedFetcher,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn failed_action_keeps_its_error_after_store_snapshots() {
+        let root = tempfile::tempdir().unwrap();
+        let mut manager = manager_with_installed(root.path());
+        let mut entry = manager.shop_entries().into_iter().next().unwrap();
+        entry.version = "2.0.0".to_string();
+        entry.available = true;
+        let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+        view.apply_catalog(vec![entry]);
+        let request = view.request(ID, ShopAction::Update, true).unwrap();
+
+        let result = manager.update(ID);
+        assert!(matches!(&result, Err(ManagerError::NoCatalog)));
+        let (events, received) = std_mpsc::channel();
+        finish_shop_action(
+            &mut manager,
+            &events,
+            false,
+            request.request_id,
+            ID,
+            ShopAction::Update,
+            result,
+        );
+        while let Ok(event) = received.try_recv() {
+            apply_shop_event(&mut view, event);
+        }
+
+        assert!(view.pending.is_none());
+        assert_eq!(
+            view.entry(ID).unwrap().error.as_deref(),
+            Some("no catalog URL is configured")
+        );
     }
 }
