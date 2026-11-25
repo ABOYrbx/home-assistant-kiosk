@@ -127,6 +127,7 @@ FORBIDDEN = [
 ]
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+URL_RE = re.compile(r"^(https?|wss?)://", re.IGNORECASE)
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -213,23 +214,11 @@ def is_placeholder_host(hostname: str) -> bool:
 
 def check_example_safety(data: dict) -> None:
     ha = data.get("ha", {})
-    if isinstance(ha, dict):
-        if "token" in ha:
-            errors.append(
-                "config.example.toml must not set ha.token; keep the literal token "
-                "example commented and use token_file or HA_TOKEN"
-            )
-        url = ha.get("url")
-        if isinstance(url, str):
-            try:
-                hostname = urlsplit(url).hostname
-            except ValueError:
-                hostname = None
-            if not hostname or not is_placeholder_host(hostname):
-                errors.append(
-                    "config.example.toml ha.url must use a placeholder URL host "
-                    "(localhost or a .example, .test, or .local name)"
-                )
+    if isinstance(ha, dict) and "token" in ha:
+        errors.append(
+            "config.example.toml must not set ha.token; keep the literal token "
+            "example commented and use token_file or HA_TOKEN"
+        )
 
     extensions = data.get("extensions", {})
     if isinstance(extensions, dict) and extensions.get("settings"):
@@ -250,6 +239,16 @@ def check_example_safety(data: dict) -> None:
             errors.append(
                 f"config.example.toml {path} contains a personal identifier"
             )
+        if URL_RE.match(value):
+            try:
+                hostname = urlsplit(value).hostname
+            except ValueError:
+                hostname = None
+            if not hostname or not is_placeholder_host(hostname):
+                errors.append(
+                    f"config.example.toml {path} must use a placeholder URL host "
+                    "(localhost or a .example, .test, or .local name)"
+                )
 
 
 def config_paths(value: object, prefix: str = "") -> list[str]:

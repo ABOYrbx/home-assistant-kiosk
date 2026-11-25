@@ -16,5 +16,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Security
 
 - Documented token handling, file permissions, TLS validation, and the offline-cache exposure model.
+- Hardened `config.example.toml` with per-key comments and placeholder-only values; `scripts/check-docs.py` now rejects active tokens, non-placeholder URL hosts, active extension settings, personal paths, and personal identifiers in the shipped example.
 
 [Unreleased]: https://github.com/ABOYrbx/home-assistant-kiosk/commits/main

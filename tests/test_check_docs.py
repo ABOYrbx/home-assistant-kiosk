@@ -100,6 +100,13 @@ class ExampleConfigSafetyTest(unittest.TestCase):
         )
         self.assert_unsafe(content, "placeholder URL")
 
+    def test_example_rejects_non_placeholder_catalog_url(self) -> None:
+        content = BASE_CONFIG.replace(
+            "https://catalog.example/index.json",
+            "https://catalog.real-vendor.example.org/index.json",
+        )
+        self.assert_unsafe(content, "placeholder URL")
+
     def test_example_rejects_personal_path(self) -> None:
         content = BASE_CONFIG.replace(
             'token_file = "/etc/ha-kiosk/ha_token"',
