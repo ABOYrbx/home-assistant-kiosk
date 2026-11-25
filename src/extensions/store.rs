@@ -173,14 +173,15 @@ impl ExtensionStore {
         self.prune_versions(&entry.id, &entry.version, previous.as_ref())?;
 
         let now = Utc::now();
-        match self.index.extensions.iter_mut().find(|e| e.id == entry.id) {
+        let mut next_index = self.index.clone();
+        match next_index.extensions.iter_mut().find(|e| e.id == entry.id) {
             Some(record) => {
                 record.version = entry.version.clone();
                 record.manifest_sha256 = manifest_sha256;
                 record.source_catalog = source_catalog.to_string();
                 record.installed_at = now;
             }
-            None => self.index.extensions.push(InstalledExtension {
+            None => next_index.extensions.push(InstalledExtension {
                 id: entry.id.clone(),
                 version: entry.version.clone(),
                 enabled: true,
@@ -189,8 +190,12 @@ impl ExtensionStore {
                 installed_at: now,
             }),
         }
-        self.index.extensions.sort_by(|a, b| a.id.cmp(&b.id));
-        self.save()?;
+        next_index.extensions.sort_by(|a, b| a.id.cmp(&b.id));
+        if let Err(error) = self.save(&next_index) {
+            let _ = fs::remove_dir_all(&target);
+            return Err(error.into());
+        }
+        self.index = next_index;
 
         Ok(InstallOutcome {
             id: entry.id.clone(),
@@ -211,15 +216,16 @@ impl ExtensionStore {
             .previous_version(id)
             .ok_or_else(|| StoreError::NoPreviousVersion(id.to_string()))?;
 
-        let record = self
-            .index
+        let mut next_index = self.index.clone();
+        let record = next_index
             .extensions
             .iter_mut()
             .find(|e| e.id == id)
             .ok_or_else(|| StoreError::NotInstalled(id.to_string()))?;
         record.version = previous.clone();
         record.installed_at = Utc::now();
-        self.save()?;
+        self.save(&next_index)?;
+        self.index = next_index;
 
         let current_dir = self.extension_dir(id, &current);
         if current_dir.exists() {
@@ -243,11 +249,13 @@ impl ExtensionStore {
             return Err(StoreError::NotInstalled(id.to_string()));
         }
         let id_dir = self.root.join(id);
+        let mut next_index = self.index.clone();
+        next_index.extensions.retain(|e| e.id != id);
+        self.save(&next_index)?;
+        self.index = next_index;
         if id_dir.exists() {
             fs::remove_dir_all(&id_dir)?;
         }
-        self.index.extensions.retain(|e| e.id != id);
-        self.save()?;
         if purge_settings {
             tracing::info!("removed settings for extension {id}");
         }
@@ -256,14 +264,16 @@ impl ExtensionStore {
 
     pub fn set_enabled(&mut self, id: &str, enabled: bool) -> Result<(), StoreError> {
         check_id(id)?;
-        let record = self
-            .index
+        let mut next_index = self.index.clone();
+        let record = next_index
             .extensions
             .iter_mut()
             .find(|e| e.id == id)
             .ok_or_else(|| StoreError::NotInstalled(id.to_string()))?;
         record.enabled = enabled;
-        self.save()
+        self.save(&next_index)?;
+        self.index = next_index;
+        Ok(())
     }
 
     /// Highest installed version other than the active one.
@@ -306,8 +316,8 @@ impl ExtensionStore {
         Ok(())
     }
 
-    fn save(&self) -> Result<(), StoreError> {
-        let data = serde_json::to_vec_pretty(&self.index)
+    fn save(&self, index: &InstalledIndex) -> Result<(), StoreError> {
+        let data = serde_json::to_vec_pretty(index)
             .map_err(|e| StoreError::CorruptIndex(e.to_string()))?;
         let tmp = self.root.join(".installed.json.tmp");
         {

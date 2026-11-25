@@ -33,6 +33,8 @@ pub enum PackageError {
     UnsafePath(String),
     #[error("unsupported archive entry: {0}")]
     UnsupportedEntry(String),
+    #[error("package contains a forbidden file: {0}")]
+    ForbiddenFile(String),
     #[error("decompressed package exceeds {limit} bytes")]
     DecompressedTooLarge { limit: u64 },
     #[error("io error: {0}")]
@@ -92,7 +94,7 @@ pub fn extract_package_with_limit(
     let mut count: usize = 0;
 
     for entry in archive.entries()? {
-        let entry = entry?;
+        let mut entry = entry?;
         count += 1;
         if count > MAX_ARCHIVE_ENTRIES {
             return Err(PackageError::Invalid("too many archive entries".into()));
@@ -110,14 +112,24 @@ pub fn extract_package_with_limit(
         let entry_type = entry.header().entry_type();
         match entry_type {
             EntryType::Regular => {
+                let mode = entry.header().mode()?;
+                if is_forbidden_extension(&path) || mode & 0o111 != 0 {
+                    return Err(PackageError::ForbiddenFile(path.display().to_string()));
+                }
+                let mut prefix = [0_u8; 4];
+                let prefix_len = entry.read(&mut prefix)?;
+                if has_forbidden_magic(&prefix[..prefix_len]) {
+                    return Err(PackageError::ForbiddenFile(path.display().to_string()));
+                }
                 let target = destination.join(&path);
                 if let Some(parent) = target.parent() {
                     create_private_dir(parent)?;
                 }
                 let mut file = private_file(&target)?;
                 let remaining = max_decompressed_bytes.saturating_sub(total);
-                let copied =
-                    std::io::copy(&mut entry.take(remaining.saturating_add(1)), &mut file)?;
+                let mut content = std::io::Cursor::new(prefix[..prefix_len].to_vec())
+                    .chain(entry.take(remaining.saturating_add(1)));
+                let copied = std::io::copy(&mut content, &mut file)?;
                 total += copied;
                 if total > max_decompressed_bytes {
                     return Err(PackageError::DecompressedTooLarge {
@@ -160,6 +172,42 @@ pub fn load_manifest(directory: &Path) -> Result<ExtensionManifest, PackageError
 pub fn manifest_bytes(directory: &Path) -> Result<Vec<u8>, PackageError> {
     fs::read(directory.join("manifest.toml"))
         .map_err(|_| PackageError::Invalid("package is missing manifest.toml".into()))
+}
+
+fn is_forbidden_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "so" | "dylib"
+                    | "dll"
+                    | "exe"
+                    | "wasm"
+                    | "slint"
+                    | "sh"
+                    | "bat"
+                    | "cmd"
+                    | "com"
+                    | "bin"
+                    | "o"
+                    | "a"
+                    | "d"
+                    | "lib"
+                    | "sys"
+            )
+        })
+        .unwrap_or(false)
+}
+
+fn has_forbidden_magic(prefix: &[u8]) -> bool {
+    prefix.starts_with(b"\x7fELF")
+        || prefix.starts_with(b"\0asm")
+        || prefix.starts_with(b"MZ")
+        || prefix.starts_with(&[0xcf, 0xfa, 0xed, 0xfe])
+        || prefix.starts_with(&[0xfe, 0xed, 0xfa, 0xcf])
+        || prefix.starts_with(&[0xca, 0xfe, 0xba, 0xbe])
+        || prefix.starts_with(&[0xbe, 0xba, 0xfe, 0xca])
 }
 
 fn is_safe_archive_path(path: &Path) -> bool {

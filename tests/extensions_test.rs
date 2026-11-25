@@ -55,9 +55,13 @@ ha_entities = ["sensor.example"]
 }
 
 fn append(builder: &mut tar::Builder<&mut Vec<u8>>, path: &str, data: &[u8]) {
+    append_with_mode(builder, path, data, 0o644);
+}
+
+fn append_with_mode(builder: &mut tar::Builder<&mut Vec<u8>>, path: &str, data: &[u8], mode: u32) {
     let mut header = tar::Header::new_gnu();
     header.set_size(data.len() as u64);
-    header.set_mode(0o644);
+    header.set_mode(mode);
     header.set_cksum();
     builder.append_data(&mut header, path, data).unwrap();
 }
@@ -127,6 +131,22 @@ fn build_package(id: &str, version: &str) -> Vec<u8> {
         append(&mut builder, "main.rhai", b"fn refresh(config) { 42 }");
         append(&mut builder, "README.md", b"# Bus Departures");
         append(&mut builder, "LICENSE", b"MIT");
+        builder.finish().unwrap();
+    }
+    gzip(&tar_bytes)
+}
+
+fn package_with_extra_file(path: &str, data: &[u8], mode: u32) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        append(
+            &mut builder,
+            "manifest.toml",
+            manifest_toml(ID, "1.0.0").as_bytes(),
+        );
+        append(&mut builder, "main.rhai", b"fn refresh(config) { 42 }");
+        append_with_mode(&mut builder, path, data, mode);
         builder.finish().unwrap();
     }
     gzip(&tar_bytes)
@@ -587,6 +607,46 @@ fn missing_manifest_is_rejected() {
     assert!(matches!(error, PackageError::Invalid(_)));
 }
 
+#[test]
+fn native_wasm_and_slint_files_are_rejected() {
+    for path in [
+        "lib/native.so",
+        "lib/native.dll",
+        "lib/native.dylib",
+        "bin/tool.exe",
+        "bin/module.wasm",
+        "ui/custom.slint",
+        "scripts/install.sh",
+    ] {
+        let package = package_with_extra_file(path, b"forbidden content", 0o644);
+        let dir = tempfile::tempdir().unwrap();
+        let error = extract_package(&package, dir.path()).unwrap_err();
+        assert!(
+            matches!(error, PackageError::ForbiddenFile(_)),
+            "package file {path} must be rejected"
+        );
+    }
+}
+
+#[test]
+fn executable_and_native_magic_files_are_rejected() {
+    let cases: [(&str, &[u8], u32); 4] = [
+        ("assets/tool", b"\x7fELFbinary", 0o644),
+        ("assets/library", b"\x00asm\x01\x00\x00\x00", 0o644),
+        ("assets/app", b"\xcf\xfa\xed\xfebinary", 0o644),
+        ("scripts/run", b"#!/bin/sh\n", 0o755),
+    ];
+    for (path, data, mode) in cases {
+        let package = package_with_extra_file(path, data, mode);
+        let dir = tempfile::tempdir().unwrap();
+        let error = extract_package(&package, dir.path()).unwrap_err();
+        assert!(
+            matches!(error, PackageError::ForbiddenFile(_)),
+            "package file {path} must be rejected"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Catalog client and offline cache
 // ---------------------------------------------------------------------------
@@ -805,6 +865,95 @@ fn store_persists_installed_json() {
     assert!(!record.enabled);
     assert_eq!(record.source_catalog, CATALOG_URL);
     assert_eq!(record.manifest_sha256.len(), 64);
+}
+
+fn block_index_save(root: &Path) {
+    fs::create_dir(root.join(".installed.json.tmp")).unwrap();
+}
+
+#[test]
+fn failed_enable_persists_neither_memory_nor_disk_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let (entry, package) = entry_and_package(ID, "1.0.0");
+    let mut store = ExtensionStore::open(&root).unwrap();
+    store
+        .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+        .unwrap();
+    block_index_save(&root);
+
+    assert!(store.set_enabled(ID, false).is_err());
+    assert!(store.get(ID).unwrap().enabled);
+    drop(store);
+    assert!(
+        ExtensionStore::open(&root)
+            .unwrap()
+            .get(ID)
+            .unwrap()
+            .enabled
+    );
+}
+
+#[test]
+fn failed_remove_keeps_the_index_and_installed_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let (entry, package) = entry_and_package(ID, "1.0.0");
+    let mut store = ExtensionStore::open(&root).unwrap();
+    store
+        .install(&entry, &package, CATALOG_URL, MAX_PACKAGE_BYTES)
+        .unwrap();
+    block_index_save(&root);
+
+    assert!(store.remove(ID, false).is_err());
+    assert!(store.get(ID).is_some());
+    assert!(
+        store
+            .extension_dir(ID, &Version::parse("1.0.0").unwrap())
+            .join("manifest.toml")
+            .is_file()
+    );
+    drop(store);
+    assert!(ExtensionStore::open(&root).unwrap().get(ID).is_some());
+}
+
+#[test]
+fn failed_update_keeps_the_previous_version_and_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("extensions");
+    let (entry_v1, package_v1) = entry_and_package(ID, "1.0.0");
+    let (entry_v2, package_v2) = entry_and_package(ID, "2.0.0");
+    let mut store = ExtensionStore::open(&root).unwrap();
+    store
+        .install(&entry_v1, &package_v1, CATALOG_URL, MAX_PACKAGE_BYTES)
+        .unwrap();
+    block_index_save(&root);
+
+    assert!(
+        store
+            .install(&entry_v2, &package_v2, CATALOG_URL, MAX_PACKAGE_BYTES)
+            .is_err()
+    );
+    assert_eq!(
+        store.get(ID).unwrap().version,
+        Version::parse("1.0.0").unwrap()
+    );
+    assert!(
+        store
+            .extension_dir(ID, &Version::parse("1.0.0").unwrap())
+            .join("manifest.toml")
+            .is_file()
+    );
+    assert!(!root.join(ID).join("2.0.0").exists());
+    drop(store);
+    assert_eq!(
+        ExtensionStore::open(&root)
+            .unwrap()
+            .get(ID)
+            .unwrap()
+            .version,
+        Version::parse("1.0.0").unwrap()
+    );
 }
 
 #[cfg(unix)]
