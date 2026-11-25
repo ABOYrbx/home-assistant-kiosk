@@ -255,13 +255,14 @@ The catalog records the SHA-256 and byte size. Publish the `.hkext` as a GitHub 
 
 ## Publishing
 
-1. Open a pull request in the catalog repository.
-2. Include `manifest.toml`, `main.rhai`, `README.md`, `LICENSE`, and tests or a test plan.
-3. Keep permissions minimal. A bus widget should not request Home Assistant entities it does not display.
-4. Do not include secrets, personal stop IDs, home addresses, or real API keys.
-5. Wait for CI validation and review.
-6. A maintainer publishes the release asset and signs the catalog index offline.
-7. Never sign a package whose contents you have not reviewed.
+1. Open a pull request in the catalog repository with `manifest.toml`, `main.rhai`, `README.md`, `LICENSE`, and tests or a test plan.
+2. Keep permissions minimal. A bus widget should not request Home Assistant entities it does not display. Do not include secrets, personal stop IDs, home addresses, or real API keys.
+3. A maintainer reviews the source, license, and declared permissions.
+4. Build and inspect the `.hkext`, then publish the exact package as an immutable GitHub release asset. Never replace a published asset.
+5. Regenerate the candidate `index.json` with the asset URL, SHA-256, and byte size. Review the downloaded package bytes, manifest, permissions, and checksum against the index.
+6. Wait for candidate CI validation and maintainer approval.
+7. Follow the [catalog release and signing flow](extension-catalog.md#release-and-signing-flow): a maintainer signs the exact validated index offline, returns only the signature, and signed-release CI verifies the pair before merge.
+8. Never sign a package whose contents you have not reviewed. The private key stays offline and never enters CI or either repository.
 
 ## Versioning and deprecation
 
