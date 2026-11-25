@@ -19,7 +19,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - An invalid token marks cached data stale and stops retrying instead of letting old values look live.
-- A fresh snapshot clears the stale badge even when no new `Connected` event arrives.
 - A malformed frame during the WebSocket handshake no longer forces a reconnect; a bounded skip tolerates a corrupt frame and abandons a peer that only sends garbage.
 - A failed tile service call renders its error, keeps the confirmed state, and allows a retry.
 
@@ -28,6 +27,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The authentication failure badge reads "Authentication failed".
 - The dependency audit runs a pinned `cargo-audit` 0.23.0 against the committed `Cargo.lock`, and both workflows install Rust with the runner's `rustup`.
 - The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
+
+### Fixed
+
+- A reconnect keeps the stale badge until the first fresh snapshot arrives, so cached values never look live; the first batch after a reconnect also replaces entities that disappeared while Home Assistant was offline.
 
 ### Security
 
