@@ -196,17 +196,8 @@ async fn connect_once(
         .await
         .map_err(|e| HaError::Connection(e.to_string()))?;
 
-    let sub_id = next_request_id();
-    let sub_msg = json!({
-        "id": sub_id,
-        "type": "subscribe_entities",
-        "entity_ids": entity_ids,
-    });
-    ws.send(Message::Text(sub_msg.to_string().into()))
-        .await
-        .map_err(|e| HaError::Connection(e.to_string()))?;
-
     let mut time_zone: chrono_tz::Tz = config.time_zone.unwrap_or(chrono_tz::Tz::UTC);
+    let mut setup_events = Vec::new();
     loop {
         let msg = read_json(&mut ws).await?;
         if msg.get("type").and_then(|v| v.as_str()) == Some("result") {
@@ -226,14 +217,28 @@ async fn connect_once(
                     .await;
                 break;
             }
-            // other results (sub ack) ignored
             continue;
         }
         if msg.get("type").and_then(|v| v.as_str()) == Some("event") {
-            let event = msg.get("event").cloned().unwrap_or(Value::Null);
-            process_event(&event, event_tx).await;
+            setup_events.push(msg.get("event").cloned().unwrap_or(Value::Null));
         }
     }
+
+    // Entity data must not outrun the server config: the UI installs the Home
+    // Assistant timezone on Connected before it applies any setup events.
+    for event in setup_events {
+        process_event(&event, event_tx).await;
+    }
+
+    let sub_id = next_request_id();
+    let sub_msg = json!({
+        "id": sub_id,
+        "type": "subscribe_entities",
+        "entity_ids": entity_ids,
+    });
+    ws.send(Message::Text(sub_msg.to_string().into()))
+        .await
+        .map_err(|e| HaError::Connection(e.to_string()))?;
 
     // main loop
     let mut ping_timer = tokio::time::interval(Duration::from_secs(30));
@@ -253,6 +258,11 @@ async fn connect_once(
                         }
                         if v.get("type").and_then(|x| x.as_str()) == Some("result") {
                             let id = v.get("id").and_then(|x| x.as_u64()).unwrap_or(0);
+                            if id == sub_id {
+                                // The subscription acknowledgement is protocol
+                                // setup, not the result of a user action.
+                                continue;
+                            }
                             // get_states response -> snapshot
                             // We don't track type; if result is array of entities, emit snapshot.
                             if let Some(arr) = v.get("result").and_then(|r| r.as_array())

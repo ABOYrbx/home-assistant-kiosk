@@ -37,6 +37,8 @@ enum Behaviour {
     RejectToken,
     /// Answer `call_service` with an error result.
     ServiceFailure,
+    /// Send an initial entity event before the `get_config` result.
+    EarlySnapshot,
     /// Send malformed and unexpected messages before valid data.
     Malformed,
     /// Stream state changes for an unbounded soak run.
@@ -94,6 +96,23 @@ impl MockHaServer {
 
     fn requests(&self) -> Vec<Value> {
         self.requests.lock().expect("request log").clone()
+    }
+
+    async fn wait_for_request(&self, request_type: &str) -> Value {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(request) = self
+                    .requests()
+                    .into_iter()
+                    .find(|request| request["type"] == request_type)
+                {
+                    return request;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("timed out waiting for {request_type} request"))
     }
 
     fn service_calls(&self) -> Vec<Value> {
@@ -168,6 +187,9 @@ async fn serve_connection(
 
         match request.get("type").and_then(Value::as_str) {
             Some("get_config") => {
+                if behaviour == Behaviour::EarlySnapshot {
+                    send_scenario_messages(&mut ws, behaviour).await?;
+                }
                 send(
                     &mut ws,
                     json!({
@@ -338,7 +360,7 @@ async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(),
                         "c": [
                             {
                                 "entity_id": "light.example",
-                                "state": if tick % 2 == 0 { "on" } else { "off" },
+                                "state": if tick.is_multiple_of(2) { "on" } else { "off" },
                                 "attributes": {"brightness": brightness},
                             },
                             {
@@ -454,7 +476,7 @@ fn state_with_entity(entity_id: &str, state: &str) -> AppState {
 
 #[tokio::test]
 async fn config_connect_snapshot_reaches_ui_state() {
-    let server = MockHaServer::start(Behaviour::Normal).await;
+    let server = MockHaServer::start(Behaviour::EarlySnapshot).await;
     let dir = tempfile::tempdir().expect("temp dir");
     let config_path = dir.path().join("config.toml");
     std::fs::write(
@@ -464,6 +486,7 @@ async fn config_connect_snapshot_reaches_ui_state() {
 [ha]
 url = "{url}"
 token = "test-token"
+time_zone = "UTC"
 extra_entity_ids = ["weather.home", "media_player.example"]
 
 [cache]
@@ -480,6 +503,11 @@ entity = "light.example"
 
     let config = Config::load(&config_path).expect("config loads");
     assert_eq!(
+        config.ha.token.expose_secret(),
+        "test-token",
+        "the TOML token must not be replaced by an environment override"
+    );
+    assert_eq!(
         config.subscribed_entity_ids(),
         vec![
             "light.example".to_string(),
@@ -488,16 +516,25 @@ entity = "light.example"
         ]
     );
 
-    let mut app = TestApp::start_with(
-        ha_config(config.ha.url.clone(), config.ha.token.expose_secret()),
-        config.subscribed_entity_ids(),
+    let mut app = TestApp::start_with(config.ha.clone(), config.subscribed_entity_ids());
+
+    let connected = app.next_event().await;
+    assert!(
+        matches!(
+            connected,
+            HaEvent::Connected {
+                ha_version,
+                time_zone,
+            } if ha_version == HA_VERSION && time_zone == TIME_ZONE.parse().unwrap()
+        ),
+        "the first application event must carry the authenticated server config"
     );
-    app.wait_until(|state| {
-        state.connection == ConnectionState::Connected
-            && state.entities.contains_key("light.example")
-            && state.entities.contains_key("weather.home")
-    })
-    .await;
+
+    let snapshot = app.next_event().await;
+    assert!(
+        matches!(snapshot, HaEvent::EntitiesAdded(ref entities) if entities.len() == 3),
+        "the subscription acknowledgement must not surface as a service result; got {snapshot:?}"
+    );
 
     assert_eq!(app.state.connection, ConnectionState::Connected);
     assert_eq!(app.state.ha_version.as_deref(), Some(HA_VERSION));
@@ -513,18 +550,30 @@ entity = "light.example"
     assert_eq!(media_view.state, "playing");
     assert_eq!(media_view.title.as_deref(), Some("Example track"));
 
+    server.wait_for_request("subscribe_entities").await;
     let requests = server.requests();
-    assert_eq!(requests[0]["type"], "auth");
-    let expected_token = config.ha.token.expose_secret().to_string();
     assert_eq!(
-        requests[0]["access_token"], expected_token,
+        requests
+            .iter()
+            .map(|request| request["type"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["auth", "get_config", "subscribe_entities"],
+        "the client must authenticate, fetch config, then subscribe"
+    );
+    assert_eq!(requests[0]["type"], "auth");
+    assert_eq!(
+        requests[0]["access_token"], "test-token",
         "the configured token must be the one sent to Home Assistant"
     );
-    let subscribe = requests
-        .iter()
-        .find(|r| r["type"] == "subscribe_entities")
-        .expect("subscription sent");
-    assert_eq!(subscribe["entity_ids"].as_array().unwrap().len(), 3);
+    assert_ne!(
+        requests[1]["id"], requests[2]["id"],
+        "config and subscription requests need distinct correlation IDs"
+    );
+    assert_eq!(
+        requests[2]["entity_ids"],
+        json!(["light.example", "weather.home", "media_player.example"]),
+        "the subscription must contain the exact configured entity set"
+    );
 }
 
 #[tokio::test]
@@ -617,7 +666,7 @@ async fn failed_service_call_reports_an_error_without_optimistic_state() {
     .await;
     assert_eq!(app.state.entities["light.example"].state, "on");
 
-    let request_id = 7;
+    let request_id = ha_kiosk::ha::client::next_request_id();
     app.state.pending.insert(
         request_id,
         PendingAction::ToggleTile {
@@ -758,7 +807,7 @@ async fn soak_with_state_change_stream_stays_bounded() {
         app.next_event().await;
         events += 1;
 
-        if events % 20 == 0 {
+        if events.is_multiple_of(20) {
             cache.save(&app.state).expect("cache write");
             cache_writes += 1;
             let size = std::fs::metadata(&cache_path)
