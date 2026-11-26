@@ -14,7 +14,7 @@
 //! hostile script. The host must be driven from a background thread because
 //! both the script and the HTTP calls are blocking.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -77,6 +77,8 @@ impl Default for Limits {
 }
 
 /// A read-only Home Assistant entity snapshot.
+///
+/// Scripts receive only the `state` and `attributes` fields.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EntitySnapshot {
@@ -107,6 +109,11 @@ impl Clock for SystemClock {
 }
 
 /// Everything the host needs to run one extension.
+///
+/// `entities` contains precomputed read-only snapshots. This type intentionally
+/// has no Home Assistant client, command channel, URL, or token, so the sandbox
+/// cannot call services. [`ExtensionHost::new`] discards snapshots whose IDs are
+/// not declared in the manifest.
 pub struct HostConfig {
     pub manifest: Manifest,
     pub script: String,
@@ -161,6 +168,7 @@ pub struct ExtensionHost {
     config: serde_json::Map<String, Value>,
     policy: HttpPolicy,
     fetcher: Arc<dyn HttpFetcher>,
+    allowed_entities: BTreeSet<String>,
     entities: Arc<BTreeMap<String, EntitySnapshot>>,
     clock: Arc<dyn Clock>,
     time_zone: Tz,
@@ -194,6 +202,15 @@ impl ExtensionHost {
             .manifest
             .build_config(&config.settings, &config.secrets)?;
         let policy = HttpPolicy::new(&config.manifest.permissions.http_hosts, config.dev_mode)?;
+        let allowed_entities = config
+            .manifest
+            .permissions
+            .ha_entities
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let mut entities = config.entities;
+        entities.retain(|entity_id, _| allowed_entities.contains(entity_id));
         let fetcher = match config.fetcher {
             Some(fetcher) => fetcher,
             None => Arc::new(ReqwestFetcher::new(
@@ -214,7 +231,8 @@ impl ExtensionHost {
             config: config_values,
             policy,
             fetcher,
-            entities: Arc::new(config.entities),
+            allowed_entities,
+            entities: Arc::new(entities),
             clock: config.clock.unwrap_or_else(|| Arc::new(SystemClock)),
             time_zone: config.time_zone.unwrap_or(Tz::UTC),
             limits: config.limits,
@@ -323,13 +341,13 @@ impl ExtensionHost {
         );
 
         let entities = Arc::clone(&self.entities);
-        let allowed_entities = self.manifest.permissions.ha_entities.clone();
+        let allowed_entities = self.allowed_entities.clone();
         let secrets = Arc::clone(&self.secret_values);
         engine.register_fn(
             "ha_state",
             move |entity_id: &str| -> Result<Dynamic, Box<EvalAltResult>> {
                 check_deadline(start, wall_clock)?;
-                if !allowed_entities.iter().any(|entity| entity == entity_id) {
+                if !allowed_entities.contains(entity_id) {
                     return Err(runtime_error(format!(
                         "entity is not declared in the manifest: {entity_id}"
                     )));
@@ -496,4 +514,52 @@ fn truncate_bytes(text: &str, max: usize) -> String {
         end -= 1;
     }
     text[..end].to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn host_retains_only_allowlisted_entity_snapshots() {
+        let manifest = Manifest::parse(
+            r#"
+id = "org.example.snapshot"
+name = "Snapshot"
+version = "1.0.0"
+api_version = 1
+min_app_version = "0.6.0"
+entry = "main.rhai"
+provides = "key_value"
+author = "Example Author"
+license = "MIT"
+description = "Reads one declared entity."
+
+[permissions]
+http_hosts = []
+ha_entities = ["sensor.departures"]
+"#,
+        )
+        .unwrap();
+        let mut config = HostConfig::new(manifest, "");
+        config.entities.insert(
+            "sensor.departures".into(),
+            EntitySnapshot {
+                state: "3".into(),
+                attributes: json!({"next": "12:05"}),
+            },
+        );
+        config.entities.insert(
+            "sensor.private".into(),
+            EntitySnapshot {
+                state: "private-state".into(),
+                attributes: json!({"private-attribute": "private-value"}),
+            },
+        );
+
+        let host = ExtensionHost::new(config).unwrap();
+        let retained: Vec<&str> = host.entities.keys().map(String::as_str).collect();
+        assert_eq!(retained, vec!["sensor.departures"]);
+    }
 }

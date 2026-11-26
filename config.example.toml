@@ -182,6 +182,9 @@ max_bytes = 262144
 # ---------------------------------------------------------------------------
 
 [extensions]
+# Extensions are untrusted scripts. They may read only exact Home Assistant
+# entity IDs declared in their manifest; they cannot call services or access
+# the Home Assistant token.
 # When true, the kiosk adds a fifth Shop page. It lists installed and available
 # extensions, shows permissions, and installs, updates, removes, enables, or
 # disables them after a first-install trust confirmation. Installed extensions
