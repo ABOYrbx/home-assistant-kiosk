@@ -689,6 +689,63 @@ async fn failed_update_keeps_the_installed_version_and_retry_available() {
     ));
 }
 
+async fn minimum_resolution_keeps_empty_and_catalog_states_honest() {
+    let app = ha_kiosk::MainWindow::new().unwrap();
+    app.window().set_size(PhysicalSize::new(800, 480));
+    app.set_extensions_enabled(true);
+    app.set_current_page(4);
+
+    // A fresh view is offline with no entries: both empty messages must be honest.
+    let mut view = ShopView::new("/etc/ha-kiosk/config.toml", DEFAULT_SECRET_DIR);
+    render_shop(&app, &view);
+    assert_app_text(&app, "Catalog offline");
+    assert_app_text(
+        &app,
+        "No extensions installed. Choose one from the available list.",
+    );
+    assert_app_text(
+        &app,
+        "Install and update are unavailable while the catalog is offline.",
+    );
+    assert_no_app_text(&app, "Catalog online");
+
+    // An empty but reachable catalog must not claim an offline state.
+    view.apply_catalog(Vec::new());
+    render_shop(&app, &view);
+    assert_app_text(&app, "Catalog online");
+    assert_app_text(&app, "No extensions are available in the catalog.");
+    assert_no_app_text(&app, "Catalog offline");
+    assert_no_app_text(
+        &app,
+        "Install and update are unavailable while the catalog is offline.",
+    );
+
+    // The smallest supported resolution still shows permissions and the
+    // first-install trust confirmation with both actions reachable.
+    view.apply_catalog(vec![catalog_entry()]);
+    render_shop(&app, &view);
+    assert_app_text(&app, &format!("Permissions: {PERMISSIONS}"));
+    assert!(has_element(&app, "ShopPage::refresh-button"));
+    assert!(has_card_element(
+        &app,
+        "Bus Departures",
+        "ShopEntryCard::install-button"
+    ));
+
+    let callbacks = ShopCallbacks::new();
+    callbacks.wire(&app);
+    click_in_card(&app, "Bus Departures", "ShopEntryCard::install-button").await;
+    assert_app_text(&app, "Install Bus Departures?");
+    assert_app_text(&app, TRUST_WARNING);
+    assert!(has_element(&app, "ShopPage::cancel-button"));
+    assert!(has_element(&app, "ShopPage::confirm-button"));
+    click(&app, "ShopPage::confirm-button").await;
+    assert_eq!(
+        callbacks.events(),
+        vec![ShopCallback::Install(EXTENSION_ID.to_string())]
+    );
+}
+
 #[test]
 fn shop_page_flows_cover_install_update_remove_offline_and_errors() {
     i_slint_backend_testing::init_integration_test_with_system_time();
@@ -699,6 +756,7 @@ fn shop_page_flows_cover_install_update_remove_offline_and_errors() {
         offline_state_hides_offers_and_keeps_installed_actions_usable().await;
         failed_installs_render_errors_on_their_own_cards_and_retry().await;
         failed_update_keeps_the_installed_version_and_retry_available().await;
+        minimum_resolution_keeps_empty_and_catalog_states_honest().await;
         slint::quit_event_loop().unwrap();
     })
     .unwrap();
