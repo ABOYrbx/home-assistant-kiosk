@@ -405,3 +405,37 @@ fn runtime_failures_keep_exact_output_and_expose_degraded_until_recovery() {
     assert_eq!(manager.shop_entries()[0].status().label(), "Installed");
     assert!(manager.errors().is_empty());
 }
+
+#[test]
+fn removing_a_degraded_extension_clears_health_from_every_view() {
+    let (_temp, mut manager) = installed_manager(
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Status", value: "ok" }] } }"#,
+    );
+    run(&mut manager).unwrap();
+    fs::write(
+        script_path(&manager),
+        r#"fn refresh(config) { throw "upstream unavailable"; }"#,
+    )
+    .unwrap();
+    for _ in 0..3 {
+        assert!(run(&mut manager).is_err());
+    }
+
+    // The degraded state is visible through every manager view the UI uses.
+    assert!(manager.health(ID).unwrap().degraded);
+    assert!(manager.installed_entries()[0].degraded);
+    assert!(manager.shop_entries()[0].degraded);
+    assert!(
+        manager
+            .errors()
+            .iter()
+            .any(|error| error.contains("(degraded)"))
+    );
+
+    manager.remove(ID).unwrap();
+
+    assert!(manager.health(ID).is_none());
+    assert!(manager.errors().is_empty());
+    assert!(manager.installed_entries().is_empty());
+    assert!(manager.shop_entries().is_empty());
+}
