@@ -152,6 +152,12 @@ verify_ruleset() {
     return 1
   fi
 
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.target' 2>/dev/null)" || return 1
+  if [ "$value" != "branch" ]; then
+    warn "ruleset target is '$value', expected 'branch'"
+    return 1
+  fi
+
   value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules | map(.type) | sort | join(",")' 2>/dev/null)" || return 1
   if [ "$value" != "deletion,non_fast_forward,pull_request,required_linear_history,required_status_checks" ]; then
     warn "ruleset rules are '$value'; expected deletion, non_fast_forward, pull_request, required_linear_history, required_status_checks"
@@ -164,6 +170,12 @@ verify_ruleset() {
     return 1
   fi
 
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.current_user_can_bypass' 2>/dev/null)" || return 1
+  if [ "$value" != "never" ]; then
+    warn "the authenticated owner can bypass the ruleset ('$value'); expected 'never'"
+    return 1
+  fi
+
   value="$(gh api "repos/$REPO/rulesets/$id" --jq '.conditions.ref_name.include | sort | join(",")' 2>/dev/null)" || return 1
   case "$value" in
     "~DEFAULT_BRANCH" | "refs/heads/$DEFAULT_BRANCH") ;;
@@ -173,9 +185,33 @@ verify_ruleset() {
       ;;
   esac
 
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.conditions.ref_name.exclude | length' 2>/dev/null)" || return 1
+  if [ "$value" != "0" ]; then
+    warn "ruleset excludes $value refs; the rule must cover every ref it targets"
+    return 1
+  fi
+
   value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules[] | select(.type == "pull_request") | .parameters.required_approving_review_count' 2>/dev/null)" || return 1
   if [ "$value" != "0" ]; then
     warn "required approving review count is '$value', expected 0 for a sole owner"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules[] | select(.type == "pull_request") | .parameters.dismiss_stale_reviews_on_push' 2>/dev/null)" || return 1
+  if [ "$value" != "true" ]; then
+    warn "stale reviews are not dismissed on push"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules[] | select(.type == "pull_request") | .parameters.require_code_owner_review' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "code owner review is required; expected false for a sole owner"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules[] | select(.type == "pull_request") | .parameters.require_last_push_approval' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "last push approval is required; expected false for a sole owner"
     return 1
   fi
 
@@ -200,6 +236,12 @@ verify_ruleset() {
   value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules[] | select(.type == "required_status_checks") | .parameters.strict_required_status_checks_policy' 2>/dev/null)" || return 1
   if [ "$value" != "true" ]; then
     warn "required status checks are not strict (the branch may be out of date)"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/rulesets/$id" --jq '.rules[] | select(.type == "required_status_checks") | .parameters.do_not_enforce_on_create' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "status checks are skipped when a branch is created; expected false"
     return 1
   fi
 
@@ -239,6 +281,24 @@ verify_classic() {
     return 1
   fi
 
+  value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.required_pull_request_reviews.dismiss_stale_reviews' 2>/dev/null)" || return 1
+  if [ "$value" != "true" ]; then
+    warn "classic protection does not dismiss stale reviews on push"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.required_pull_request_reviews.require_code_owner_reviews' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "classic protection requires code owner review; expected false for a sole owner"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.required_pull_request_reviews.require_last_push_approval' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "classic protection requires last push approval; expected false for a sole owner"
+    return 1
+  fi
+
   value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.required_linear_history.enabled' 2>/dev/null)" || return 1
   if [ "$value" != "true" ]; then
     warn "classic protection does not require a linear history"
@@ -266,6 +326,18 @@ verify_classic() {
   value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.restrictions == null' 2>/dev/null)" || return 1
   if [ "$value" != "true" ]; then
     warn "classic protection restricts pushes; expected no push restriction because ABOYrbx is the only collaborator"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.lock_branch' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "classic protection locks the branch; expected false"
+    return 1
+  fi
+
+  value="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" --jq '.allow_fork_syncing' 2>/dev/null)" || return 1
+  if [ "$value" != "false" ]; then
+    warn "classic protection allows fork syncing; expected false"
     return 1
   fi
 
