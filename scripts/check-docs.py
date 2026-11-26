@@ -334,6 +334,12 @@ def is_placeholder_host(hostname: str) -> bool:
     return False
 
 
+CANONICAL_CATALOG_URL = (
+    "https://raw.githubusercontent.com/ABOYrbx/"
+    "home-assistant-kiosk-extensions/main/index.json"
+)
+
+
 def check_example_safety(data: dict) -> None:
     ha = data.get("ha", {})
     if isinstance(ha, dict) and "token" in ha:
@@ -362,6 +368,8 @@ def check_example_safety(data: dict) -> None:
                 f"config.example.toml {path} contains a personal identifier"
             )
         if URL_RE.match(value):
+            if value == CANONICAL_CATALOG_URL:
+                continue
             try:
                 hostname = urlsplit(value).hostname
             except ValueError:

@@ -161,7 +161,7 @@ Do not open a public issue for a security vulnerability. Use the private advisor
 ## Extensions
 
 - Extension source and catalog data do **not** live in this repository.
-- The companion catalog is `home-assistant-kiosk-extensions` (provisional name).
+- The companion catalog is the public [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) repository.
 - Catalog contributions follow the review and signing rules in [`docs/extension-catalog.md`](extension-catalog.md).
 - The Minisign private key stays offline and is never committed, pasted into CI, or shared through GitHub.
 

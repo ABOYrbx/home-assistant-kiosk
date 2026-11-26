@@ -490,7 +490,7 @@ Rotation, DRM output selection, console blanking, touch calibration, fonts, and 
 - **The `docs` check must pass.** The workflow validates TOML, Markdown links, required files, and obvious personal-data leaks.
 - **English only** in code, docs, issues, PRs, and commits.
 - **No secrets, tokens, personal entity IDs, stop IDs, addresses, or internal hostnames** in the repository.
-- **Extensions are separate.** Extension source and the catalog live in the companion `home-assistant-kiosk-extensions` repository, never in this one.
+- **Extensions are separate.** Extension source and the catalog live in the public [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) repository, never in this one.
 - **CODEOWNERS** routes review to `@ABOYrbx`; issue and PR templates describe the required evidence.
 
 The `main-protection` repository ruleset enforces the policy above, including for administrators: a pull request is required, the `docs` check must pass on an up-to-date branch, conversations must be resolved, history stays linear, and force-pushes and deletion of `main` are blocked. Details, exact verification commands, and the settings script are in [`docs/github-rules.md`](docs/github-rules.md).

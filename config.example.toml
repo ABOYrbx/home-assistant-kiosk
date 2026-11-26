@@ -228,10 +228,12 @@ max_bytes = 262144
 # Enabling the shop requires catalog_url and public_keys. Unsigned or HTTP
 # catalogs are accepted only with allow_unsigned and dev_mode both true.
 enabled = false
-# HTTPS URL of the signed catalog index in the separate catalog repository.
-# The .example hostname is a non-resolving placeholder; replace it before use.
-catalog_url = "https://catalog.example/index.json"
-# Minisign public keys (base64). The matching private key never enters this repo.
+# HTTPS URL of the signed catalog index in the separate public catalog
+# repository. Leave extensions.enabled = false until you trust the catalog.
+catalog_url = "https://raw.githubusercontent.com/ABOYrbx/home-assistant-kiosk-extensions/main/index.json"
+# Minisign public keys (base64). The matching private key never enters either
+# repository. The catalog's ephemeral bootstrap key is not a production trust
+# anchor; leave this empty until the production key is published.
 public_keys = []
 # Development only. A production shop must reject unsigned catalogs.
 allow_unsigned = false

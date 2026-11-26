@@ -363,16 +363,15 @@ A compile error, sandbox violation, HTTP error, or malformed output fails the wh
 
 ## Packaging
 
-From the parent directory:
+From the companion catalog repository, use its deterministic packager:
 
 ```bash
-tar -czf org.example.bus-departures-1.0.0.hkext \
-  -C org.example.bus-departures \
-  manifest.toml main.rhai README.md LICENSE
-sha256sum org.example.bus-departures-1.0.0.hkext
+scripts/package.sh org.example.bus-departures 1.0.0
 ```
 
 On macOS, `shasum -a 256` produces the same digest. The `-C` flag keeps `manifest.toml` at the archive root.
+
+The packager keeps `manifest.toml` at the archive root, normalizes tar/gzip metadata, and prints the package path, SHA-256, and byte size as JSON. It does not replace catalog validation: after adding the package metadata to `index.json`, run `scripts/validate.sh` before signing. Do not substitute a manual `tar -czf` command for releases because source timestamps, ownership, and gzip metadata would make the package nondeterministic.
 
 Package limits:
 

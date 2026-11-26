@@ -2,7 +2,7 @@
 
 The community catalog is a **separate, public GitHub repository**. The kiosk never clones it; it fetches a signed index and package release assets over HTTPS. This keeps catalog maintenance independent of the kiosk release cycle.
 
-Proposed repository name: `home-assistant-kiosk-extensions` (provisional). The visibility must be public before community use. The maintainer signing procedure is defined below; the named key holder remains a governance decision in `PLAN.md` section 12.
+Repository: [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions). It is public for community use. `ABOYrbx` is the designated production-key custodian and will generate the Minisign private key on encrypted offline storage before the first real release; no production key exists yet (see `PLAN.md` section 12).
 
 See also: [Extension Author Guide](extensions.md) for the manifest, script API, output schema, configuration, packaging, and author checklist.
 
@@ -13,6 +13,7 @@ home-assistant-kiosk-extensions/
 ├── README.md
 ├── index.json
 ├── index.json.minisig
+├── catalog.pub
 ├── schema/
 │   ├── index.schema.json
 │   └── manifest.schema.json
@@ -23,9 +24,14 @@ home-assistant-kiosk-extensions/
 │       ├── README.md
 │       └── LICENSE
 ├── scripts/
+│   ├── validate.py
 │   ├── validate.sh
+│   ├── package.py
 │   └── package.sh
-└── .github/workflows/validate.yml
+├── tests/
+└── .github/
+    ├── CODEOWNERS
+    └── workflows/validate.yml
 ```
 
 - `index.json` is generated from the extension manifests and release assets.
@@ -75,7 +81,7 @@ home-assistant-kiosk-extensions/
           "max": 20
         }
       ],
-      "package_url": "https://github.com/example/home-assistant-kiosk-extensions/releases/download/org.example.bus-departures-v1.0.0/org.example.bus-departures-1.0.0.hkext",
+      "package_url": "https://github.com/ABOYrbx/home-assistant-kiosk-extensions/releases/download/org.example.bus-departures-v1.0.0/org.example.bus-departures-1.0.0.hkext",
       "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       "size_bytes": 12345
     }
@@ -152,12 +158,18 @@ chmod 0600 /secure/offline/kiosk-catalog.key
 
 `allow_unsigned = true` exists only for local development. Production must keep it false. The current kiosk shell does not yet expose a persistent unsigned-mode warning; treat an unsigned catalog as a development-only exception until that warning is implemented.
 
+### Bootstrap index
+
+The published catalog starts with an intentionally empty `index.json`. Its `index.json.minisig` is produced by an **ephemeral bootstrap key**: the public key is published as `catalog.pub` in the catalog repository, and the secret key was destroyed after signing. The bootstrap key is **not a production trust anchor**; do not add it to `public_keys` in a production configuration. Before the first real release, `ABOYrbx` generates a production Minisign key pair on encrypted offline storage, publishes its public key in both the catalog repository and a kiosk release, signs the reviewed index, and rotates configuration using the procedure above.
+
+`allow_unsigned = true` exists only for local development. A production shop must reject unsigned catalogs and must show a persistent warning if the flag is on.
+
 ## Kiosk trust configuration
 
 ```toml
 [extensions]
 enabled = true
-catalog_url = "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json"
+catalog_url = "https://raw.githubusercontent.com/ABOYrbx/home-assistant-kiosk-extensions/main/index.json"
 public_keys = ["RWQ..."]
 allow_unsigned = false
 dev_mode = false
@@ -198,7 +210,7 @@ The kiosk keeps installed extensions under `store_path`:
       "version": "1.0.0",
       "enabled": true,
       "manifest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "source_catalog": "https://raw.githubusercontent.com/example/home-assistant-kiosk-extensions/main/index.json",
+      "source_catalog": "https://raw.githubusercontent.com/ABOYrbx/home-assistant-kiosk-extensions/main/index.json",
       "installed_at": "2026-11-23T12:00:00Z"
     }
   ]
@@ -291,7 +303,7 @@ The signed-release job is a required check and must execute for every release ca
 
 Both checks cover:
 
-- JSON Schema for `index.json` and every manifest.
+- JSON Schema for `index.json` and every indexed manifest.
 - Unique, reverse-DNS IDs.
 - Semver versions and `api_version`.
 - Package SHA-256 and size match the immutable GitHub release asset.
@@ -302,6 +314,12 @@ Both checks cover:
 - The example bus extension runs against a fixture in a sandbox test.
 
 CI uses a read-only token and public verification material only. It must not define a signing-key secret, run `minisign -S`, or upload a private key.
+
+The following release checks are planned but are not implemented by the scaffold workflow yet:
+
+- Package SHA-256 and size match the GitHub release asset.
+- Rhai scripts compile with the pinned Rhai engine, without execution during CI.
+- The example bus extension runs against a fixture in a sandbox test.
 
 ## Community review
 
