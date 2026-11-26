@@ -41,6 +41,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
 - The release profile settings and their abort/restart behaviour are guarded by tests and recorded with host-side build evidence; the performance document now names the `Restart=on-failure` policy the systemd units actually use (#113).
 - Wave 6 catalog release runbook covering candidate CI validation, exact-byte offline Minisign signing, signed-release verification, and private-key custody in [`docs/extension-catalog.md`](docs/extension-catalog.md).
+- Wave 6 community review process covering license, permissions, secrets, read-only Home Assistant access, data-only UI, test evidence, review decisions, and removal in [`docs/extension-catalog.md`](docs/extension-catalog.md#community-review).
 
 ### Security
 

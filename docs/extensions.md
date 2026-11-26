@@ -387,13 +387,14 @@ The signed catalog records the exact package URL, lowercase SHA-256 digest, and 
 
 ## Local testing
 
-1. Validate the manifest and compile the script with the pinned Rhai engine used by the companion catalog CI.
-2. Test success, provider error, missing fields, and empty output against recorded fixtures.
-3. Confirm that a forbidden host or entity fails before any request/read occurs.
-4. Confirm that malformed output fails and that the last good output remains available.
-5. Exercise operation, allocation, HTTP-size, redirect, and wall-clock limits.
-6. Install from a scratch catalog. Plain HTTP and unsigned catalogs require both `allow_unsigned = true` and `dev_mode = true`; never use that mode in production.
-7. Verify offline use after installation and the Shop at 800 x 480 with touch input.
+1. Start a local catalog (plain HTTP is allowed only with `allow_unsigned = true` and `extensions.dev_mode`).
+2. Install the package in a scratch directory.
+3. Check that the script cannot reach a host or entity outside its manifest.
+4. Check that an invalid output shape shows an error and keeps the last good data.
+5. Check the operation/time limits with a deliberately slow or looping script.
+6. Test disable, remove, and catalog withdrawal; confirm that settings and the secret file are retained after removal.
+7. Test the shop at 800 x 480 with touch emulation.
+8. Record the commands, fixtures, results, and limitations using the catalog guide's [test-evidence requirements](extension-catalog.md#test-evidence).
 
 Do not use a live Home Assistant or real provider credentials in automated tests.
 
@@ -410,6 +411,8 @@ Do not use a live Home Assistant or real provider credentials in automated tests
 
 The catalog review covers license, permissions, secrets, read-only Home Assistant access, no service calls, data-only output, tests, documentation, and removal/deprecation. A signed index establishes provenance, not safety.
 
+The extension README must explain how an operator disables and removes the extension, which settings and secret files remain after removal, and how to delete them when they are no longer needed. Catalog withdrawal is not a remote uninstall; follow the [catalog removal and deprecation process](extension-catalog.md#catalog-removal-and-deprecation).
+
 ## Versioning and deprecation
 
 - Version extensions with SemVer. Every release increments the version; a bug fix increments the patch component.
@@ -422,7 +425,16 @@ The catalog review covers license, permissions, secrets, read-only Home Assistan
 - Output parsers reject unknown fields. A new field is compatible only when every supported kiosk accepts it; otherwise require a kiosk version that understands it and use a new `api_version` if the host contract changes.
 - Removing an entry from the catalog does not uninstall it from existing kiosks. Security removals require a newly signed index and a notice in the catalog repository.
 
-## Security rules
+## Disabling and removing an extension
+
+- **Disable:** Open **Shop → Installed**, select the extension, and choose **Disable**. Execution stops, but files, settings, and secrets remain so the extension can be enabled again.
+- **Remove:** Choose **Remove** in the same installed card. This deletes every installed version and the `installed.json` record. It does not delete `[extensions.settings."<id>"]` or `/etc/ha-kiosk/extensions/<id>.secret.toml`.
+- **Clean up retained data:** When it is no longer needed, remove that configuration table and delete the secret file as the service user. Never paste either file into an issue or review.
+- **Catalog withdrawal:** Removing an entry from the signed catalog prevents new installs and updates but does not uninstall or disable existing copies. Operators must use **Disable** or **Remove**.
+
+See the [catalog removal and deprecation process](extension-catalog.md#catalog-removal-and-deprecation) for security withdrawals and migration guidance.
+
+## Security checklist
 
 - [ ] No native code, WASM, arbitrary Slint files, HTML, images, or custom controls.
 - [ ] No filesystem, process, environment, module, import, or dynamic-evaluation access.
