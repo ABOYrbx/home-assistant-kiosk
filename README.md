@@ -321,6 +321,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.<name>.title` | string | per page | Page heading. The Overview uses this as its brand text. |
 | `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
