@@ -91,6 +91,7 @@ impl ExtensionStore {
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, StoreError> {
         let root = root.into();
         create_dir(&root)?;
+        tighten_tree(&root)?;
         let index_path = root.join("installed.json");
         let index = if index_path.exists() {
             set_file_mode(&index_path, 0o600)?;
@@ -168,6 +169,9 @@ impl ExtensionStore {
         }
         let staged_path = staging.keep();
         fs::rename(&staged_path, &target)?;
+        set_dir_mode(&target, 0o700)?;
+        tighten_tree(&target)?;
+        tighten_tree(&id_dir)?;
 
         let previous = self.get(&entry.id).map(|record| record.version.clone());
         self.prune_versions(&entry.id, &entry.version, previous.as_ref())?;
@@ -210,6 +214,10 @@ impl ExtensionStore {
         let previous = self
             .previous_version(id)
             .ok_or_else(|| StoreError::NoPreviousVersion(id.to_string()))?;
+        let previous_dir = self.extension_dir(id, &previous);
+        let manifest_hash = fs::read(previous_dir.join("manifest.toml"))
+            .ok()
+            .map(|bytes| package::sha256_hex(&bytes));
 
         let record = self
             .index
@@ -219,6 +227,9 @@ impl ExtensionStore {
             .ok_or_else(|| StoreError::NotInstalled(id.to_string()))?;
         record.version = previous.clone();
         record.installed_at = Utc::now();
+        if let Some(hash) = manifest_hash {
+            record.manifest_sha256 = hash;
+        }
         self.save()?;
 
         let current_dir = self.extension_dir(id, &current);
@@ -324,6 +335,8 @@ impl ExtensionStore {
         }
         set_file_mode(&tmp, 0o600)?;
         fs::rename(&tmp, &self.index_path)?;
+        set_file_mode(&self.index_path, 0o600)?;
+        tighten_tree(&self.root)?;
         sync_dir(&self.root);
         Ok(())
     }
@@ -336,8 +349,15 @@ fn load_index(path: &Path) -> Result<InstalledIndex, StoreError> {
     if index.schema_version != STORE_SCHEMA_VERSION {
         return Err(StoreError::UnsupportedSchema(index.schema_version));
     }
+    let mut seen = std::collections::HashSet::new();
     for entry in &index.extensions {
         check_id(&entry.id)?;
+        if !seen.insert(entry.id.clone()) {
+            return Err(StoreError::CorruptIndex(format!(
+                "duplicate extension id: {}",
+                entry.id
+            )));
+        }
     }
     Ok(index)
 }
@@ -367,6 +387,22 @@ fn manifest_matches_entry(manifest: &ExtensionManifest, entry: &CatalogEntry) ->
 fn create_dir(path: &Path) -> Result<(), StoreError> {
     fs::create_dir_all(path)?;
     set_dir_mode(path, 0o700)?;
+    Ok(())
+}
+
+fn tighten_tree(path: &Path) -> Result<(), StoreError> {
+    if path.is_symlink() {
+        return Ok(());
+    }
+    if path.is_dir() {
+        set_dir_mode(path, 0o700)?;
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            tighten_tree(&entry.path())?;
+        }
+    } else if path.is_file() {
+        set_file_mode(path, 0o600)?;
+    }
     Ok(())
 }
 
