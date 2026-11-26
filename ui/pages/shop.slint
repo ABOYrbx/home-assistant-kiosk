@@ -29,7 +29,7 @@ component ShopButton inherits Rectangle {
     min-height: Theme.touch-target;
     border-radius: Theme.radius-md;
     background: primary ? Theme.accent : Theme.surface;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: destructive ? Theme.danger : Theme.border;
 
     Text {
@@ -60,7 +60,7 @@ component ShopEntryCard inherits Rectangle {
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
 
     VerticalLayout {
@@ -73,7 +73,7 @@ component ShopEntryCard inherits Rectangle {
                 text: entry.name;
                 color: Theme.fg;
                 font-size: Theme.text-base;
-                font-weight: 600;
+                font-weight: Theme.weight-semibold;
                 overflow: elide;
             }
             Text {
@@ -200,7 +200,7 @@ export component ShopPage inherits Rectangle {
                 text: "Extensions";
                 color: Theme.fg;
                 font-size: Theme.text-xl;
-                font-weight: 600;
+                font-weight: Theme.weight-semibold;
                 vertical-alignment: center;
             }
             Text {
@@ -219,7 +219,7 @@ export component ShopPage inherits Rectangle {
         if !catalog-online : Rectangle {
             background: Theme.surface-warm;
             border-radius: Theme.radius-md;
-            border-width: 1px;
+            border-width: Theme.border-width;
             border-color: Theme.border;
             VerticalLayout {
                 padding: Theme.space-2;
@@ -255,7 +255,7 @@ export component ShopPage inherits Rectangle {
                     text: "Installed";
                     color: Theme.fg;
                     font-size: Theme.text-lg;
-                    font-weight: 600;
+                    font-weight: Theme.weight-semibold;
                 }
 
                 if installed.length == 0 : Text {
@@ -281,7 +281,7 @@ export component ShopPage inherits Rectangle {
                     text: "Available";
                     color: Theme.fg;
                     font-size: Theme.text-lg;
-                    font-weight: 600;
+                    font-weight: Theme.weight-semibold;
                 }
 
                 if available.length == 0 : Text {
@@ -329,7 +329,7 @@ export component ShopPage inherits Rectangle {
                 text: "Install " + confirm-name + "?";
                 color: Theme.fg;
                 font-size: Theme.text-xl;
-                font-weight: 600;
+                font-weight: Theme.weight-semibold;
                 wrap: word-wrap;
             }
 

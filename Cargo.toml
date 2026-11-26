@@ -48,7 +48,7 @@ slint-build = "1.19"
 [dev-dependencies]
 minisign = "0.7"
 tokio-test = "0.4"
-i-slint-backend-testing = "1.19"
+i-slint-backend-testing = { version = "1.19", features = ["renderer-software"] }
 regex = "1"
 
 [features]

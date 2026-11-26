@@ -50,8 +50,8 @@ height = 480
 # 0, 90, 180, or 270. On LinuxKMS this maps to SLINT_KMS_ROTATION.
 rotation = 0
 fullscreen = true
-# "dark" or "light". The dark theme is the default target.
-theme = "dark"
+# "light" matches the adopted design; "dark" is reserved for a future palette.
+theme = "light"
 
 # ---------------------------------------------------------------------------
 # Pages
@@ -103,14 +103,14 @@ max_kelvin = 6500
 enabled = true
 entity = "weather.home"
 forecast_type = "daily" # "daily" or "hourly"
-forecast_count = 3
+forecast_count = 3 # 1-24
 refresh_seconds = 900
 
 [widgets.media]
 enabled = true
 entity = "media_player.living_room"
 show_album_art = true
-volume_step = 0.05
+volume_step = 0.05 # 0.01-1.0
 
 [widgets.departures]
 # One sensor that exposes a `departures` attribute; the shape is documented in
@@ -129,7 +129,7 @@ refresh_seconds = 60
 enabled = true
 entities = ["calendar.family"]
 # Number of days from today that the agenda covers; 2 renders today and tomorrow.
-days = 2
+days = 2 # 1-14; 2 renders today and tomorrow.
 # Refresh interval in seconds; 300 is the default, the minimum is 30.
 refresh_seconds = 300
 

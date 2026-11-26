@@ -6,7 +6,7 @@ export component ClockWidget inherits Rectangle {
 
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
 
     VerticalLayout {
@@ -15,13 +15,17 @@ export component ClockWidget inherits Rectangle {
         Text {
             text: time;
             color: Theme.fg;
+            font-family: Theme.font-display;
             font-size: Theme.text-2xl;
-            font-weight: 600;
+            font-weight: Theme.font-weight-semibold;
+            line-height-factor: Theme.leading-tight;
         }
         Text {
             text: date;
             color: Theme.muted;
+            font-family: Theme.font-body;
             font-size: Theme.text-sm;
+            line-height-factor: Theme.leading-body;
         }
     }
 }

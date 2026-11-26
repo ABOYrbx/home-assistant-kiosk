@@ -1,19 +1,126 @@
 import { Theme } from "../theme.slint";
+import { WeatherIcon } from "../components/weather_icon.slint";
+
+export struct ForecastItem {
+    label: string,
+    condition: string,
+    temperature: string,
+}
+
+export enum WeatherState {
+    loading,
+    unavailable,
+    empty,
+    populated,
+    error,
+}
 
 export component WeatherWidget inherits Rectangle {
+    in property <bool> widget-visible: true;
+    in property <WeatherState> state: WeatherState.loading;
     in property <string> condition: "";
     in property <string> temperature: "";
+    in property <string> unit: "";
+    in property <string> error: "";
+    in property <[ForecastItem]> forecast: [];
 
+    visible: root.widget-visible;
+    vertical-stretch: 0;
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
+    border-width: Theme.border-width;
     border-color: Theme.border;
+    min-height: Theme.tile-min-height;
 
     VerticalLayout {
         padding: Theme.space-3;
-        spacing: Theme.space-1;
-        Text { text: "Weather"; color: Theme.muted; font-size: Theme.text-xs; }
-        Text { text: temperature; color: Theme.fg; font-size: Theme.text-xl; font-weight: 600; }
-        Text { text: condition; color: Theme.fg-2; font-size: Theme.text-sm; }
+        spacing: Theme.space-2;
+
+        Text {
+            text: "Weather";
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+            font-weight: Theme.weight-medium;
+        }
+
+        if root.state == WeatherState.loading : Text {
+            text: "Loading weather…";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        if root.state == WeatherState.unavailable : Text {
+            text: "Weather unavailable";
+            color: Theme.warn;
+            font-size: Theme.text-sm;
+        }
+
+        if root.state == WeatherState.error : Text {
+            text: root.error != "" ? root.error : "Forecast unavailable — showing last known weather.";
+            color: Theme.danger;
+            font-size: Theme.text-sm;
+            wrap: word-wrap;
+        }
+
+        if root.state == WeatherState.empty : Text {
+            text: "No weather configured.";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        if root.state == WeatherState.populated : VerticalLayout {
+            spacing: Theme.space-2;
+
+            HorizontalLayout {
+                spacing: Theme.space-3;
+                alignment: start;
+
+                WeatherIcon {
+                    condition: root.condition;
+                    icon-size: Theme.weather-icon-size;
+                }
+
+                VerticalLayout {
+                    spacing: Theme.space-1;
+                    Text {
+                        text: root.temperature;
+                        color: Theme.fg;
+                        font-size: Theme.text-xl;
+                        font-weight: Theme.weight-semibold;
+                    }
+                    Text {
+                        text: root.condition;
+                        color: Theme.fg-2;
+                        font-size: Theme.text-sm;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            if root.forecast.length > 0 : HorizontalLayout {
+                spacing: Theme.space-3;
+                for item in root.forecast : VerticalLayout {
+                    spacing: Theme.space-1;
+                    alignment: center;
+                    Text {
+                        text: item.label;
+                        color: Theme.muted;
+                        font-size: Theme.text-xs;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    WeatherIcon {
+                        condition: item.condition;
+                        icon-size: Theme.weather-icon-size;
+                    }
+                    Text {
+                        text: item.temperature;
+                        color: Theme.fg-2;
+                        font-size: Theme.text-sm;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
     }
 }

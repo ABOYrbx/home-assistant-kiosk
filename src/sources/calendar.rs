@@ -216,10 +216,15 @@ pub fn group_agenda<Tz: TimeZone>(
     let mut agenda = Agenda::default();
     for item in items {
         if item.all_day {
-            let date = item.start.date_naive();
-            if date == today {
+            let start_date = item.start.date_naive();
+            let end_date = item
+                .end
+                .map(|end| end.date_naive())
+                .unwrap_or_else(|| start_date.succ_opt().unwrap_or(start_date));
+            if start_date <= today && today < end_date {
                 agenda.today.push(item.clone());
-            } else if date == tomorrow {
+            }
+            if start_date <= tomorrow && tomorrow < end_date {
                 agenda.tomorrow.push(item.clone());
             }
             continue;
@@ -546,6 +551,19 @@ mod tests {
         let tomorrow: Vec<_> = agenda.tomorrow.iter().map(|i| i.summary.as_str()).collect();
         assert_eq!(today, vec!["All day today", "Ongoing"]);
         assert_eq!(tomorrow, vec!["Tomorrow"]);
+    }
+
+    #[test]
+    fn multi_day_all_day_event_appears_on_each_overlapping_day() {
+        let value = json!({
+            "calendar.family": { "events": [
+                { "summary": "Holiday", "start": { "date": "2026-11-23" }, "end": { "date": "2026-11-25" } }
+            ]}
+        });
+        let items = parse_calendar_events(&value, "calendar.family", berlin()).unwrap();
+        let agenda = group_agenda(&items, &berlin(), now());
+        assert_eq!(agenda.today.len(), 1);
+        assert_eq!(agenda.tomorrow.len(), 1);
     }
 
     #[test]
