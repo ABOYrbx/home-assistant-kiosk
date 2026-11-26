@@ -312,6 +312,9 @@ impl ExtensionHost {
                 let value = fetcher
                     .get_json(&url)
                     .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))?;
+                // A slow fetch must not extend the run past the deadline even
+                // when it is the script's final operation.
+                check_deadline(start, wall_clock)?;
                 rhai::serde::to_dynamic(value)
                     .map_err(|error| runtime_error(redact(&error.to_string(), &secrets)))
             },
@@ -347,7 +350,9 @@ impl ExtensionHost {
         let time_zone = self.time_zone;
         engine.register_fn("now", move || -> Result<String, Box<EvalAltResult>> {
             check_deadline(start, wall_clock)?;
-            Ok(clock.now().with_timezone(&time_zone).to_rfc3339())
+            let value = clock.now().with_timezone(&time_zone).to_rfc3339();
+            check_deadline(start, wall_clock)?;
+            Ok(value)
         });
 
         let logs = Arc::clone(&self.logs);

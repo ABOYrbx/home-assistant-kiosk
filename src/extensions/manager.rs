@@ -13,7 +13,7 @@ use url::Url;
 
 use super::catalog::{CatalogEntry, CatalogError, CatalogIndex, CatalogPolicy, ExtensionManifest};
 use super::client::{CatalogCache, CatalogClient, CatalogFetcher, FetchError};
-use super::host::{EntitySnapshot, ExtensionError, ExtensionHost, HostConfig};
+use super::host::{EntitySnapshot, ExtensionError, ExtensionHost, HostConfig, Limits};
 use super::manifest::Manifest;
 use super::output::ExtensionOutput;
 use super::runner::ExtensionRunner;
@@ -30,6 +30,7 @@ pub struct ManagerOptions {
     pub dev_mode: bool,
     pub max_catalog_bytes: u64,
     pub max_package_bytes: u64,
+    pub limits: Limits,
     pub store_path: PathBuf,
     pub secret_dir: PathBuf,
     pub settings: BTreeMap<String, toml::Value>,
@@ -306,6 +307,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
         config.secrets = secrets;
         config.entities = entities;
         config.dev_mode = self.options.dev_mode;
+        config.limits = self.options.limits.clone();
         let mut runner = ExtensionRunner::new(ExtensionHost::new(config)?);
         match runner.refresh() {
             Ok(output) => {

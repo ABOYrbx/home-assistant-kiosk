@@ -1175,6 +1175,7 @@ fn manager_options(config: &Config) -> ManagerOptions {
         dev_mode: config.extensions.dev_mode,
         max_catalog_bytes: config.extensions.max_catalog_bytes,
         max_package_bytes: config.extensions.max_package_bytes,
+        limits: config.extensions.script_limits(),
         store_path: config.extensions.store_path.clone(),
         secret_dir: PathBuf::from(DEFAULT_SECRET_DIR),
         settings: config.extensions.settings.clone(),

@@ -397,6 +397,14 @@ impl Default for ExtensionsConfig {
 }
 
 impl ExtensionsConfig {
+    /// Build the resource limits for one extension run.
+    pub fn script_limits(&self) -> crate::extensions::Limits {
+        crate::extensions::Limits {
+            max_operations: self.max_script_operations,
+            ..crate::extensions::Limits::default()
+        }
+    }
+
     /// Build the catalog trust policy for the running kiosk version.
     pub fn catalog_policy(&self, app_version: semver::Version) -> crate::extensions::CatalogPolicy {
         crate::extensions::CatalogPolicy {
