@@ -257,7 +257,6 @@ fn loopback_host(port: u16, script: &str, limits: Limits) -> ExtensionHost {
 
 struct TestServer {
     port: u16,
-    calls: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<String>>>,
 }
 
@@ -265,13 +264,10 @@ impl TestServer {
     fn start(response: Vec<u8>, delay: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        let calls = Arc::new(AtomicUsize::new(0));
-        let request_count = Arc::clone(&calls);
         let requests = Arc::new(Mutex::new(Vec::new()));
         let recorder = Arc::clone(&requests);
         thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
-                request_count.fetch_add(1, Ordering::SeqCst);
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
                 let mut request = Vec::new();
                 let mut buffer = [0u8; 4096];
@@ -296,11 +292,7 @@ impl TestServer {
                 let _ = stream.flush();
             }
         });
-        Self {
-            port,
-            calls,
-            requests,
-        }
+        Self { port, requests }
     }
 
     /// Raw request bytes received by this server, oldest first.
@@ -309,18 +301,6 @@ impl TestServer {
             .lock()
             .map(|requests| requests.clone())
             .unwrap_or_default()
-    }
-
-    /// Request line of every request received by this server, oldest first.
-    fn request_lines(&self) -> Vec<String> {
-        self.requests()
-            .iter()
-            .filter_map(|request| request.lines().next().map(str::to_string))
-            .collect()
-    }
-
-    fn calls(&self) -> usize {
-        self.calls.load(Ordering::SeqCst)
     }
 }
 
@@ -891,7 +871,7 @@ fn malformed_output_is_rejected() {
     let unknown_kind = r#"fn refresh(config) { #{ kind: "table", items: [] } }"#;
     assert!(matches!(
         refresh(unknown_kind).unwrap_err(),
-        ExtensionError::Output(OutputError::UnknownKind(_))
+        ExtensionError::Output(OutputError::UnknownKind)
     ));
 }
 
