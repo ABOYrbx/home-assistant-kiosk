@@ -104,6 +104,25 @@ fn manifest_without_required_settings() -> Manifest {
 }
 
 #[test]
+fn documented_author_topics_are_present() {
+    for heading in [
+        "## Manifest",
+        "## Permissions",
+        "## Configuration schema",
+        "## Script API",
+        "## Output schema",
+        "## Packaging",
+        "## Versioning and deprecation",
+        "## Security rules",
+    ] {
+        assert!(
+            AUTHOR_GUIDE.contains(heading),
+            "the author guide is missing the {heading} section"
+        );
+    }
+}
+
+#[test]
 fn documented_manifest_parses() {
     let manifest = Manifest::parse(fenced_block(AUTHOR_GUIDE, "toml", "api_version = 1")).unwrap();
 

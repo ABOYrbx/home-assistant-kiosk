@@ -371,7 +371,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 | The service restarts in a loop | `journalctl -u ha-kiosk` shows the configuration or display error. |
 | RSS is above budget | Album art, debug logging, or an accidental global subscription. |
 
-## Installation
+## Installation and operation
 
 ```bash
 sudo ./deploy/install.sh /path/to/ha-kiosk-<version>-aarch64-unknown-linux-gnu
