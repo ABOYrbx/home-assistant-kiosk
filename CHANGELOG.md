@@ -28,10 +28,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Signed catalog client: fetch `index.json` and its Minisign signature over HTTPS, verify against configured public keys (with key rotation), cache the last verified index for offline use, and enforce the configured catalog size cap (#119).
 - Vendored JSON Schemas for the signed catalog index and extension manifests under `schema/` (`index.schema.json`, `manifest.schema.json`) (#118).
 
-### Changed
-
-- The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
-
 ### Fixed
 
 - The desktop CI gate passes again: tests that referenced APIs removed by the UI consolidation now cover the current state, widget, theme and shell surfaces (#231).
@@ -46,6 +42,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The authentication failure badge reads "Authentication failed".
 - The dependency audit runs a pinned `cargo-audit` 0.23.0 against the committed `Cargo.lock`, and both workflows install Rust with the runner's `rustup`.
 - The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
+- Hardened `config.example.toml` with per-key comments and placeholder-only values; `scripts/check-docs.py` now rejects active tokens, non-placeholder URL hosts, active extension settings, personal paths, and personal identifiers in the shipped example.
 - The release profile settings and their abort/restart behaviour are guarded by tests and recorded with host-side build evidence; the performance document now names the `Restart=on-failure` policy the systemd units actually use (#113).
 - Wave 6 catalog release runbook covering candidate CI validation, exact-byte offline Minisign signing, signed-release verification, and private-key custody in [`docs/extension-catalog.md`](docs/extension-catalog.md).
 - Wave 6 community review process covering license, permissions, secrets, read-only Home Assistant access, data-only UI, test evidence, review decisions, and removal in [`docs/extension-catalog.md`](docs/extension-catalog.md#community-review).
@@ -61,6 +58,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Hardware (Raspberry Pi Zero 2 W / Pi 3), 24-hour soak, and display-path
   evidence are not yet recorded; see `docs/release-checklist.md` sections 7-8.
 - Slint license decision remains open; binaries must not be distributed until it is recorded.
-- Hardened `config.example.toml` with per-key comments and placeholder-only values; `scripts/check-docs.py` now rejects active tokens, non-placeholder URL hosts, active extension settings, personal paths, and personal identifiers in the shipped example.
-
 [Unreleased]: https://github.com/ABOYrbx/home-assistant-kiosk/commits/main

@@ -10,7 +10,8 @@ use ha_kiosk::state::{
 use ha_kiosk::ui::bridge;
 use ha_kiosk::{AppController, AppEvent, Config, HaEvent, MainWindow};
 use i_slint_backend_testing::{TestingBackend, TestingBackendOptions};
-use slint::{ComponentHandle, PhysicalSize};
+use slint::{ComponentHandle, ModelRc, PhysicalSize, VecModel};
+use std::rc::Rc;
 use std::time::Instant;
 
 #[test]
@@ -245,6 +246,80 @@ path = "{}"
         600,
         &output.join("agenda-1024.png"),
     );
+
+    controller.window().set_current_page(3);
+    save_snapshot(
+        controller.window(),
+        1024,
+        600,
+        &output.join("status-1024.png"),
+    );
+    save_snapshot(
+        controller.window(),
+        800,
+        480,
+        &output.join("status-800.png"),
+    );
+
+    let installed = ha_kiosk::ShopEntryView {
+        id: "org.example.bus-departures".into(),
+        name: "Bus Departures".into(),
+        version: "1.0.0".into(),
+        author: "Example Author".into(),
+        license: "MIT".into(),
+        description: "Shows upcoming bus departures for a configured stop.".into(),
+        status: "Installed".into(),
+        permissions: "api.example.com; no Home Assistant entities".into(),
+        config_keys: "stop_id (required), limit (optional)".into(),
+        config_path:
+            "/etc/ha-kiosk/config.toml [extensions.settings.\"org.example.bus-departures\"]".into(),
+        secret_path: "/etc/ha-kiosk/extensions/org.example.bus-departures.secret.toml".into(),
+        error: "".into(),
+        installed: true,
+        enabled: true,
+        update_available: false,
+        available: true,
+    };
+    let available = ha_kiosk::ShopEntryView {
+        id: "org.example.stop-status".into(),
+        name: "Stop Status".into(),
+        version: "0.2.0".into(),
+        author: "Example Author".into(),
+        license: "MIT".into(),
+        description: "Shows a compact key-value status for a configured stop.".into(),
+        status: "Available".into(),
+        permissions: "api.example.com; sensor.departures".into(),
+        config_keys: "stop_id (required)".into(),
+        config_path: "/etc/ha-kiosk/config.toml [extensions.settings.\"org.example.stop-status\"]"
+            .into(),
+        secret_path: "/etc/ha-kiosk/extensions/org.example.stop-status.secret.toml".into(),
+        error: "".into(),
+        installed: false,
+        enabled: false,
+        update_available: false,
+        available: true,
+    };
+    controller.window().set_extensions_enabled(true);
+    controller
+        .window()
+        .set_shop_installed(Rc::new(VecModel::from(vec![installed])).into());
+    controller
+        .window()
+        .set_shop_available(Rc::new(VecModel::from(vec![available])).into());
+    controller
+        .window()
+        .set_shop_config_path("/etc/ha-kiosk/config.toml".into());
+    controller
+        .window()
+        .set_shop_secret_dir("/etc/ha-kiosk/extensions".into());
+    controller.window().set_current_page(4);
+    save_snapshot(
+        controller.window(),
+        1024,
+        600,
+        &output.join("shop-1024.png"),
+    );
+    save_snapshot(controller.window(), 800, 480, &output.join("shop-800.png"));
 }
 
 fn save_snapshot(app: &MainWindow, width: u32, height: u32, path: &std::path::Path) {
