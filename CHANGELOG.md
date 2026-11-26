@@ -11,7 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Wave 3 feature widgets: local clock/date, weather and forecasts, Home Assistant tiles, media controls and album art, generic departures, and calendar agenda.
 - Responsive adopted Overview with hero light controls, scenes/quick actions, tile groups, weather, and departures at kiosk and desktop widths.
 - Headless software-renderer screenshot coverage for the required Wave 3 layouts.
-
+- Release preflight command `scripts/check-release.sh` with fail-fast automated gates
+  and an optional `--with-artifacts` mode.
+- Release artifact builds now validate version and target names and verify
+  `SHA256SUMS` automatically.
 - Operator documentation: installation, upgrade, and rollback steps in [`README.md`](README.md).
 - Configuration reference for every `config.toml` key in [`README.md`](README.md), matching [`config.example.toml`](config.example.toml).
 - Troubleshooting guide for cross-compilation, glibc mismatch, display backends, touch rotation, token permissions, Home Assistant version, offline state, timezone, and memory in [`docs/troubleshooting.md`](docs/troubleshooting.md).
@@ -44,5 +47,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Documented token handling, file permissions, TLS validation, and the offline-cache exposure model.
 - Album-art requests are size-bounded, use a capped LRU cache, never forward the Home Assistant token across origins, and omit query strings from logs.
 - A catalog signature fetch failure is no longer treated as an unsigned catalog: only a genuine 404 in development mode is accepted as unsigned, and the production fetcher rejects plain HTTP even after a redirect.
+
+### Known limitations
+
+- Hardware (Raspberry Pi Zero 2 W / Pi 3), 24-hour soak, and display-path
+  evidence are not yet recorded; see `docs/release-checklist.md` sections 7-8.
+- Slint license decision remains open; binaries must not be distributed until it is recorded.
 
 [Unreleased]: https://github.com/ABOYrbx/home-assistant-kiosk/commits/main
