@@ -1,13 +1,11 @@
-use ha_kiosk::ha::models::{EntityChange, HaEntity};
-use ha_kiosk::{AppController, AppEvent, Config, HaEvent, MainWindow};
-use slint::Model;
-use std::sync::Once;
+//! Application state behind the consolidated shell.
+//!
+//! The shell no longer mirrors every state field into Slint properties, so
+//! these assertions live at the state layer instead of against the window.
 
-static INIT_BACKEND: Once = Once::new();
-
-fn init_backend() {
-    INIT_BACKEND.call_once(|| i_slint_backend_testing::init_integration_test_with_system_time());
-}
+use ha_kiosk::events::HaEvent;
+use ha_kiosk::ha::models::HaEntity;
+use ha_kiosk::state::{AppState, ConnectionState};
 
 fn entity(id: &str) -> HaEntity {
     HaEntity {
@@ -19,93 +17,60 @@ fn entity(id: &str) -> HaEntity {
     }
 }
 
-fn test_config() -> (Config, tempfile::TempDir) {
-    let dir = tempfile::tempdir().unwrap();
-    let config_path = dir.path().join("config.toml");
-    let cache_path = dir.path().join("cache.json");
-    std::fs::write(
-        &config_path,
-        format!(
-            r#"
-[ha]
-url = "https://ha.example.com"
-token = "test-token"
+#[test]
+fn connection_events_track_version_timezone_and_stale() {
+    let mut state = AppState::default();
+    assert_eq!(state.connection, ConnectionState::Disconnected);
+    assert!(state.stale);
 
-[cache]
-path = "{}"
+    state.apply_ha_event(HaEvent::Connected {
+        ha_version: "2026.11.0".into(),
+        time_zone: chrono_tz::Tz::UTC,
+    });
+    assert_eq!(state.connection, ConnectionState::Connected);
+    assert_eq!(state.ha_version.as_deref(), Some("2026.11.0"));
+    assert_eq!(state.time_zone, chrono_tz::Tz::UTC);
+    assert!(!state.stale);
 
-[widgets.weather]
-entity = "weather.home"
-"#,
-            cache_path.display()
-        ),
-    )
-    .unwrap();
-    (Config::load(&config_path).unwrap(), dir)
+    state.apply_ha_event(HaEvent::Snapshot(vec![
+        entity("light.example"),
+        entity("weather.home"),
+    ]));
+    assert_eq!(state.entities.len(), 2);
+    assert!(state.last_success.is_some());
+
+    state.apply_ha_event(HaEvent::EntitiesRemoved(vec!["light.example".into()]));
+    assert_eq!(state.entities.len(), 1);
+    assert!(state.entities.contains_key("weather.home"));
+
+    state.apply_ha_event(HaEvent::Disconnected {
+        reason: "socket closed".into(),
+    });
+    assert_eq!(state.connection, ConnectionState::Disconnected);
+    assert!(state.stale, "disconnecting makes cached values stale again");
 }
 
 #[test]
-fn controller_applies_events_and_updates_slint_on_the_ui_thread() {
-    init_backend();
+fn a_restored_cache_stays_offline_until_a_fresh_batch() {
+    let mut cached = AppState::default();
+    cached
+        .entities
+        .insert("light.example".into(), entity("light.example"));
 
-    let (config, _temp_dir) = test_config();
-    let window = MainWindow::new().unwrap();
-    let (tx, _rx) = tokio::sync::mpsc::channel(4);
-    let mut controller = AppController::new(window.clone(), config, tx);
+    let mut restored = AppState::restore_from_cache(cached);
+    assert_eq!(restored.connection, ConnectionState::Disconnected);
+    assert!(restored.stale);
+    assert_eq!(restored.entities.len(), 1);
 
-    // The controller publishes the initial state so the shell has no blank
-    // defaults before the first event arrives.
-    assert_eq!(window.get_connection_status().as_str(), "Disconnected");
-    assert!(window.get_stale());
-    assert_eq!(window.get_entity_count(), 0);
-    assert_eq!(window.get_entity_ids().row_count(), 0);
-
-    controller.apply(AppEvent::Ha(HaEvent::Connected {
+    // A reconnect alone keeps the badge; the first snapshot clears it.
+    restored.apply_ha_event(HaEvent::Connected {
         ha_version: "2026.11.0".into(),
         time_zone: chrono_tz::Tz::UTC,
-    }));
-    assert_eq!(window.get_connection_status().as_str(), "Connected");
-    assert_eq!(window.get_ha_version().as_str(), "2026.11.0");
-    assert!(!window.get_stale());
-    assert!(!window.get_last_success().is_empty());
-
-    controller.apply(AppEvent::Ha(HaEvent::Snapshot(vec![
-        entity("weather.home"),
-        entity("light.example"),
-    ])));
-    assert_eq!(window.get_entity_count(), 2);
-    let ids = window.get_entity_ids();
-    assert_eq!(ids.row_count(), 2);
-    assert_eq!(ids.row_data(0).unwrap().as_str(), "light.example");
-    assert_eq!(ids.row_data(1).unwrap().as_str(), "weather.home");
-
-    controller.apply(AppEvent::Ha(HaEvent::EntitiesChanged(vec![EntityChange {
-        entity_id: "light.example".into(),
-        state: Some("off".into()),
-        attributes: serde_json::json!({}),
-    }])));
-    assert_eq!(window.get_entity_count(), 2);
-
-    controller.apply(AppEvent::Ha(HaEvent::EntitiesRemoved(vec![
-        "light.example".into(),
-    ])));
-    assert_eq!(window.get_entity_count(), 1);
-    assert_eq!(
-        window.get_entity_ids().row_data(0).unwrap().as_str(),
-        "weather.home"
+    });
+    assert!(
+        restored.stale,
+        "a reconnect must not make cached values live"
     );
-
-    controller.apply(AppEvent::Ha(HaEvent::AuthFailed {
-        message: "bad token".into(),
-    }));
-    assert_eq!(
-        window.get_connection_status().as_str(),
-        "Authentication failed"
-    );
-
-    controller.apply(AppEvent::Ha(HaEvent::Disconnected {
-        reason: "socket closed".into(),
-    }));
-    assert_eq!(window.get_connection_status().as_str(), "Disconnected");
-    assert!(window.get_stale());
+    restored.apply_ha_event(HaEvent::Snapshot(vec![entity("light.example")]));
+    assert!(!restored.stale);
 }

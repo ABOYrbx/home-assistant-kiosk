@@ -1,87 +1,109 @@
+//! Calendar refresh round: entries, partial failures and staleness.
+//!
+//! The consolidated shell no longer exposes per-page Slint properties, so the
+//! rendering itself is covered by the widget; this test covers the view model
+//! that feeds the agenda.
+
 use chrono::{TimeZone, Utc};
-use ha_kiosk::state::{CalendarError, CalendarItem, CalendarView};
-use ha_kiosk::ui::bridge::UiBridge;
-use slint::Model;
+use ha_kiosk::events::ServiceResponse;
+use ha_kiosk::sources::calendar::{CalendarRefresh, refresh_due};
+use std::time::Duration;
+
+fn now() -> chrono::DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 11, 23, 8, 0, 0).unwrap()
+}
+
+fn berlin() -> chrono_tz::Tz {
+    "Europe/Berlin".parse().unwrap()
+}
+
+/// Find the request that targets a given calendar entity.
+fn request_for<'a>(
+    calls: &'a [ha_kiosk::events::ServiceCall],
+    id: &str,
+) -> &'a ha_kiosk::events::ServiceCall {
+    calls
+        .iter()
+        .find(|call| {
+            call.target
+                .as_ref()
+                .and_then(|target| target.get("entity_id"))
+                .and_then(|value| value.as_str())
+                == Some(id)
+        })
+        .unwrap_or_else(|| panic!("no request for {id}"))
+}
 
 #[test]
-fn agenda_page_renders_entries_states_and_partial_failures() {
-    i_slint_backend_testing::init_integration_test_with_system_time();
+fn a_round_keeps_successful_events_and_reports_a_failed_calendar() {
+    let mut refresh = CalendarRefresh::default();
+    let calls = refresh.begin(
+        &["calendar.family".into(), "calendar.work".into()],
+        2,
+        berlin(),
+        now(),
+    );
+    assert_eq!(calls.len(), 2);
+    assert!(refresh.is_pending(), "the round waits for both calendars");
 
-    slint::spawn_local(async move {
-        let app = ha_kiosk::MainWindow::new().unwrap();
-        let tz: chrono_tz::Tz = "Europe/Berlin".parse().unwrap();
-        let now = Utc.with_ymd_and_hms(2026, 11, 23, 8, 0, 0).unwrap();
+    let family = request_for(&calls, "calendar.family");
+    let work = request_for(&calls, "calendar.work");
 
-        // Before the first response the page shows a loading state.
-        UiBridge::apply_calendar(&app, None, now, &tz);
-        assert!(app.get_agenda_loading());
-        assert_eq!(app.get_agenda_today().row_count(), 0);
+    let response = ServiceResponse {
+        data: serde_json::json!({
+            "calendar.family": {
+                "events": [{
+                    "summary": "Meeting",
+                    "start": { "dateTime": "2026-11-23T09:00:00+01:00" },
+                    "end": { "dateTime": "2026-11-23T10:00:00+01:00" },
+                    "location": "Room 1"
+                }]
+            }
+        }),
+    };
+    assert!(refresh.accept(family.request_id, Ok(&response), berlin()));
+    assert!(refresh.is_pending(), "one answer does not finish the round");
 
-        let view = CalendarView {
-            items: vec![
-                CalendarItem {
-                    calendar_id: "calendar.family".into(),
-                    summary: "Meeting".into(),
-                    start: Utc.with_ymd_and_hms(2026, 11, 23, 9, 0, 0).unwrap(),
-                    end: Some(Utc.with_ymd_and_hms(2026, 11, 23, 10, 0, 0).unwrap()),
-                    all_day: false,
-                    location: Some("Room 1".into()),
-                },
-                CalendarItem {
-                    calendar_id: "calendar.family".into(),
-                    summary: "Holiday".into(),
-                    start: Utc.with_ymd_and_hms(2026, 11, 24, 0, 0, 0).unwrap(),
-                    end: None,
-                    all_day: true,
-                    location: None,
-                },
-            ],
-            errors: vec![CalendarError {
-                calendar_id: "calendar.work".into(),
-                message: "calendar entity is unavailable".into(),
-            }],
-            last_success: Some(now),
-            stale: false,
-        };
+    assert!(refresh.accept(
+        work.request_id,
+        Err("calendar.work: unavailable".into()),
+        berlin()
+    ));
+    assert!(!refresh.is_pending());
 
-        UiBridge::apply_calendar(&app, Some(&view), now, &tz);
-        assert!(!app.get_agenda_loading());
-        assert_eq!(app.get_agenda_today().row_count(), 1);
-        assert_eq!(app.get_agenda_tomorrow().row_count(), 1);
+    let view = refresh.finish(now()).expect("a complete round");
+    assert_eq!(view.items.len(), 1);
+    assert_eq!(view.items[0].summary, "Meeting");
+    assert_eq!(view.items[0].location.as_deref(), Some("Room 1"));
+    assert_eq!(view.errors.len(), 1);
+    assert_eq!(view.errors[0].calendar_id, "calendar.work");
+    assert_eq!(view.last_success, Some(now()));
+    assert!(!view.stale, "fresh results are never marked stale");
+}
 
-        let meeting = app.get_agenda_today().row_data(0).unwrap();
-        assert_eq!(meeting.title, "Meeting");
-        assert_eq!(meeting.when, "10:00–11:00");
-        assert_eq!(meeting.detail, "Room 1");
+#[test]
+fn an_empty_calendar_round_has_no_events_and_no_errors() {
+    let mut refresh = CalendarRefresh::default();
+    let calls = refresh.begin(&["calendar.family".into()], 2, berlin(), now());
+    let response = ServiceResponse {
+        data: serde_json::json!({ "calendar.family": { "events": [] } }),
+    };
+    assert!(refresh.accept(calls[0].request_id, Ok(&response), berlin()));
 
-        let holiday = app.get_agenda_tomorrow().row_data(0).unwrap();
-        assert_eq!(holiday.when, "All day");
+    let view = refresh.finish(now()).expect("a complete round");
+    assert!(view.items.is_empty());
+    assert!(view.errors.is_empty());
+    assert_eq!(view.last_success, Some(now()));
+}
 
-        assert_eq!(app.get_agenda_error(), "calendar.work unavailable");
-        assert!(!app.get_agenda_empty());
-
-        // A successful load without events shows the empty state.
-        let empty = CalendarView {
-            items: Vec::new(),
-            errors: Vec::new(),
-            last_success: Some(now),
-            stale: false,
-        };
-        UiBridge::apply_calendar(&app, Some(&empty), now, &tz);
-        assert!(app.get_agenda_empty());
-        assert_eq!(app.get_agenda_today().row_count(), 0);
-
-        // Cached data is labelled as offline instead of being shown as live.
-        let stale = CalendarView {
-            stale: true,
-            ..view
-        };
-        UiBridge::apply_calendar(&app, Some(&stale), now, &tz);
-        assert_eq!(app.get_agenda_status(), "Offline — showing cached events");
-
-        slint::quit_event_loop().unwrap();
-    })
-    .unwrap();
-
-    slint::run_event_loop().unwrap();
+#[test]
+fn refresh_is_due_only_after_the_interval() {
+    let interval = Duration::from_secs(300);
+    assert!(refresh_due(None, now(), interval));
+    assert!(!refresh_due(Some(now()), now(), interval));
+    assert!(refresh_due(
+        Some(now()),
+        now() + Duration::from_secs(300),
+        interval
+    ));
 }

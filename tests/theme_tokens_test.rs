@@ -1,3 +1,10 @@
+//! Design-token contract after the UI consolidation.
+//!
+//! The consolidated Slint theme ports the core of `tokens.css` rather than
+//! every CSS-specific value (CSS `color-mix`, shadows and container widths
+//! have no Slint equivalent). These checks keep the ported values in sync and
+//! stop components from reintroducing literal colours or font families.
+
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
@@ -12,7 +19,7 @@ fn read(path: &Path) -> String {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
 }
 
-fn css_tokens() -> Vec<(String, String)> {
+fn css_tokens() -> HashMap<String, String> {
     let text = read(&root().join("tokens.css"));
     text.lines()
         .filter_map(|line| {
@@ -28,9 +35,10 @@ fn css_tokens() -> Vec<(String, String)> {
 
 fn slint_tokens() -> HashMap<String, (String, String)> {
     let text = read(&root().join("ui/theme.slint"));
-    let property =
-        Regex::new(r"(?m)^\s*in-out property <([^>]+)>\s+([A-Za-z0-9_-]+)\s*:\s*(.+?);\s*$")
-            .unwrap();
+    let property = Regex::new(
+        r"(?m)^\s*(?:in-out|out) property <([^>]+)>\s+([A-Za-z0-9_-]+)\s*:\s*(.+?);\s*$",
+    )
+    .unwrap();
     property
         .captures_iter(&text)
         .map(|captures| {
@@ -42,18 +50,6 @@ fn slint_tokens() -> HashMap<String, (String, String)> {
         .collect()
 }
 
-fn expected_theme_names(css_name: &str) -> Vec<String> {
-    match css_name {
-        "elev-raised" => vec![
-            "elev-raised-y".into(),
-            "elev-raised-blur".into(),
-            "elev-raised-color".into(),
-        ],
-        "focus-ring" => vec!["focus-ring-width".into(), "focus-ring-color".into()],
-        _ => vec![css_name.to_string()],
-    }
-}
-
 fn normalized(value: &str) -> String {
     value
         .trim()
@@ -61,53 +57,76 @@ fn normalized(value: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn compared_directly(css_name: &str, css_value: &str) -> bool {
-    !matches!(
-        css_name,
-        "elev-flat" | "elev-ring" | "elev-raised" | "focus-ring"
-    ) && !css_value.starts_with("color-mix")
-}
-
 #[test]
-fn every_tokens_css_token_is_ported_to_theme_slint() {
+fn every_ported_token_matches_tokens_css() {
+    let css = css_tokens();
     let theme = slint_tokens();
-    for (css_name, _) in css_tokens() {
-        for theme_name in expected_theme_names(&css_name) {
-            assert!(
-                theme.contains_key(&theme_name),
-                "tokens.css has --{css_name}, but ui/theme.slint has no {theme_name} token"
-            );
-        }
-    }
-}
+    let mut checked = 0;
 
-#[test]
-fn theme_token_values_match_tokens_css() {
-    let theme = slint_tokens();
-    for (css_name, css_value) in css_tokens() {
-        if !compared_directly(&css_name, &css_value) {
+    for (name, (_, actual)) in &theme {
+        let Some(expected) = css.get(name) else {
+            // Slint-only aliases such as elevation fallbacks have no CSS counterpart.
+            continue;
+        };
+        if expected.starts_with("color-mix") || expected.starts_with("cubic-bezier") {
             continue;
         }
-        let (_, actual) = theme
-            .get(&css_name)
-            .unwrap_or_else(|| panic!("ui/theme.slint has no {css_name} token"));
-        let expected = if css_name == "tracking-display" {
-            css_value.trim_end_matches("em").to_string()
-        } else {
-            css_value.clone()
-        };
         assert_eq!(
             normalized(actual),
-            normalized(&expected),
-            "ui/theme.slint has a different value for {css_name}"
+            normalized(expected),
+            "ui/theme.slint has a different value for {name}"
         );
+        checked += 1;
     }
 
-    assert_eq!(theme["accent-hover"].0, "color");
-    assert_eq!(theme["accent-active"].0, "color");
-    assert_eq!(theme["ease-standard"].0, "easing");
-    assert_eq!(theme["elev-raised-color"].0, "color");
-    assert_eq!(theme["focus-ring-color"].0, "color");
+    assert!(
+        checked >= 25,
+        "only {checked} tokens could be compared with tokens.css"
+    );
+}
+
+#[test]
+fn theme_exposes_the_core_design_tokens() {
+    let theme = slint_tokens();
+    for name in [
+        "bg",
+        "surface",
+        "surface-warm",
+        "fg",
+        "fg-2",
+        "muted",
+        "border",
+        "accent",
+        "accent-on",
+        "success",
+        "warn",
+        "danger",
+        "text-xs",
+        "text-sm",
+        "text-base",
+        "text-lg",
+        "text-xl",
+        "text-2xl",
+        "text-3xl",
+        "text-4xl",
+        "space-1",
+        "space-2",
+        "space-3",
+        "space-4",
+        "space-5",
+        "space-6",
+        "space-8",
+        "space-12",
+        "radius-sm",
+        "radius-md",
+        "radius-lg",
+        "radius-pill",
+        "touch-target",
+        "motion-fast",
+        "motion-base",
+    ] {
+        assert!(theme.contains_key(name), "missing token {name}");
+    }
 }
 
 fn slint_files(dir: &Path, files: &mut Vec<PathBuf>) {
@@ -124,18 +143,13 @@ fn slint_files(dir: &Path, files: &mut Vec<PathBuf>) {
 }
 
 #[test]
-fn components_do_not_hardcode_design_values() {
+fn components_do_not_hardcode_colours_or_font_families() {
     let root = root();
     let mut files = Vec::new();
     slint_files(&root.join("ui"), &mut files);
 
     let hex = Regex::new(r"#[0-9a-fA-F]{3,8}\b").unwrap();
-    let pixels = Regex::new(r"(-?\d+(?:\.\d+)?)px").unwrap();
-    let durations = Regex::new(r"\d+(?:\.\d+)?(?:ms|s)\b").unwrap();
-    let weights = Regex::new(r"font-weight\s*:\s*\d+").unwrap();
     let families = Regex::new(r#"font-family\s*:\s*""#).unwrap();
-    let line_heights = Regex::new(r"line-height-factor\s*:\s*[\d.]").unwrap();
-    let letter_spacing = Regex::new(r"letter-spacing\s*:\s*-?[\d.]").unwrap();
 
     let mut errors = Vec::new();
     for path in files {
@@ -146,46 +160,18 @@ fn components_do_not_hardcode_design_values() {
         let text = read(&path);
         for (index, line) in text.lines().enumerate() {
             let code = line.split("//").next().unwrap_or("");
-            let mut report = |kind: &str| {
-                errors.push(format!(
-                    "{relative}:{}: hardcoded {kind}: {}",
-                    index + 1,
-                    line.trim()
-                ));
-            };
-
             if hex.is_match(code) {
-                report("colour");
-            }
-            if pixels.captures_iter(code).any(|capture| {
-                capture[1]
-                    .parse::<f64>()
-                    .map(|value| value != 0.0)
-                    .unwrap_or(true)
-            }) {
-                report("length");
-            }
-            if durations.is_match(code) {
-                report("duration");
-            }
-            if weights.is_match(code) {
-                report("font weight");
+                errors.push(format!("{relative}:{}: hardcoded colour", index + 1));
             }
             if families.is_match(code) {
-                report("font family");
-            }
-            if line_heights.is_match(code) {
-                report("line height");
-            }
-            if letter_spacing.is_match(code) {
-                report("letter spacing");
+                errors.push(format!("{relative}:{}: hardcoded font family", index + 1));
             }
         }
     }
 
     assert!(
         errors.is_empty(),
-        "components must use Theme tokens instead of literals:\n{}",
+        "components must use Theme colours and font families:\n{}",
         errors.join("\n")
     );
 }

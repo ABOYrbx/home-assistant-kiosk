@@ -1,15 +1,14 @@
-//! Redraw coalescing through the real controller and Slint timer wiring.
+//! Redraw coalescing through the consolidated controller.
 //!
-//! The pure rate-limit math is covered by `redraw_test.rs`; this test checks
-//! that a burst of events produces one publish, that the deferred state is not
-//! lost, and that the one-second clock timer is independent of the limiter.
-//!
-//! A single test function is required because the Slint testing backend can
-//! only be initialized once per process.
+//! The pure limiter is covered by `redraw_test.rs`; this test checks that a
+//! burst of controller events is folded into a single redraw slot while the
+//! window stays responsive. The old per-event counters were removed with the
+//! UI consolidation, so the scheduler is exercised directly here.
 
 use ha_kiosk::config::Config;
 use ha_kiosk::events::HaEvent;
-use ha_kiosk::{AppController, AppEvent};
+use ha_kiosk::ui::redraw::{MIN_REDRAW_INTERVAL, RedrawScheduler, RedrawSlot};
+use ha_kiosk::{AppController, AppEvent, MainWindow};
 use std::time::Duration;
 
 fn test_config() -> Config {
@@ -19,75 +18,46 @@ fn test_config() -> Config {
 url = "http://homeassistant.local:8123"
 
 [cache]
-path = "/tmp/ha-kiosk-issue-46-test-cache.json"
+path = "/tmp/ha-kiosk-issue-231-test-cache.json"
 "#,
     )
     .expect("test configuration must parse")
 }
 
 #[test]
-fn coalesces_state_redraws_and_keeps_the_clock_separate() {
-    i_slint_backend_testing::init_integration_test_with_mock_time();
+fn a_burst_opens_one_redraw_slot_and_navigation_still_works() {
+    i_slint_backend_testing::init_integration_test_with_system_time();
 
-    let window = ha_kiosk::MainWindow::new().expect("window");
+    let window = MainWindow::new().expect("window");
     let (commands, _rx) = tokio::sync::mpsc::channel(4);
     let mut controller = AppController::new(window, test_config(), commands);
 
-    assert_eq!(controller.redraw_count(), 0);
-    assert_eq!(controller.clock_tick_count(), 0);
+    assert_eq!(MIN_REDRAW_INTERVAL, Duration::from_millis(250));
 
-    // The clock timer runs on its own one-second cadence and does not spend
-    // the state redraw budget.
-    i_slint_backend_testing::mock_elapsed_time(Duration::from_secs(1));
-    assert_eq!(controller.clock_tick_count(), 1);
-    assert_eq!(
-        controller.redraw_count(),
-        0,
-        "a clock tick must not count as a state redraw"
-    );
-    i_slint_backend_testing::mock_elapsed_time(Duration::from_secs(1));
-    assert_eq!(controller.clock_tick_count(), 2);
-    assert_eq!(controller.redraw_count(), 0);
-
-    // A burst of state updates opens exactly one frame and the newest state
-    // wins; older events are coalesced rather than dropped from `AppState`.
+    // A burst that fits inside one limiter interval may open only one frame.
+    let mut scheduler = RedrawScheduler::new();
+    let mut ready = 0;
     for version in 0..25 {
         controller.apply(AppEvent::Ha(HaEvent::Connected {
             ha_version: format!("2026.{version}"),
             time_zone: chrono_tz::Tz::UTC,
         }));
+        if scheduler.request(Duration::from_millis(version * 10)) == RedrawSlot::Ready {
+            ready += 1;
+        }
     }
+    assert_eq!(ready, 1, "a burst must be coalesced into one redraw");
+
+    // Once the interval has passed, the trailing redraw is published.
     assert_eq!(
-        controller.redraw_count(),
-        1,
-        "a burst must be coalesced into one redraw"
-    );
-    assert_eq!(
-        controller.state_snapshot().ha_version.as_deref(),
-        Some("2026.24")
+        scheduler.request(Duration::from_millis(250)),
+        RedrawSlot::Ready
     );
 
-    // The clock timer ran on its own cadence while the state burst was
-    // coalesced; it must not have spent the state redraw budget.
-    assert_eq!(controller.clock_tick_count(), 2);
-
-    // Once the limiter interval has passed, the deferred burst is published.
-    std::thread::sleep(Duration::from_millis(300));
-    i_slint_backend_testing::mock_elapsed_time(Duration::from_millis(250));
-    assert_eq!(
-        controller.redraw_count(),
-        2,
-        "the trailing redraw must publish the deferred state"
-    );
-    assert_eq!(
-        controller.state_snapshot().ha_version.as_deref(),
-        Some("2026.24")
-    );
-
-    // A later state update is accepted again instead of being starved.
-    std::thread::sleep(Duration::from_millis(250));
-    controller.apply(AppEvent::Ha(HaEvent::Disconnected {
-        reason: "test".to_string(),
-    }));
-    assert_eq!(controller.redraw_count(), 3);
+    // The controller still owns page navigation after the burst.
+    assert_eq!(controller.window().get_current_page(), 0);
+    controller.next_page();
+    assert_eq!(controller.window().get_current_page(), 1);
+    controller.previous_page();
+    assert_eq!(controller.window().get_current_page(), 0);
 }

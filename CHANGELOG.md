@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- The desktop CI gate passes again: tests that referenced APIs removed by the UI consolidation now cover the current state, widget, theme and shell surfaces (#231).
 - An invalid token marks cached data stale and stops retrying instead of letting old values look live.
 - A malformed frame during the WebSocket handshake no longer forces a reconnect; a bounded skip tolerates a corrupt frame and abandons a peer that only sends garbage.
 - A failed tile service call renders its error, keeps the confirmed state, and allows a retry.
