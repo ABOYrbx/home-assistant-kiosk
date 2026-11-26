@@ -6,6 +6,7 @@ import { HeroLight } from "../widgets/hero_light.slint";
 import { ScenesRow } from "../widgets/scenes.slint";
 import { TilesGrid, TileItem } from "../widgets/tiles_grid.slint";
 import { DeparturesWidget, DeparturesState, DepartureRow } from "../widgets/departures.slint";
+import { ExtensionOutputsWidget, ExtensionOutputView } from "../widgets/extension_output.slint";
 
 component SecondaryContent inherits VerticalLayout {
     in property <[string]> scenes: [];
@@ -22,6 +23,7 @@ component SecondaryContent inherits VerticalLayout {
     in property <string> weather-unit: "";
     in property <string> weather-error: "";
     in property <[ForecastItem]> weather-forecast: [];
+    in property <[ExtensionOutputView]> extension-outputs: [];
     callback scene-activated(string);
     callback tile-tapped(string);
 
@@ -55,6 +57,10 @@ component SecondaryContent inherits VerticalLayout {
         state: root.departures-state;
         rows: root.departures-rows;
     }
+
+    if root.extension-outputs.length > 0 : ExtensionOutputsWidget {
+        outputs: root.extension-outputs;
+    }
 }
 
 export component OverviewPage inherits Rectangle {
@@ -73,6 +79,7 @@ export component OverviewPage inherits Rectangle {
     in property <string> weather-unit: "";
     in property <string> weather-error: "";
     in property <[ForecastItem]> weather-forecast: [];
+    in property <[ExtensionOutputView]> extension-outputs: [];
     callback scene-activated(string);
     callback tile-tapped(string);
 
@@ -152,6 +159,7 @@ export component OverviewPage inherits Rectangle {
                         weather-unit: root.weather-unit;
                         weather-error: root.weather-error;
                         weather-forecast: root.weather-forecast;
+                        extension-outputs: root.extension-outputs;
                         scene-activated(id) => { root.scene-activated(id); }
                         tile-tapped(id) => { root.tile-tapped(id); }
                     }
@@ -220,6 +228,7 @@ export component OverviewPage inherits Rectangle {
                         weather-unit: root.weather-unit;
                         weather-error: root.weather-error;
                         weather-forecast: root.weather-forecast;
+                        extension-outputs: root.extension-outputs;
                         scene-activated(id) => { root.scene-activated(id); }
                         tile-tapped(id) => { root.tile-tapped(id); }
                     }
@@ -314,6 +323,10 @@ export component OverviewPage inherits Rectangle {
                             title: root.departures-title;
                             state: root.departures-state;
                             rows: root.departures-rows;
+                        }
+
+                        if root.extension-outputs.length > 0 : ExtensionOutputsWidget {
+                            outputs: root.extension-outputs;
                         }
                     }
                 }

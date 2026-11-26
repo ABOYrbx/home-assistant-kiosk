@@ -1,5 +1,7 @@
 use crate::extensions::shop::{DEFAULT_SECRET_DIR, ShopAction, ShopView};
-use crate::extensions::{ExtensionManager, HttpsFetcher, ManagerOptions};
+use crate::extensions::{
+    EntitySnapshot, ExtensionDisplay, ExtensionManager, HttpsFetcher, ManagerOptions,
+};
 use crate::sources::calendar::{CalendarRefresh, refresh_due};
 use crate::sources::departures::{DeparturesRuntime, TickOutcome};
 use crate::sources::media::{self, VolumeDebouncer};
@@ -17,6 +19,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use slint::ComponentHandle;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::mpsc as std_mpsc;
@@ -32,6 +35,7 @@ enum ShopTask {
     Update(String),
     Remove(String),
     SetEnabled(String, bool),
+    RunExtensions(BTreeMap<String, EntitySnapshot>),
 }
 
 #[derive(Default)]
@@ -583,6 +587,7 @@ pub struct AppController {
     redraw_timer: slint::Timer,
     event_timer: slint::Timer,
     cache_timer: slint::Timer,
+    extension_timer: slint::Timer,
     shop_tasks: Option<std_mpsc::Sender<ShopTask>>,
     shop_timer: Option<slint::Timer>,
 }
@@ -630,6 +635,7 @@ impl AppController {
             redraw_timer: slint::Timer::default(),
             event_timer: slint::Timer::default(),
             cache_timer: slint::Timer::default(),
+            extension_timer: slint::Timer::default(),
             shop_tasks,
             shop_timer: None,
         };
@@ -637,6 +643,7 @@ impl AppController {
         controller.wire_widgets();
         controller.wire_shop_callbacks();
         controller.start_shop(event_rx, task_rx, event_tx);
+        controller.start_extensions();
         controller.start_clock();
         controller.render();
         controller
@@ -816,6 +823,40 @@ impl AppController {
         );
     }
 
+    fn start_extensions(&mut self) {
+        if !self.config.extensions.enabled {
+            return;
+        }
+        let Some(tasks) = self.shop_tasks.clone() else {
+            return;
+        };
+        let weak_core = Rc::downgrade(&self.core);
+        let send = move || {
+            let Some(core) = weak_core.upgrade() else {
+                return;
+            };
+            let entities: BTreeMap<String, EntitySnapshot> = core
+                .borrow()
+                .state
+                .entities
+                .iter()
+                .map(|(id, entity)| {
+                    (
+                        id.clone(),
+                        EntitySnapshot {
+                            state: entity.state.clone(),
+                            attributes: entity.attributes.clone(),
+                        },
+                    )
+                })
+                .collect();
+            let _ = tasks.send(ShopTask::RunExtensions(entities));
+        };
+        send();
+        self.extension_timer
+            .start(slint::TimerMode::Repeated, Duration::from_secs(60), send);
+    }
+
     fn start_shop(
         &mut self,
         events: std_mpsc::Receiver<ShopEvent>,
@@ -840,8 +881,17 @@ impl AppController {
             move || {
                 let mut changed = false;
                 while let Ok(event) = events.try_recv() {
-                    apply_shop_event(&mut shop_events.borrow_mut(), event);
-                    changed = true;
+                    match event {
+                        ShopEvent::ExtensionOutputs(outputs) => {
+                            if let Some(window) = weak_events.upgrade() {
+                                bridge::apply_extension_outputs(&window, &outputs);
+                            }
+                        }
+                        event => {
+                            apply_shop_event(&mut shop_events.borrow_mut(), event);
+                            changed = true;
+                        }
+                    }
                 }
                 if changed && let Some(window) = weak_events.upgrade() {
                     push_shop(&window, &shop_events.borrow());
@@ -1161,6 +1211,7 @@ fn apply_shop_event(shop: &mut ShopView, event: ShopEvent) {
         ShopEvent::ActionResult { id, action, result } => {
             let _ = shop.complete(&id, action, result);
         }
+        ShopEvent::ExtensionOutputs(_) => {}
     }
 }
 
@@ -1217,6 +1268,35 @@ fn run_shop_worker(
             continue;
         };
         match task {
+            ShopTask::RunExtensions(entities) => {
+                let mut displays = Vec::new();
+                for entry in manager.installed_entries() {
+                    if !entry.enabled {
+                        continue;
+                    }
+                    let id = entry.id;
+                    match manager.run(&id, entities.clone()) {
+                        Ok(output) => displays.push(output.display(&id, None)),
+                        Err(error) => {
+                            let message = error.to_string();
+                            if let Some(output) = manager
+                                .health(&id)
+                                .and_then(|health| health.last_good.clone())
+                            {
+                                displays.push(output.display(&id, Some(message)));
+                            } else {
+                                displays.push(ExtensionDisplay {
+                                    id: id.clone(),
+                                    title: id,
+                                    lines: Vec::new(),
+                                    error: Some(message),
+                                });
+                            }
+                        }
+                    }
+                }
+                let _ = events.send(ShopEvent::ExtensionOutputs(displays));
+            }
             ShopTask::Refresh => match manager.refresh_catalog() {
                 Ok(entries) => {
                     catalog_online = true;

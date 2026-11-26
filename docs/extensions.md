@@ -275,7 +275,7 @@ The host registers exactly four functions. Calling an unregistered host function
 
 #### Wave 6 integration status
 
-The author API below is implemented in the host and covered by tests. The current kiosk shell does not yet schedule installed extensions or render their output; runtime health, degradation, and last-good output are host/runner behavior, not evidence that a widget is already running in the kiosk. The Shop still provides install, update, remove, enable/disable, catalog, and configuration workflows.
+The author API below is implemented in the host and covered by tests. The kiosk schedules installed, enabled extensions on a background worker every 60 seconds and renders their validated output in the built-in Extensions card on the Overview. Runtime health, degradation, and last-good output are tracked by the manager; a failed refresh keeps the last good card and shows the error in the Shop and Status pages.
 
 | Function | Behavior |
 | --- | --- |
@@ -470,7 +470,7 @@ Cells are strings. Convert numbers and booleans in the script rather than return
 
 ### Failure behavior
 
-A compile error, sandbox violation, HTTP error, or malformed output fails the whole refresh. The extension keeps its last good output and reports the error. Manifest, configuration, script-read, and host-construction errors are reported before refresh health tracking begins. For a constructed host, three consecutive compile/runtime/HTTP/output failures mark it degraded in the runner/manager health model; a successful refresh clears the error and failure count. The current kiosk shell does not yet schedule refreshes or render extension widgets.
+A compile error, sandbox violation, HTTP error, or malformed output fails the whole refresh. The extension keeps its last good output and reports the error. Manifest, configuration, script-read, and host-construction errors are reported before refresh health tracking begins. For a constructed host, three consecutive compile/runtime/HTTP/output failures mark it degraded in the runner/manager health model; a successful refresh clears the error and failure count. The kiosk schedules refreshes on a background worker and renders the validated output in the built-in Extensions card; extensions never draw their own UI.
 
 ## Packaging
 
