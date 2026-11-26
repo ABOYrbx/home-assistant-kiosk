@@ -7,7 +7,7 @@ Do not distribute a binary until the license decision is recorded in `PLAN.md` s
 ## 1. Preconditions
 
 - [ ] Every subtask issue for the wave is closed, and the wave epic lists no open checkbox.
-- [ ] `main` is green: the `docs` workflow passed on the current head.
+- [ ] `main` is green: the `docs` and `security` workflows passed on the current head.
 - [ ] The license decision is recorded in `PLAN.md` section 12.
 - [ ] The version number is chosen (semver) and matches the planned tag, for example `v1.0.0`.
 - [ ] No open pull request changes behaviour that the release notes do not mention.
@@ -20,14 +20,16 @@ Run from a clean checkout of the release commit:
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-cargo audit
+cargo audit --file Cargo.lock
 python3 scripts/check-docs.py
 ```
 
 - [ ] `cargo fmt --check` passes.
 - [ ] `cargo clippy --all-targets -- -D warnings` passes.
 - [ ] `cargo test` passes, including the end-to-end and failure-scenario tests.
-- [ ] `cargo audit` reports no unaccepted advisory. Record every accepted advisory and its reason in the release notes.
+- [ ] `cargo audit --file Cargo.lock` reports no unaccepted advisory. Vulnerabilities fail CI; maintenance warnings do not. The `security` workflow runs this command on pull requests, pushes to `main`, and on the weekly schedule (`0 6 * * 1`); a failing scheduled run must be reviewed. Record every accepted advisory and its reason in the release notes.
+- [ ] Every warning reported by `cargo audit` has been reviewed against [`docs/dependency-audit.md`](dependency-audit.md) before release.
+- [ ] `cargo-deny` license enforcement remains deferred until the project license decision is recorded in `PLAN.md` section 12.
 - [ ] `python3 scripts/check-docs.py` passes. It validates TOML, Markdown links, required files, and personal-data markers.
 - [ ] The desktop smoke run opens a window with `config.example.toml`:
 
@@ -117,7 +119,7 @@ List the limitations that a user will meet, with the current behaviour and the t
 - [ ] Climate setpoint, cover position, and other controls deferred beyond v1.
 - [ ] Localization: English only in v1.
 - [ ] Extension shop status: disabled in v1 or enabled with its own gate.
-- [ ] Any accepted `cargo audit` advisory.
+- [ ] Any accepted `cargo audit` advisory, using the current review in [`dependency-audit.md`](dependency-audit.md).
 - [ ] Any Slint LinuxKMS limitation observed on the test panel.
 
 ## 9. Publish
