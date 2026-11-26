@@ -16,6 +16,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Security
 
 - Documented token handling, file permissions, TLS validation, and the offline-cache exposure model.
-- Pinned and automated the Rust dependency audit: the `security` workflow now sets up Rust, installs `cargo-audit` 0.23.0, and runs `cargo audit --file Cargo.lock` on pull requests, pushes to `main`, and weekly. Current lockfile reports no vulnerabilities (9 unmaintained warnings reviewed in `docs/dependency-audit.md`).
+- Pinned and automated the Rust dependency audit: the `security` workflow now uses a policy-compliant rustup setup, installs `cargo-audit` 0.23.0, and runs `cargo audit --file Cargo.lock` on pull requests, pushes to `main`, and weekly. Current lockfile reports no vulnerabilities (9 unmaintained warnings reviewed in `docs/dependency-audit.md`).
 
 [Unreleased]: https://github.com/ABOYrbx/home-assistant-kiosk/commits/main

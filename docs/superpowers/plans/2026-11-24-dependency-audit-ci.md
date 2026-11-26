@@ -15,6 +15,7 @@
 - English only.
 - Workflow permissions remain `contents: read`.
 - Prefer GitHub-owned or verified actions.
+- Rust setup uses shell-based rustup; repository policy rejects `dtolnay/rust-toolchain`.
 - No credentials, personal identifiers, provider-specific URLs, or real Home Assistant IDs.
 - The project license remains undecided; do not introduce a license file or a blocking license policy.
 - The committed `Cargo.lock` is authoritative.
@@ -35,6 +36,7 @@
 **Files:**
 - Create: `tests/test_security_workflow.py`
 - Modify: `.github/workflows/security.yml`
+- Modify: `.github/workflows/ci.yml`
 
 **Interfaces:**
 - Consumes: existing workflow triggers, read-only permissions, `Cargo.lock`, cargo-audit CLI.
@@ -46,7 +48,8 @@ Create dependency-free tests that read `.github/workflows/security.yml` and asse
 
 - `pull_request:` and the weekly cron `0 6 * * 1` remain present.
 - top-level permissions contain `contents: read`.
-- Rust is explicitly set up before installing cargo-audit.
+- Rust is explicitly set up with shell-based rustup before installing cargo-audit.
+- the existing CI workflow uses the same policy-compliant Rust setup and installs rustfmt/clippy.
 - the install command contains `cargo install cargo-audit --locked --version 0.23.0`.
 - the audit command is exactly `cargo audit --file Cargo.lock`.
 
@@ -57,7 +60,7 @@ Expected: FAIL because the current workflow does not set up Rust or pin cargo-au
 
 - [x] **Step 3: Harden the workflow**
 
-Add an explicit `dtolnay/rust-toolchain@stable` setup step, pin cargo-audit to `0.23.0`, and run `cargo audit --file Cargo.lock`. Preserve the existing triggers, read-only permissions, concurrency, and timeout.
+Add a shell-based rustup setup step to both workflows, install rustfmt/clippy in `ci.yml`, pin cargo-audit to `0.23.0`, and run `cargo audit --file Cargo.lock`. Preserve the existing triggers, read-only permissions, concurrency, and timeout.
 
 - [x] **Step 4: Run the workflow tests**
 
@@ -72,7 +75,7 @@ Expected: no vulnerabilities. Record every warning in `docs/dependency-audit.md`
 - [x] **Step 6: Commit**
 
 ```bash
-git add .github/workflows/security.yml tests/test_security_workflow.py
+git add .github/workflows/ci.yml .github/workflows/security.yml tests/test_security_workflow.py
 git commit -m "ci: enforce reproducible dependency audit"
 ```
 
