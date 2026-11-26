@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
@@ -96,7 +96,7 @@ fn fixed_clock() -> Arc<FixedClock> {
 struct PanicFetcher;
 
 impl HttpFetcher for PanicFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         panic!("the policy must reject before the fetcher is called");
     }
 }
@@ -120,7 +120,7 @@ impl RecordingFetcher {
 }
 
 impl HttpFetcher for RecordingFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         match &*self.response.lock().unwrap() {
             Ok(value) => Ok(value.clone()),
@@ -149,7 +149,7 @@ impl FlakyFetcher {
 }
 
 impl HttpFetcher for FlakyFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         if self.failing.load(Ordering::SeqCst) {
             Err(HttpError::RequestFailed {
                 url: "https://api.example.com/fixture".into(),
@@ -158,6 +158,18 @@ impl HttpFetcher for FlakyFetcher {
         } else {
             Ok(json!({"value": "ok"}))
         }
+    }
+}
+
+#[derive(Default)]
+struct TimeoutRecordingFetcher {
+    timeout: Mutex<Option<Duration>>,
+}
+
+impl HttpFetcher for TimeoutRecordingFetcher {
+    fn get_json(&self, _url: &Url, timeout: Duration) -> Result<Value, HttpError> {
+        *self.timeout.lock().unwrap() = Some(timeout);
+        Ok(json!({"value": "ok"}))
     }
 }
 
@@ -245,6 +257,7 @@ fn loopback_host(port: u16, script: &str, limits: Limits) -> ExtensionHost {
 
 struct TestServer {
     port: u16,
+    calls: Arc<AtomicUsize>,
     requests: Arc<Mutex<Vec<String>>>,
 }
 
@@ -252,23 +265,42 @@ impl TestServer {
     fn start(response: Vec<u8>, delay: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let request_count = Arc::clone(&calls);
         let requests = Arc::new(Mutex::new(Vec::new()));
         let recorder = Arc::clone(&requests);
         thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
+                request_count.fetch_add(1, Ordering::SeqCst);
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+                let mut request = Vec::new();
                 let mut buffer = [0u8; 4096];
-                let read = stream.read(&mut buffer).unwrap_or(0);
-                if let Ok(request) = String::from_utf8(buffer[..read].to_vec())
-                    && let Ok(mut log) = recorder.lock()
-                {
-                    log.push(request);
+                while request.len() < 16 * 1024 {
+                    match stream.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(count) => {
+                            request.extend_from_slice(&buffer[..count]);
+                            if request.ends_with(b"\r\n\r\n") {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
                 }
+                recorder
+                    .lock()
+                    .unwrap()
+                    .push(String::from_utf8_lossy(&request).to_string());
                 thread::sleep(delay);
                 let _ = stream.write_all(&response);
                 let _ = stream.flush();
             }
         });
-        Self { port, requests }
+        Self {
+            port,
+            calls,
+            requests,
+        }
     }
 
     /// Raw request bytes received by this server, oldest first.
@@ -277,6 +309,26 @@ impl TestServer {
             .lock()
             .map(|requests| requests.clone())
             .unwrap_or_default()
+    }
+
+    /// Request line of every request received by this server, oldest first.
+    fn request_lines(&self) -> Vec<String> {
+        self.requests()
+            .iter()
+            .filter_map(|request| request.lines().next().map(str::to_string))
+            .collect()
+    }
+
+    fn calls(&self) -> usize {
+        self.calls.load(Ordering::SeqCst)
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        // Wake a destination server that is intentionally never contacted.
+        let address = SocketAddr::from(([127, 0, 0, 1], self.port));
+        let _ = TcpStream::connect_timeout(&address, Duration::from_millis(100));
     }
 }
 
@@ -1293,4 +1345,39 @@ fn output_serializes_back_to_json() {
     let value = serde_json::to_value(&output).unwrap();
     assert_eq!(value["kind"], "departures");
     assert_eq!(value["items"][0]["line"], "1");
+}
+
+#[test]
+fn fetch_timeout_is_bounded_by_the_remaining_wall_clock() {
+    let fetcher = Arc::new(TimeoutRecordingFetcher::default());
+    let mut config = key_value_config(&fetch_script("https://api.example.com/departures"));
+    config.fetcher = Some(fetcher.clone());
+    config.limits.http_timeout = Duration::from_secs(10);
+    config.limits.wall_clock = Duration::from_secs(2);
+    let host = ExtensionHost::new(config).unwrap();
+    host.refresh().unwrap();
+
+    let timeout = fetcher.timeout.lock().unwrap().expect("fetch ran");
+    assert!(
+        timeout <= Duration::from_secs(2),
+        "fetch timeout {timeout:?} exceeded the remaining wall clock"
+    );
+}
+
+#[test]
+fn lookalike_and_non_https_hosts_never_reach_the_fetcher() {
+    for url in [
+        "https://api.example.com.evil.example/departures",
+        "https://evil-api.example.com/departures",
+        "https://api.example.com@evil.example/departures",
+        "ftp://api.example.com/departures",
+    ] {
+        let mut config = config(&fetch_script(url));
+        config.fetcher = Some(Arc::new(PanicFetcher));
+        let error = ExtensionHost::new(config).unwrap().refresh().unwrap_err();
+        assert!(
+            matches!(error, ExtensionError::Runtime(_)),
+            "{url} should be rejected before the fetcher runs, got {error:?}"
+        );
+    }
 }
