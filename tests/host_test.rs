@@ -590,6 +590,24 @@ fn unsafe_http_requests_never_reach_the_fetcher() {
 }
 
 #[test]
+fn lookalike_and_non_https_hosts_never_reach_the_fetcher() {
+    for url in [
+        "https://api.example.com.evil.example/departures",
+        "https://evil-api.example.com/departures",
+        "https://api.example.com@evil.example/departures",
+        "ftp://api.example.com/departures",
+    ] {
+        let mut config = config(&fetch_script(url));
+        config.fetcher = Some(Arc::new(PanicFetcher));
+        let error = ExtensionHost::new(config).unwrap().refresh().unwrap_err();
+        assert!(
+            matches!(error, ExtensionError::Runtime(_)),
+            "{url} should be rejected before the fetcher runs, got {error:?}"
+        );
+    }
+}
+
+#[test]
 fn allowed_host_uses_the_fetcher() {
     let fetcher = Arc::new(RecordingFetcher::ok(json!({"value": "ok"})));
     let mut config = key_value_config(&fetch_script("https://api.example.com/departures?stop=1"));
@@ -772,6 +790,22 @@ fn malformed_output_is_rejected() {
         refresh(unknown_kind).unwrap_err(),
         ExtensionError::Output(OutputError::UnknownKind(_))
     ));
+}
+
+#[test]
+fn malformed_key_value_output_is_rejected() {
+    let cases = [
+        r#"fn refresh(config) { #{ kind: "key_value", items: [ #{ label: "", value: "x" } ] } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [ #{ label: "x", value: 42 } ] } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [ #{ label: "x", value: "y", extra: true } ] } }"#,
+    ];
+    for script in cases {
+        let error = key_value_host(script).refresh().unwrap_err();
+        assert!(
+            matches!(error, ExtensionError::Output(OutputError::Malformed { .. })),
+            "{script} should be rejected, got {error:?}"
+        );
+    }
 }
 
 #[test]
