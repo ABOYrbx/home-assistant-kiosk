@@ -53,5 +53,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Hardware (Raspberry Pi Zero 2 W / Pi 3), 24-hour soak, and display-path
   evidence are not yet recorded; see `docs/release-checklist.md` sections 7-8.
 - Slint license decision remains open; binaries must not be distributed until it is recorded.
+- Hardened `config.example.toml` with per-key comments and placeholder-only values; `scripts/check-docs.py` now rejects active tokens, non-placeholder URL hosts, active extension settings, personal paths, and personal identifiers in the shipped example.
 
 [Unreleased]: https://github.com/ABOYrbx/home-assistant-kiosk/commits/main

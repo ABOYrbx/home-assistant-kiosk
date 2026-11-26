@@ -8,10 +8,12 @@ is validated by the separate Cargo gates in the release checklist.
 from __future__ import annotations
 
 import importlib.util
+import ipaddress
 import os
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -105,6 +107,7 @@ FORBIDDEN = [
 ]
 
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+URL_RE = re.compile(r"^(https?|wss?)://", re.IGNORECASE)
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -154,6 +157,70 @@ def check_toml() -> None:
             errors.append(f"config.example.toml is missing [{key}]")
     if data.get("extensions", {}).get("enabled") is not False:
         errors.append("config.example.toml must ship with extensions.enabled = false")
+    check_example_safety(data)
+
+
+def config_strings(value: object, prefix: str = ""):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            path = f"{prefix}.{key}" if prefix else key
+            yield from config_strings(child, path)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            path = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            yield from config_strings(child, path)
+    elif isinstance(value, str):
+        yield prefix, value
+
+
+def is_placeholder_host(hostname: str) -> bool:
+    host = hostname.rstrip(".").lower()
+    if host == "localhost":
+        return True
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return host.endswith((".example", ".test", ".local"))
+    return False
+
+
+def check_example_safety(data: dict) -> None:
+    ha = data.get("ha", {})
+    if isinstance(ha, dict) and "token" in ha:
+        errors.append(
+            "config.example.toml must not set ha.token; keep the literal token "
+            "example commented and use token_file or HA_TOKEN"
+        )
+
+    extensions = data.get("extensions", {})
+    if isinstance(extensions, dict) and extensions.get("settings"):
+        errors.append(
+            "config.example.toml extensions.settings must remain empty; keep "
+            "extension examples commented and secrets in the separate secret file"
+        )
+
+    email_pattern = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
+    personal_path_prefixes = ("/home/", "/Users/", "/root/")
+    for path, value in config_strings(data):
+        if value.startswith(personal_path_prefixes):
+            errors.append(
+                f"config.example.toml {path} contains a personal path; use a "
+                "service path under /etc/ha-kiosk or /var/lib/ha-kiosk"
+            )
+        if email_pattern.search(value):
+            errors.append(
+                f"config.example.toml {path} contains a personal identifier"
+            )
+        if URL_RE.match(value):
+            try:
+                hostname = urlsplit(value).hostname
+            except ValueError:
+                hostname = None
+            if not hostname or not is_placeholder_host(hostname):
+                errors.append(
+                    f"config.example.toml {path} must use a placeholder URL host "
+                    "(localhost or a .example, .test, or .local name)"
+                )
 
 
 def config_paths(value: object, prefix: str = "") -> list[str]:
