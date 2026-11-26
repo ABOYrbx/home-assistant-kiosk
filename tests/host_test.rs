@@ -661,6 +661,32 @@ fn ha_state_allowlist_rejects_near_miss_entity_ids() {
 }
 
 #[test]
+fn ha_state_error_never_echoes_secret_values() {
+    let script = r#"fn refresh(config) {
+        ha_state(config.api_key);
+        #{ kind: "key_value", items: [] }
+    }"#;
+    let mut config = HostConfig::new(Manifest::parse(SECRET_MANIFEST).unwrap(), script);
+    config.fetcher = Some(Arc::new(PanicFetcher));
+    config.clock = Some(fixed_clock());
+    config
+        .settings
+        .insert("stop_id".into(), json!("REPLACE_ME"));
+    config
+        .secrets
+        .insert("api_key".into(), "s3cret-value".into());
+
+    let error = ExtensionHost::new(config)
+        .unwrap()
+        .refresh()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not declared"), "{error}");
+    assert!(!error.contains("s3cret-value"), "{error}");
+    assert!(error.contains("[redacted]"), "{error}");
+}
+
+#[test]
 fn ha_state_returns_unit_for_a_declared_but_missing_entity() {
     let script = r#"fn refresh(config) {
         let value = if ha_state("sensor.departures") == () { "missing" } else { "present" };
