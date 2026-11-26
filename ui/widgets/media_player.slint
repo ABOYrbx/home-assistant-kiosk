@@ -192,6 +192,9 @@ export component MediaPlayerWidget inherits Rectangle {
                         height: Theme.touch-target;
                         horizontal-stretch: 1;
                         min-width: 0px;
+                        accessible-role: slider;
+                        accessible-enabled: root.data.can-set-volume && !root.data.pending;
+                        accessible-value: root.slider-value;
 
                         media-slider := FloatSlider {
                             width: 100%;

@@ -295,8 +295,8 @@ fn shell_navigation_gestures_targets_and_layouts() {
             }
 
             assert_within(
-                &find(&app, "top-bar-title"),
-                "Top bar title",
+                &find(&app, "tab-bar"),
+                "Top bar",
                 width as f32,
                 height as f32,
             );
