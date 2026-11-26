@@ -219,6 +219,12 @@ impl ExtensionStore {
             .ok()
             .map(|bytes| package::sha256_hex(&bytes));
 
+        // Recompute the manifest hash from the retained version so the record
+        // stays consistent with the files on disk after a rollback.
+        let manifest_hash = package::manifest_bytes(&self.extension_dir(id, &previous))
+            .map(|bytes| package::sha256_hex(&bytes))
+            .ok();
+
         let record = self
             .index
             .extensions
