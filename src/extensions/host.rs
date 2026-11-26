@@ -28,7 +28,7 @@ use thiserror::Error;
 
 use super::http::{HttpError, HttpFetcher, HttpPolicy, ReqwestFetcher};
 use super::manifest::{Manifest, ManifestError};
-use super::output::{ExtensionOutput, OutputError, validate_output};
+use super::output::{ExtensionOutput, MAX_OUTPUT_ITEMS, OutputError, validate_output};
 
 const WALL_CLOCK_MARKER: &str = "extension wall-clock limit exceeded";
 
@@ -71,7 +71,7 @@ impl Default for Limits {
             max_http_bytes: 1024 * 1024,
             max_log_entries: 100,
             max_log_bytes: 2 * 1024,
-            max_items: 100,
+            max_items: MAX_OUTPUT_ITEMS,
         }
     }
 }
