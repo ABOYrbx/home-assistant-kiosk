@@ -3,7 +3,7 @@
 use ha_kiosk::extensions::{
     CatalogCache, CatalogClient, CatalogEntry, CatalogError, CatalogFetcher, CatalogIndex,
     CatalogPolicy, ExtensionKind, ExtensionManifest, ExtensionStore, FetchError, HttpsFetcher,
-    PackageError, SignatureError, SignatureStatus, StoreError, extract_package,
+    PackageError, SignatureError, SignatureStatus, StoreError, download_package, extract_package,
     extract_package_with_limit, sha256_hex, verify_package, verify_signature, verify_unsigned,
 };
 use semver::Version;
@@ -1200,4 +1200,40 @@ fn rollback_restores_the_manifest_hash_of_the_retained_version() {
     drop(store);
     let store = ExtensionStore::open(&root).unwrap();
     assert_eq!(store.get(ID).unwrap().manifest_sha256, v1_hash);
+}
+
+// ---------------------------------------------------------------------------
+// Package download
+// ---------------------------------------------------------------------------
+
+#[test]
+fn downloads_package_to_temp_dir() {
+    let package = build_package(ID, "1.0.0");
+    let dir = tempfile::tempdir().unwrap();
+    let mut fetcher = FakeFetcher::with(PACKAGE_URL, package.clone());
+    let path = download_package(
+        &mut fetcher,
+        &Url::parse(PACKAGE_URL).unwrap(),
+        MAX_PACKAGE_BYTES,
+        dir.path(),
+    )
+    .unwrap();
+    assert!(path.starts_with(dir.path()));
+    assert!(path.is_file());
+    assert_eq!(std::fs::read(&path).unwrap(), package);
+}
+
+#[test]
+fn download_rejects_oversized_package() {
+    let package = build_package(ID, "1.0.0");
+    let dir = tempfile::tempdir().unwrap();
+    let mut fetcher = FakeFetcher::with(PACKAGE_URL, package);
+    let error = download_package(
+        &mut fetcher,
+        &Url::parse(PACKAGE_URL).unwrap(),
+        8,
+        dir.path(),
+    )
+    .unwrap_err();
+    assert!(matches!(error, FetchError::TooLarge { .. }));
 }
