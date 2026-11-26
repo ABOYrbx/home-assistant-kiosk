@@ -103,6 +103,42 @@ min = 1
 max = 20
 ```
 
+<!-- example:manifest -->
+```toml
+id = "org.example.bus-departures"
+name = "Bus Departures"
+version = "1.0.0"
+api_version = 1
+min_app_version = "0.1.0"
+entry = "main.rhai"
+provides = "departures" # departures | list | key_value
+author = "Example Author"
+license = "MIT"
+homepage = "https://example.com/bus-departures"
+description = "Shows upcoming bus departures for a configured stop."
+
+[permissions]
+http_hosts = ["api.example.com"]
+ha_entities = []
+
+[[config_schema]]
+key = "stop_id"
+label = "Stop ID"
+type = "string"
+required = true
+help = "Use ASCII letters, digits, '-', '_', '.', or '~' only."
+
+[[config_schema]]
+key = "limit"
+label = "Maximum departures"
+type = "integer"
+required = false
+default = 6
+min = 1
+max = 20
+```
+<!-- /example:manifest -->
+
 ### Manifest fields
 
 | Field | Required | Type | Rules |
@@ -252,34 +288,109 @@ Rhai's normal language operations are available, but the sandbox has no filesyst
 
 ### Bus departures example
 
-This example is provider-neutral. Replace the endpoint and field names with the provider's documented format, and keep the host in `http_hosts`.
+The example is provider-neutral. Replace the API URL and field names with the ones your provider documents; keep the host in `http_hosts`.
 
+<!-- example:script -->
 ```rhai
 fn refresh(config) {
-    let url = "https://api.example.com/departures?stop=" + config.stop_id;
+    let stop_id = config.stop_id;
+    stop_id.trim();
+    if stop_id.is_empty() {
+        throw "stop_id must not be empty";
+    }
+    for ch in stop_id.chars() {
+        if !(ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~") {
+            throw "stop_id may contain only ASCII letters, digits, '-', '_', '.', or '~'";
+        }
+    }
+
+    let url = "https://api.example.com/departures?stop=" + stop_id
+        + "&limit=" + config.limit.to_string();
     let data = http_get_json(url);
     let items = [];
 
-    for departure in data.departures {
+    for d in data.departures {
         if items.len() >= config.limit {
             break;
         }
         items.push(#{
-            line: departure.line,
-            destination: departure.destination,
-            departure: departure.time,
-            delay_minutes: departure.delay_minutes ?? 0,
-            platform: departure.platform ?? (),
-            cancelled: departure.cancelled ?? false,
-            remarks: departure.remarks ?? ()
+            line: d.line,
+            destination: d.destination,
+            departure: d.time,          // RFC 3339 with offset preferred
+            delay_minutes: d.delay_minutes ?? 0,
+            platform: d.platform ?? (),
+            cancelled: d.cancelled ?? false,
+            remarks: d.remarks ?? ()
         });
     }
 
     #{ kind: "departures", title: "Bus", items: items }
 }
 ```
+<!-- /example:script -->
 
-`??` is Rhai's null-coalescing operator. Handle provider errors and missing fields explicitly; do not assume every response has the same shape.
+`??` is Rhai's null-coalescing operator; use the syntax supported by the pinned Rhai version. The host validates and caps the result.
+
+The marked manifest and script above are the canonical example. CI extracts all four marked package files, builds a `.hkext` in memory, and runs the script through the real sandbox with in-memory fixtures via `cargo test --test extension_example_test`. `api.example.com` is a placeholder: a real adapter must replace the host and response field names and update `http_hosts` to match.
+
+The example trims `stop_id` and accepts only ASCII letters, digits, `-`, `_`, `.`, or `~`, so the value cannot alter the query string. It requests at most `limit` rows. An empty `departures` array returns a valid empty view. HTTP failures and malformed provider responses propagate to the host, which keeps the last good output and reports the error.
+
+The complete package also includes these companion files:
+
+<!-- example:readme -->
+```markdown
+# Bus Departures
+
+Provider-neutral example extension for the Home Assistant Kiosk extension shop.
+
+## Configuration
+
+- `stop_id` (required): ASCII letters, digits, `-`, `_`, `.`, or `~` only. Leading and trailing whitespace is trimmed.
+- `limit` (optional): maximum number of rows, from 1 to 20; defaults to 6.
+
+Replace `api.example.com` and the response field names with the transit API you
+intend to use, and update `http_hosts` to match. Do not commit a real stop ID,
+API key, personal address, or provider URL to a public example.
+
+## Permissions and behavior
+
+The example makes HTTPS GET requests to `api.example.com` only. It does not read
+Home Assistant entities, call services, or use secrets. An empty `departures`
+array shows an empty departures view. HTTP or malformed-response errors are
+reported while the kiosk keeps the last good data.
+
+## Removal
+
+Disable or remove the extension in the Shop. Settings are retained unless the
+operator explicitly purges them.
+```
+<!-- /example:readme -->
+
+<!-- example:license -->
+```text
+MIT License
+
+Copyright (c) 2026 The Example Authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+<!-- /example:license -->
 
 ### Resource limits
 

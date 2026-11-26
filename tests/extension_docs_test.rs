@@ -114,7 +114,7 @@ fn documented_author_topics_are_present() {
         "## Output schema",
         "## Packaging",
         "## Versioning and deprecation",
-        "## Security rules",
+        "## Security checklist",
     ] {
         assert!(
             AUTHOR_GUIDE.contains(heading),
