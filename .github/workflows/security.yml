@@ -26,8 +26,11 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        run: cargo install cargo-audit --locked --version 0.23.0
 
       - name: Audit dependencies
-        run: cargo audit
+        run: cargo audit --file Cargo.lock
