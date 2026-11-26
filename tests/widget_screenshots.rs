@@ -10,7 +10,7 @@ use ha_kiosk::state::{
 use ha_kiosk::ui::bridge;
 use ha_kiosk::{AppController, AppEvent, Config, HaEvent, MainWindow};
 use i_slint_backend_testing::{TestingBackend, TestingBackendOptions};
-use slint::{ComponentHandle, ModelRc, PhysicalSize, VecModel};
+use slint::{ComponentHandle, PhysicalSize, VecModel};
 use std::rc::Rc;
 use std::time::Instant;
 
