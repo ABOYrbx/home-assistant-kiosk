@@ -166,60 +166,66 @@ export component MainWindow inherits Window {
             border-width: Theme.border-width;
             border-color: Theme.border;
 
-            HorizontalLayout {
-                width: 100%;
-                padding-left: Theme.space-2;
-                padding-right: Theme.space-2;
-                padding-top: Theme.space-1;
-                padding-bottom: Theme.space-1;
-                spacing: Theme.space-2;
-                alignment: start;
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                width: min(parent.width, Theme.content-max-width);
+                height: parent.height;
 
-                tab-overview-slot := Rectangle {
-                    width: root.extensions-enabled ? 18% : 23%;
-                    tab-overview := TabButton {
-                        width: 100%;
-                        label: "Overview";
-                        active: root.current-page == 0;
-                        clicked => { root.current-page = 0; root.page-changed(0); }
+                HorizontalLayout {
+                    width: 100%;
+                    padding-left: Theme.space-2;
+                    padding-right: Theme.space-2;
+                    padding-top: Theme.space-1;
+                    padding-bottom: Theme.space-1;
+                    spacing: Theme.space-2;
+                    alignment: start;
+
+                        tab-overview-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-overview := TabButton {
+                            width: 100%;
+                            label: "Overview";
+                            active: root.current-page == 0;
+                            clicked => { root.current-page = 0; root.page-changed(0); }
+                        }
                     }
-                }
-                tab-media-slot := Rectangle {
-                    width: root.extensions-enabled ? 18% : 23%;
-                    tab-media := TabButton {
-                        width: 100%;
-                        label: "Media";
-                        active: root.current-page == 1;
-                        clicked => { root.current-page = 1; root.page-changed(1); }
+                    tab-media-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-media := TabButton {
+                            width: 100%;
+                            label: "Media";
+                            active: root.current-page == 1;
+                            clicked => { root.current-page = 1; root.page-changed(1); }
+                        }
                     }
-                }
-                tab-agenda-slot := Rectangle {
-                    width: root.extensions-enabled ? 18% : 23%;
-                    tab-agenda := TabButton {
-                        width: 100%;
-                        label: "Agenda";
-                        active: root.current-page == 2;
-                        clicked => { root.current-page = 2; root.page-changed(2); }
+                    tab-agenda-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-agenda := TabButton {
+                            width: 100%;
+                            label: "Agenda";
+                            active: root.current-page == 2;
+                            clicked => { root.current-page = 2; root.page-changed(2); }
+                        }
                     }
-                }
-                tab-status-slot := Rectangle {
-                    width: root.extensions-enabled ? 18% : 23%;
-                    tab-status := TabButton {
-                        width: 100%;
-                        label: "Status";
-                        active: root.current-page == 3;
-                        clicked => { root.current-page = 3; root.page-changed(3); }
+                    tab-status-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-status := TabButton {
+                            width: 100%;
+                            label: "Status";
+                            active: root.current-page == 3;
+                            clicked => { root.current-page = 3; root.page-changed(3); }
+                        }
                     }
-                }
-                tab-shop-slot := Rectangle {
-                    width: root.extensions-enabled ? 18% : 23%;
-                    visible: root.extensions-enabled;
-                    tab-shop := TabButton {
-                        width: 100%;
-                        label: "Shop";
-                        active: root.current-page == 4;
+                    tab-shop-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
                         visible: root.extensions-enabled;
-                        clicked => { root.current-page = 4; root.page-changed(4); }
+                        tab-shop := TabButton {
+                            width: 100%;
+                            label: "Shop";
+                            active: root.current-page == 4;
+                            visible: root.extensions-enabled;
+                            clicked => { root.current-page = 4; root.page-changed(4); }
+                        }
                     }
                 }
             }
