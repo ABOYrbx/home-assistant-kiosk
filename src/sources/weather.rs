@@ -14,7 +14,7 @@ pub fn parse_weather_entity(entity: &HaEntity) -> WeatherView {
         view.condition = entity.state.clone();
     }
     let attrs = &entity.attributes;
-    if let Some(t) = attrs.get("temperature").and_then(|v| v.as_f64()) {
+    if let Some(t) = attrs.get("temperature").and_then(as_f64) {
         view.temperature = Some(t);
     }
     if let Some(u) = attrs.get("temperature_unit").and_then(|v| v.as_str()) {
@@ -22,7 +22,18 @@ pub fn parse_weather_entity(entity: &HaEntity) -> WeatherView {
     } else if view.temperature_unit.is_empty() {
         view.temperature_unit = "°C".to_string();
     }
+    if let Some(forecast) = attrs.get("forecast")
+        && let Ok(parsed) = parse_forecast_response(&json!({"forecast": forecast}))
+    {
+        view.forecast = parsed;
+    }
     view
+}
+
+fn as_f64(value: &serde_json::Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))
 }
 
 pub fn parse_forecast_response(
@@ -58,8 +69,8 @@ pub fn parse_forecast_response(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let temperature = item.get("temperature").and_then(|v| v.as_f64());
-        let templow = item.get("templow").and_then(|v| v.as_f64());
+        let temperature = item.get("temperature").and_then(as_f64);
+        let templow = item.get("templow").and_then(as_f64);
         out.push(WeatherForecast {
             datetime,
             condition,
@@ -278,6 +289,31 @@ mod tests {
         };
         let v = parse_weather_entity(&e);
         assert_eq!(v.condition, "");
+    }
+
+    #[test]
+    fn string_temperatures_and_embedded_forecasts_are_accepted() {
+        let entity = HaEntity {
+            entity_id: "weather.home".into(),
+            state: "sunny".into(),
+            attributes: json!({
+                "temperature": "21.5",
+                "temperature_unit": "°C",
+                "forecast": [{
+                    "datetime": "2026-11-23T12:00:00",
+                    "condition": "rainy",
+                    "temperature": "18.0",
+                    "templow": "12.0"
+                }]
+            }),
+            last_changed: None,
+            last_updated: None,
+        };
+        let view = parse_weather_entity(&entity);
+        assert_eq!(view.temperature, Some(21.5));
+        assert_eq!(view.forecast.len(), 1);
+        assert_eq!(view.forecast[0].temperature, Some(18.0));
+        assert_eq!(view.forecast[0].templow, Some(12.0));
     }
 
     #[test]

@@ -3,7 +3,7 @@ use crate::state::{CalendarError, CalendarItem, CalendarView};
 use chrono::{DateTime, Duration as ChronoDuration, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 /// Home Assistant refreshes calendar events every five minutes by default.
@@ -156,6 +156,9 @@ fn parse_timestamp(value: &Value, ha_tz: Tz) -> Option<(DateTime<Utc>, bool)> {
         .get("dateTime")
         .and_then(Value::as_str)
         .or_else(|| value.as_str())?;
+    if let Ok(date) = NaiveDate::parse_from_str(raw, "%Y-%m-%d") {
+        return Some((date.and_hms_opt(0, 0, 0)?.and_utc(), true));
+    }
     parse_datetime(raw, ha_tz).map(|timestamp| (timestamp, false))
 }
 
@@ -269,8 +272,8 @@ pub fn refresh_due(
 /// Collects the per-calendar responses of one refresh round.
 #[derive(Debug, Default)]
 pub struct CalendarRefresh {
-    pending: HashMap<u64, EntityId>,
-    results: HashMap<EntityId, Result<Vec<CalendarItem>, String>>,
+    pending: BTreeMap<u64, EntityId>,
+    results: Vec<(EntityId, Result<Vec<CalendarItem>, String>)>,
     requested_at: Option<DateTime<Utc>>,
 }
 
@@ -292,7 +295,11 @@ impl CalendarRefresh {
         self.requested_at = Some(now);
 
         let mut calls = Vec::with_capacity(calendar_ids.len());
+        let mut seen = BTreeSet::new();
         for id in calendar_ids {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
             let mut call = build_calendar_calls(std::slice::from_ref(id), days, ha_tz, now);
             if let Some(call) = call.pop() {
                 self.pending.insert(call.request_id, id.clone());
@@ -319,7 +326,7 @@ impl CalendarRefresh {
             }
             Err(message) => Err(format!("{calendar_id}: {message}")),
         };
-        self.results.insert(calendar_id, parsed);
+        self.results.push((calendar_id, parsed));
         true
     }
 
@@ -330,7 +337,7 @@ impl CalendarRefresh {
         }
         let mut view = CalendarView::default();
         let mut succeeded = 0usize;
-        for (calendar_id, result) in self.results.drain() {
+        for (calendar_id, result) in std::mem::take(&mut self.results) {
             match result {
                 Ok(items) => {
                     succeeded += 1;
@@ -343,6 +350,8 @@ impl CalendarRefresh {
             }
         }
         sort_items(&mut view.items);
+        view.errors
+            .sort_by(|a, b| a.calendar_id.cmp(&b.calendar_id));
         if succeeded > 0 {
             view.last_success = Some(now);
         }
@@ -353,14 +362,14 @@ impl CalendarRefresh {
     /// Record a failed round, for example after a disconnect.
     pub fn abandon(&mut self, message: &str) -> Option<Vec<CalendarError>> {
         self.requested_at.as_ref()?;
-        let errors: Vec<_> = self
-            .pending
-            .drain()
-            .map(|(_, calendar_id)| CalendarError {
+        let mut errors: Vec<_> = std::mem::take(&mut self.pending)
+            .into_values()
+            .map(|calendar_id| CalendarError {
                 calendar_id,
                 message: message.to_string(),
             })
             .collect();
+        errors.sort_by(|a, b| a.calendar_id.cmp(&b.calendar_id));
         self.results.clear();
         self.requested_at = None;
         if errors.is_empty() {
