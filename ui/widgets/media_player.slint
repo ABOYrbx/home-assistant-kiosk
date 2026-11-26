@@ -1,5 +1,5 @@
-import { Slider } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
+import { FloatSlider } from "level_slider.slint";
 
 export struct MediaPlayerData {
     title: string,
@@ -192,15 +192,12 @@ export component MediaPlayerWidget inherits Rectangle {
                         height: Theme.touch-target;
                         horizontal-stretch: 1;
                         min-width: 0px;
-                        accessible-role: slider;
-                        accessible-enabled: root.data.can-set-volume && !root.data.pending;
-                        accessible-value: root.slider-value;
 
-                        media-slider := Slider {
+                        media-slider := FloatSlider {
                             width: 100%;
                             height: 100%;
-                            minimum: 0;
-                            maximum: 1;
+                            min: 0.0;
+                            max: 1.0;
                             step: root.data.volume-step;
                             value <=> root.slider-value;
                             enabled: root.data.can-set-volume && !root.data.pending;

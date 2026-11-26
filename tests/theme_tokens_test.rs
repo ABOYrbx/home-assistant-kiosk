@@ -71,6 +71,11 @@ fn every_ported_token_matches_tokens_css() {
         if expected.starts_with("color-mix") || expected.starts_with("cubic-bezier") {
             continue;
         }
+        // CSS shadows are flattened into scalar Slint properties
+        // (`elev-ring` 1px, `focus-ring` colour); there is no one-to-one value.
+        if name.starts_with("elev-") || name == "focus-ring" {
+            continue;
+        }
         assert_eq!(
             normalized(actual),
             normalized(expected),

@@ -72,6 +72,7 @@ export component WeatherWidget inherits Rectangle {
             spacing: Theme.space-2;
 
             HorizontalLayout {
+                width: 100%;
                 spacing: Theme.space-3;
                 alignment: start;
 
@@ -98,10 +99,13 @@ export component WeatherWidget inherits Rectangle {
             }
 
             if root.forecast.length > 0 : HorizontalLayout {
+                width: 100%;
                 spacing: Theme.space-3;
                 for item in root.forecast : VerticalLayout {
                     spacing: Theme.space-1;
                     alignment: center;
+                    horizontal-stretch: 1;
+                    min-width: 64px;
                     Text {
                         text: item.label;
                         color: Theme.muted;

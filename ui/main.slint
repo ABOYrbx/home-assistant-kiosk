@@ -167,46 +167,57 @@ export component MainWindow inherits Window {
             border-color: Theme.border;
 
             HorizontalLayout {
+                width: 100%;
                 padding: Theme.space-2;
                 spacing: Theme.space-2;
+                alignment: start;
 
-                top-bar-title := Text {
-                    text: "Home Assistant Kiosk";
-                    horizontal-stretch: 1;
-                    min-width: 0px;
-                    color: Theme.fg;
-                    font-family: Theme.font-body;
-                    font-size: Theme.text-sm;
-                    font-weight: Theme.weight-semibold;
-                    vertical-alignment: center;
-                    overflow: elide;
+                tab-overview-slot := Rectangle {
+                    width: root.extensions-enabled ? 18% : 23%;
+                    tab-overview := TabButton {
+                        width: 100%;
+                        label: "Overview";
+                        active: root.current-page == 0;
+                        clicked => { root.current-page = 0; root.page-changed(0); }
+                    }
                 }
-
-                tab-overview := TabButton {
-                    label: "Overview";
-                    active: root.current-page == 0;
-                    clicked => { root.current-page = 0; root.page-changed(0); }
+                tab-media-slot := Rectangle {
+                    width: root.extensions-enabled ? 18% : 23%;
+                    tab-media := TabButton {
+                        width: 100%;
+                        label: "Media";
+                        active: root.current-page == 1;
+                        clicked => { root.current-page = 1; root.page-changed(1); }
+                    }
                 }
-                tab-media := TabButton {
-                    label: "Media";
-                    active: root.current-page == 1;
-                    clicked => { root.current-page = 1; root.page-changed(1); }
+                tab-agenda-slot := Rectangle {
+                    width: root.extensions-enabled ? 18% : 23%;
+                    tab-agenda := TabButton {
+                        width: 100%;
+                        label: "Agenda";
+                        active: root.current-page == 2;
+                        clicked => { root.current-page = 2; root.page-changed(2); }
+                    }
                 }
-                tab-agenda := TabButton {
-                    label: "Agenda";
-                    active: root.current-page == 2;
-                    clicked => { root.current-page = 2; root.page-changed(2); }
+                tab-status-slot := Rectangle {
+                    width: root.extensions-enabled ? 18% : 23%;
+                    tab-status := TabButton {
+                        width: 100%;
+                        label: "Status";
+                        active: root.current-page == 3;
+                        clicked => { root.current-page = 3; root.page-changed(3); }
+                    }
                 }
-                tab-status := TabButton {
-                    label: "Status";
-                    active: root.current-page == 3;
-                    clicked => { root.current-page = 3; root.page-changed(3); }
-                }
-                tab-shop := TabButton {
-                    label: "Shop";
-                    active: root.current-page == 4;
+                tab-shop-slot := Rectangle {
+                    width: root.extensions-enabled ? 18% : 23%;
                     visible: root.extensions-enabled;
-                    clicked => { root.current-page = 4; root.page-changed(4); }
+                    tab-shop := TabButton {
+                        width: 100%;
+                        label: "Shop";
+                        active: root.current-page == 4;
+                        visible: root.extensions-enabled;
+                        clicked => { root.current-page = 4; root.page-changed(4); }
+                    }
                 }
             }
         }

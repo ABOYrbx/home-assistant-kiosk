@@ -22,14 +22,7 @@ export component TopBar inherits Rectangle {
                 spacing: Theme.space-2;
                 alignment: start;
 
-                Rectangle {
-                    width: Theme.status-dot-size;
-                    height: Theme.status-dot-size;
-                    border-radius: Theme.radius-pill;
-                    background: Theme.accent;
-                }
-
-                brand := Text {
+                top-bar-title := Text {
                     text: KioskModel.brand-title;
                     color: Theme.fg;
                     font-family: Theme.font-body;

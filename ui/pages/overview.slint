@@ -232,7 +232,7 @@ export component OverviewPage inherits Rectangle {
 
             three-column-scroll := Flickable {
                 content-width: self.width;
-                content-height: three-column-content.preferred-height;
+                content-height: Math.max(self.height, three-column-content.preferred-height);
 
                 three-column-content := HorizontalLayout {
                     width: three-column-scroll.width;
@@ -274,6 +274,8 @@ export component OverviewPage inherits Rectangle {
 
                     three-column-secondary := VerticalLayout {
                         horizontal-stretch: 1;
+                        vertical-stretch: 0;
+                        alignment: start;
                         min-width: 0px;
                         spacing: Theme.space-3;
 
@@ -292,7 +294,9 @@ export component OverviewPage inherits Rectangle {
 
                     three-column-tertiary := VerticalLayout {
                         horizontal-stretch: 1;
-                        min-width: 0px;
+                        vertical-stretch: 0;
+                        alignment: start;
+                        min-width: 300px;
                         spacing: Theme.space-3;
 
                         WeatherWidget {

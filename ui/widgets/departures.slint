@@ -24,6 +24,7 @@ component DepartureLine inherits Rectangle {
     background: transparent;
 
     HorizontalLayout {
+        width: 100%;
         spacing: Theme.space-2;
         alignment: start;
 
@@ -39,6 +40,8 @@ component DepartureLine inherits Rectangle {
         VerticalLayout {
             spacing: 0px;
             vertical-stretch: 1;
+            horizontal-stretch: 1;
+            min-width: 0px;
 
             Text {
                 text: entry.destination;

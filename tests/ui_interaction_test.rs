@@ -58,7 +58,7 @@ fn tabs_select_pages_and_background_swipes_report_the_callback() {
 
         swipe
             .drag(
-                LogicalPosition::new(start.x - 120.0, start.y),
+                LogicalPosition::new(start.x - 200.0, start.y),
                 PointerEventButton::Left,
             )
             .await;
@@ -67,7 +67,7 @@ fn tabs_select_pages_and_background_swipes_report_the_callback() {
 
         swipe
             .drag(
-                LogicalPosition::new(start.x + 120.0, start.y),
+                LogicalPosition::new(start.x + 200.0, start.y),
                 PointerEventButton::Left,
             )
             .await;
