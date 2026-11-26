@@ -123,7 +123,7 @@ git commit -m "docs: document dependency audit release gate"
 - Consumes: completed workflow, tests, lockfile, and release documentation.
 - Produces: recorded evidence for the issue and final build summary.
 
-- [ ] **Step 1: Run fast local gates and dispatch the Rust gates**
+- [x] **Step 1: Run fast local gates and dispatch the Rust gates**
 
 Run locally:
 
@@ -137,7 +137,7 @@ bash tests/deploy_scripts_test.sh
 
 After committing, verify the `ABOYrbx` identity, push the feature branch without opening a pull request, and manually dispatch `ci.yml` and `security.yml` on that branch. Record the GitHub Actions results for fmt, clippy, tests, the kiosk build, docs, deployment scripts, and the dependency audit.
 
-- [ ] **Step 2: Review the complete branch diff**
+- [x] **Step 2: Review the complete branch diff**
 
 Use the requesting-code-review workflow with a fresh reviewer. Resolve Critical and Important findings through a test-first fix pass; record deferred minors and rulings.
 

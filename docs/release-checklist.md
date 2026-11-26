@@ -27,7 +27,7 @@ python3 scripts/check-docs.py
 - [ ] `cargo fmt --check` passes.
 - [ ] `cargo clippy --all-targets -- -D warnings` passes.
 - [ ] `cargo test` passes, including the end-to-end and failure-scenario tests.
-- [ ] `cargo audit --file Cargo.lock` reports no unaccepted advisory. Vulnerabilities fail CI; maintenance warnings do not. The `security` workflow runs this command on pull requests, pushes to `main`, and on the weekly schedule (`0 6 * * 1`); a failing scheduled run must be reviewed. Record every accepted advisory and its reason in the release notes.
+- [ ] `cargo audit --file Cargo.lock` reports no vulnerabilities. Vulnerabilities fail CI and block release until fixed. Maintenance warnings do not fail CI. The `security` workflow runs this command on pull requests, pushes to `main`, and on the weekly schedule (`0 6 * * 1`); a failing scheduled run must be reviewed. Record every accepted maintenance warning and its reason in the release notes.
 - [ ] Every warning reported by `cargo audit` has been reviewed against [`docs/dependency-audit.md`](dependency-audit.md) before release.
 - [ ] `cargo-deny` license enforcement remains deferred until the project license decision is recorded in `PLAN.md` section 12.
 - [ ] `python3 scripts/check-docs.py` passes. It validates TOML, Markdown links, required files, and personal-data markers.
@@ -119,7 +119,7 @@ List the limitations that a user will meet, with the current behaviour and the t
 - [ ] Climate setpoint, cover position, and other controls deferred beyond v1.
 - [ ] Localization: English only in v1.
 - [ ] Extension shop status: disabled in v1 or enabled with its own gate.
-- [ ] Any accepted `cargo audit` advisory, using the current review in [`dependency-audit.md`](dependency-audit.md).
+- [ ] Any accepted `cargo audit` maintenance warning, using the current review in [`dependency-audit.md`](dependency-audit.md).
 - [ ] Any Slint LinuxKMS limitation observed on the test panel.
 
 ## 9. Publish

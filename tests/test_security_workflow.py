@@ -16,7 +16,11 @@ class SecurityWorkflowTest(unittest.TestCase):
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
 
-    def test_runs_for_pull_requests_and_weekly(self) -> None:
+    def test_runs_for_main_pull_requests_and_weekly(self) -> None:
+        self.assertRegex(
+            self.workflow,
+            r"(?ms)^on:\n  push:\n    branches:\n      - main\n",
+        )
         self.assertRegex(self.workflow, r"(?m)^  pull_request:\s*$")
         self.assertIn('    - cron: "0 6 * * 1"', self.workflow)
 
