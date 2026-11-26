@@ -193,6 +193,8 @@ enabled = false
 # HTTPS URL of the signed catalog index in the separate catalog repository.
 catalog_url = "https://raw.githubusercontent.com/ABOYrbx/home-assistant-kiosk-extensions/main/index.json"
 # Minisign public keys (base64). The matching private key never enters this repo.
+# Empty until a production key is published: the ephemeral bootstrap key that
+# signs the initial empty index is not a production trust anchor.
 public_keys = []
 # Development only. A production shop must reject unsigned catalogs.
 allow_unsigned = false

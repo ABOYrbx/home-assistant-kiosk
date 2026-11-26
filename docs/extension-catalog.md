@@ -126,6 +126,10 @@ Key rotation: publish a new public key in the catalog repository and in a kiosk 
 - Sign only an index whose package sources, checksums, and permissions a maintainer has reviewed.
 - If the private key is exposed, publish a revocation notice, rotate the key, and ship a kiosk configuration update.
 
+### Bootstrap index
+
+The published catalog starts with an intentionally empty `index.json`. Its `index.json.minisig` is produced by an **ephemeral bootstrap key**: the public key is published as `catalog.pub` in the catalog repository, and the secret key was destroyed after signing. The bootstrap key is **not a production trust anchor**; do not add it to `public_keys` in a production configuration. Before the first real release, `ABOYrbx` generates a production Minisign key pair on encrypted offline storage, publishes its public key in both the catalog repository and a kiosk release, signs the reviewed index, and rotates configuration using the procedure above.
+
 `allow_unsigned = true` exists only for local development. A production shop must reject unsigned catalogs and must show a persistent warning if the flag is on.
 
 ## Kiosk trust configuration

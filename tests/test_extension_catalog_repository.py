@@ -52,6 +52,14 @@ class ExtensionCatalogRepositoryTest(unittest.TestCase):
                 self.assertNotIn("provisional name", read(relative).lower())
         self.assertNotIn("example/home-assistant-kiosk-extensions", read("docs/extension-catalog.md"))
 
+    def test_bootstrap_signature_is_not_a_production_trust_anchor(self) -> None:
+        spec = read("docs/extension-catalog.md").lower()
+        self.assertIn("ephemeral bootstrap key", spec)
+        self.assertIn("not a production trust anchor", spec)
+        config = extension_config()
+        self.assertRegex(config, r"(?m)^#.*bootstrap key")
+        self.assertRegex(config, r"(?m)^public_keys = \[\]$")
+
     def test_catalog_data_and_secret_keys_are_not_tracked_here(self) -> None:
         tracked = subprocess.run(
             ["git", "ls-files"],
