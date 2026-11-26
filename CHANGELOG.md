@@ -26,6 +26,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Performance evidence tooling: [`scripts/perf-record.py`](scripts/perf-record.py) builds a validated record from raw evidence, [`scripts/perf-memory.py`](scripts/perf-memory.py) captures GNU time or systemd cgroup values, and [`scripts/perf-heaptrack.sh`](scripts/perf-heaptrack.sh) runs a guarded x86_64 allocation profile.
 - A dependency audit workflow contract test that also enforces the repository's GitHub-owned-actions policy.
 - Signed catalog client: fetch `index.json` and its Minisign signature over HTTPS, verify against configured public keys (with key rotation), cache the last verified index for offline use, and enforce the configured catalog size cap (#119).
+- Vendored JSON Schemas for the signed catalog index and extension manifests under `schema/` (`index.schema.json`, `manifest.schema.json`) (#118).
+
+### Changed
+
+- The repository is public and `main` is protected by the `main-protection` ruleset: pull request, `docs` check on an up-to-date branch, linear history, resolved conversations, no force-push or deletion, and no bypass actors (#10).
 
 ### Fixed
 

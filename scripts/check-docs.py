@@ -41,6 +41,8 @@ REQUIRED_FILES = [
     "docs/deployment.md",
     "docs/extension-catalog.md",
     "docs/extensions.md",
+    "schema/index.schema.json",
+    "schema/manifest.schema.json",
     "docs/kiosk-display.md",
     "docs/agent-prompts/implement-issue.md",
     "docs/github-rules.md",

@@ -13,7 +13,7 @@ Build a community extension shop backed by a separate, public GitHub catalog. Ex
 
 ### Catalog, signature, and store
 
-- [ ] Define the signed catalog format (`index.json` + `index.json.minisig`) and schemas for catalog entries and manifests.
+- [x] Define the signed catalog format (`index.json` + `index.json.minisig`) and schemas for catalog entries and manifests.
 - [ ] Fetch the catalog over HTTPS; verify Minisign signatures against configured public keys; cache the last verified index; enforce a catalog size cap.
 - [ ] Enforce HTTPS, size caps, SHA-256 checksums, `api_version`, and `min_app_version`. Unsigned catalogs and HTTP URLs require both `allow_unsigned` and `dev_mode`.
 - [ ] Download `.hkext` packages to a temp directory; verify size and checksum before extraction.
