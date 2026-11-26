@@ -4,7 +4,7 @@ A small, native Home Assistant dashboard for wall-mounted touchscreens and singl
 
 [![Docs check](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml/badge.svg)](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml)
 
-**Status:** v1 is feature-complete on the host: the four-page Slint UI is wired to the Home Assistant client, cache, and widgets, and the Wave 6 shop is available behind `extensions.enabled`. Raspberry Pi performance and 24-hour soak evidence, the Slint license decision, and extension runtime placement remain open; see [`PLAN.md`](PLAN.md) and [`docs/release-checklist.md`](docs/release-checklist.md).
+**Status:** v1 is feature-complete on the host: the four-page Slint UI is wired to the Home Assistant client, cache, and widgets, and the Wave 6 shop is available behind `extensions.enabled`. Raspberry Pi performance and 24-hour soak evidence and the Slint license decision remain open; see [`PLAN.md`](PLAN.md) and [`docs/release-checklist.md`](docs/release-checklist.md).
 
 ## Why this exists
 
@@ -36,7 +36,7 @@ Home Assistant 2023.9 or newer is required (`subscribe_entities` and `weather.ge
 
 Wave 6 adds a Shop page backed by a separate, public GitHub catalog. Community extensions can add data widgets such as bus departures without shipping a new kiosk binary.
 
-The trust boundary is deliberately small: a Minisign-signed catalog, SHA-256-checked packages, and sandboxed Rhai scripts with declared network/HA permissions and hard resource limits. Extensions cannot ship native code, arbitrary Slint UI, filesystem access, or Home Assistant service calls. See [`docs/extensions.md`](docs/extensions.md) and [`docs/extension-catalog.md`](docs/extension-catalog.md).
+The trust boundary is deliberately small: a Minisign-signed catalog, SHA-256-checked packages, and sandboxed Rhai scripts with declared network/HA permissions and hard resource limits. Extensions cannot ship native code, arbitrary Slint UI, filesystem access, or Home Assistant service calls. Enabled extensions run on a background worker and their validated `departures`, `list`, or `key_value` output appears in the built-in Extensions card on the Overview. See [`docs/extensions.md`](docs/extensions.md) and [`docs/extension-catalog.md`](docs/extension-catalog.md).
 
 ## Supported hardware
 

@@ -97,6 +97,8 @@ pub enum ShopEvent {
         action: crate::extensions::ShopAction,
         result: Result<(), String>,
     },
+    /// Validated output of the installed, enabled extensions.
+    ExtensionOutputs(Vec<crate::extensions::ExtensionDisplay>),
 }
 
 #[derive(Debug, Clone)]

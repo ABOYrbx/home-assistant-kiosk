@@ -22,6 +22,83 @@ pub enum ExtensionOutput {
     KeyValue(KeyValueView),
 }
 
+/// A display-ready extension card. The kiosk UI never receives Rhai values or
+/// arbitrary markup, only these validated text lines.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionDisplay {
+    pub id: String,
+    pub title: String,
+    pub lines: Vec<String>,
+    pub error: Option<String>,
+}
+
+impl ExtensionOutput {
+    /// Flatten a validated output into text lines for the built-in card.
+    ///
+    /// The three output kinds keep their meaning: departures stay one row per
+    /// trip, list output keeps column order, and key-value output keeps each
+    /// label next to its value.
+    pub fn display(&self, id: &str, error: Option<String>) -> ExtensionDisplay {
+        let (title, lines) = match self {
+            Self::Departures(view) => {
+                let title = view.title.clone().unwrap_or_else(|| id.to_string());
+                let lines = view
+                    .items
+                    .iter()
+                    .map(|item| {
+                        let mut parts = vec![
+                            item.line.clone(),
+                            item.destination.clone(),
+                            item.departure.clone(),
+                        ];
+                        if let Some(delay) = item.delay_minutes
+                            && delay != 0
+                        {
+                            parts.push(format!("{delay:+} min"));
+                        }
+                        if let Some(platform) = &item.platform
+                            && !platform.is_empty()
+                        {
+                            parts.push(format!("Platform {platform}"));
+                        }
+                        if item.cancelled {
+                            parts.push("Cancelled".to_string());
+                        }
+                        if let Some(remarks) = &item.remarks
+                            && !remarks.is_empty()
+                        {
+                            parts.push(remarks.clone());
+                        }
+                        parts.join(" · ")
+                    })
+                    .collect();
+                (title, lines)
+            }
+            Self::List(view) => {
+                let title = view.title.clone().unwrap_or_else(|| id.to_string());
+                let mut lines = vec![view.columns.join(" · ")];
+                lines.extend(view.rows.iter().map(|row| row.join(" · ")));
+                (title, lines)
+            }
+            Self::KeyValue(view) => {
+                let title = view.title.clone().unwrap_or_else(|| id.to_string());
+                let lines = view
+                    .items
+                    .iter()
+                    .map(|item| format!("{}: {}", item.label, item.value))
+                    .collect();
+                (title, lines)
+            }
+        };
+        ExtensionDisplay {
+            id: id.to_string(),
+            title,
+            lines,
+            error,
+        }
+    }
+}
+
 impl ExtensionOutput {
     pub fn kind(&self) -> OutputKind {
         match self {
@@ -250,5 +327,61 @@ fn malformed(kind: OutputKind, reason: &str) -> OutputError {
     OutputError::Malformed {
         kind,
         reason: reason.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn departures_display_one_row_per_trip() {
+        let output = ExtensionOutput::Departures(DeparturesView {
+            kind: OutputKind::Departures,
+            title: Some("Buses".into()),
+            items: vec![DepartureItem {
+                line: "42".into(),
+                destination: "Central Station".into(),
+                departure: "18:05".into(),
+                delay_minutes: Some(2),
+                platform: Some("2".into()),
+                cancelled: false,
+                remarks: None,
+            }],
+        });
+        let display = output.display("org.example.bus", None);
+        assert_eq!(display.title, "Buses");
+        assert_eq!(
+            display.lines,
+            vec!["42 · Central Station · 18:05 · +2 min · Platform 2"]
+        );
+    }
+
+    #[test]
+    fn list_display_keeps_columns_and_rows() {
+        let output = ExtensionOutput::List(ListView {
+            kind: OutputKind::List,
+            title: None,
+            columns: vec!["Line".into(), "Time".into()],
+            rows: vec![vec!["42".into(), "18:05".into()]],
+        });
+        let display = output.display("org.example.list", Some("stale".into()));
+        assert_eq!(display.title, "org.example.list");
+        assert_eq!(display.lines, vec!["Line · Time", "42 · 18:05"]);
+        assert_eq!(display.error.as_deref(), Some("stale"));
+    }
+
+    #[test]
+    fn key_value_display_keeps_labels_and_values() {
+        let output = ExtensionOutput::KeyValue(KeyValueView {
+            kind: OutputKind::KeyValue,
+            title: Some("Stop".into()),
+            items: vec![KeyValueItem {
+                label: "Updated".into(),
+                value: "18:00".into(),
+            }],
+        });
+        let display = output.display("org.example.status", None);
+        assert_eq!(display.lines, vec!["Updated: 18:00"]);
     }
 }

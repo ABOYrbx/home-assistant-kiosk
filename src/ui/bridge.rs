@@ -1,5 +1,6 @@
 // UI bridge: UI-thread view models -> Slint properties and models.
 
+use crate::extensions::ExtensionDisplay;
 use crate::extensions::shop::{ExtensionStatus, ShopEntry, ShopView};
 use crate::sources::calendar::{group_agenda, sort_items};
 use crate::sources::departures::{DeparturesStatus, display_departures};
@@ -10,8 +11,8 @@ use crate::ui::hero::HeroViewModel;
 use crate::ui::images::AlbumArtState;
 use crate::ui::top_bar::connection_view;
 use crate::{
-    AgendaEntry, DepartureRow, DeparturesState, ForecastItem, KioskModel, MainWindow,
-    MediaPlayerData, ShopEntryView, TileItem, WeatherState,
+    AgendaEntry, DepartureRow, DeparturesState, ExtensionOutputView, ForecastItem, KioskModel,
+    MainWindow, MediaPlayerData, ShopEntryView, TileItem, WeatherState,
 };
 use chrono::{DateTime, TimeZone, Utc};
 use slint::{ComponentHandle, Image, ModelRc, SharedString, VecModel};
@@ -273,6 +274,26 @@ pub fn apply_media(
     };
     window.set_media_slider_value(volume);
     window.set_media(data);
+}
+
+pub fn apply_extension_outputs(window: &MainWindow, outputs: &[ExtensionDisplay]) {
+    let views: Vec<ExtensionOutputView> = outputs
+        .iter()
+        .map(|output| ExtensionOutputView {
+            id: output.id.clone().into(),
+            title: output.title.clone().into(),
+            lines: model(
+                output
+                    .lines
+                    .iter()
+                    .cloned()
+                    .map(SharedString::from)
+                    .collect(),
+            ),
+            error: output.error.clone().unwrap_or_default().into(),
+        })
+        .collect();
+    window.set_extension_outputs(model(views));
 }
 
 pub fn apply_departures(window: &MainWindow, view: Option<&DeparturesView>, fallback_title: &str) {

@@ -1,0 +1,69 @@
+import { Theme } from "../theme.slint";
+
+// A validated extension output, rendered by the built-in kiosk card.
+// Extensions never provide their own Slint, fonts, or colours.
+export struct ExtensionOutputView {
+    id: string,
+    title: string,
+    lines: [string],
+    error: string,
+}
+
+component ExtensionOutputCard inherits Rectangle {
+    in property <ExtensionOutputView> data;
+
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: Theme.border-width;
+    border-color: Theme.border;
+
+    VerticalLayout {
+        padding: Theme.space-3;
+        spacing: Theme.space-1;
+
+        Text {
+            text: data.title;
+            color: Theme.fg;
+            font-size: Theme.text-base;
+            font-weight: Theme.weight-semibold;
+            overflow: elide;
+        }
+
+        if data.lines.length == 0 && data.error == "" : Text {
+            text: "No data yet.";
+            color: Theme.muted;
+            font-size: Theme.text-sm;
+        }
+
+        for line in data.lines : Text {
+            text: line;
+            color: Theme.fg-2;
+            font-size: Theme.text-sm;
+            overflow: elide;
+        }
+
+        if data.error != "" : Text {
+            text: data.error;
+            color: Theme.danger;
+            font-size: Theme.text-xs;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component ExtensionOutputsWidget inherits VerticalLayout {
+    in property <[ExtensionOutputView]> outputs: [];
+
+    spacing: Theme.space-2;
+
+    Text {
+        text: "Extensions";
+        color: Theme.fg;
+        font-size: Theme.text-base;
+        font-weight: Theme.weight-semibold;
+    }
+
+    for output in outputs : ExtensionOutputCard {
+        data: output;
+    }
+}

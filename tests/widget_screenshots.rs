@@ -3,6 +3,7 @@
 //! Run with:
 //! `cargo test --test widget_screenshots -- --ignored --nocapture`
 
+use ha_kiosk::ExtensionOutputView;
 use ha_kiosk::state::{
     CalendarItem, CalendarView, DepartureItem, DeparturesView, MediaView, WeatherForecast,
     WeatherView,
@@ -212,6 +213,19 @@ path = "{}"
     })));
     bridge::apply_clock(controller.window(), "18:24".into(), "Tue 24 Nov".into());
     controller.tick_widgets(Instant::now(), now);
+    controller.window().set_extension_outputs(
+        Rc::new(VecModel::from(vec![ExtensionOutputView {
+            id: "org.example.bus-departures".into(),
+            title: "Bus Departures".into(),
+            lines: Rc::new(VecModel::from(vec![
+                "42 · Central Station · 18:05 · +2 min · Platform 2".into(),
+                "S1 · Airport · 18:12 · Cancelled".into(),
+            ]))
+            .into(),
+            error: "".into(),
+        }]))
+        .into(),
+    );
 
     let output =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".openchamber/screenshots/wave3");

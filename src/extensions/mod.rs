@@ -52,8 +52,8 @@ pub use install::{
 pub use manager::{ExtensionHealth, ExtensionManager, ManagerError, ManagerOptions};
 pub use manifest::{Manifest, ManifestError, OutputKind};
 pub use output::{
-    DepartureItem, DeparturesView, ExtensionOutput, KeyValueItem, KeyValueView, ListView,
-    MAX_OUTPUT_ITEMS, OutputError,
+    DepartureItem, DeparturesView, ExtensionDisplay, ExtensionOutput, KeyValueItem, KeyValueView,
+    ListView, MAX_OUTPUT_ITEMS, OutputError,
 };
 pub use package::{
     MAX_DECOMPRESSED_BYTES, PackageError, extract_package, extract_package_with_limit,

@@ -27,6 +27,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A dependency audit workflow contract test that also enforces the repository's GitHub-owned-actions policy.
 - Signed catalog client: fetch `index.json` and its Minisign signature over HTTPS, verify against configured public keys (with key rotation), cache the last verified index for offline use, and enforce the configured catalog size cap (#119).
 - Vendored JSON Schemas for the signed catalog index and extension manifests under `schema/` (`index.schema.json`, `manifest.schema.json`) (#118).
+- Installed, enabled extensions now run on a background worker every 60 seconds; validated `departures`, `list`, and `key_value` output is rendered by the built-in Extensions card on the Overview, with errors and last-good data preserved.
 
 ### Fixed
 
