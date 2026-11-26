@@ -193,7 +193,7 @@ impl ExtensionStore {
         next_index.extensions.sort_by(|a, b| a.id.cmp(&b.id));
         if let Err(error) = self.save(&next_index) {
             let _ = fs::remove_dir_all(&target);
-            return Err(error.into());
+            return Err(error);
         }
         self.index = next_index;
 
