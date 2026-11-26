@@ -13,10 +13,10 @@ use url::Url;
 
 use super::catalog::{CatalogEntry, CatalogError, CatalogIndex, CatalogPolicy, ExtensionManifest};
 use super::client::{CatalogCache, CatalogClient, CatalogFetcher, FetchError};
-use super::host::{EntitySnapshot, ExtensionError, ExtensionHost, HostConfig};
+use super::host::{EntitySnapshot, ExtensionError, ExtensionHost, HostConfig, Limits};
 use super::manifest::Manifest;
 use super::output::ExtensionOutput;
-use super::runner::ExtensionRunner;
+use super::runner::{DEGRADED_AFTER_CONSECUTIVE_FAILURES, ExtensionRunner};
 use super::shop::{ConfigField, ExtensionPermissions, InstalledExtension, ShopEntry};
 use super::store::{ExtensionStore, StoreError};
 
@@ -30,9 +30,25 @@ pub struct ManagerOptions {
     pub dev_mode: bool,
     pub max_catalog_bytes: u64,
     pub max_package_bytes: u64,
+    pub limits: Limits,
     pub store_path: PathBuf,
     pub secret_dir: PathBuf,
     pub settings: BTreeMap<String, toml::Value>,
+}
+
+impl ManagerOptions {
+    /// Trust and compatibility policy shared by the catalog client and the
+    /// network fetchers.
+    pub fn catalog_policy(&self) -> CatalogPolicy {
+        CatalogPolicy {
+            app_version: self.app_version.clone(),
+            public_keys: self.public_keys.clone(),
+            allow_unsigned: self.allow_unsigned,
+            dev_mode: self.dev_mode,
+            max_catalog_bytes: self.max_catalog_bytes,
+            max_package_bytes: self.max_package_bytes,
+        }
+    }
 }
 
 /// Errors surfaced by the manager and the shop.
@@ -58,10 +74,12 @@ pub enum ManagerError {
     Manifest(String),
     #[error("host: {0}")]
     Host(#[from] ExtensionError),
+    #[error("settings for extension {0} must be a table")]
+    Settings(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
-    #[error("toml: {0}")]
-    Toml(#[from] toml::de::Error),
+    #[error("invalid extension secret file")]
+    SecretFile,
 }
 
 /// Health of one extension after its last runs.
@@ -84,7 +102,7 @@ impl ExtensionHealth {
     pub fn mark_failure(&mut self, error: impl Into<String>) {
         self.last_error = Some(error.into());
         self.consecutive_failures = self.consecutive_failures.saturating_add(1);
-        self.degraded = self.consecutive_failures >= 3;
+        self.degraded = self.consecutive_failures >= DEGRADED_AFTER_CONSECUTIVE_FAILURES;
     }
 }
 
@@ -107,14 +125,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
     ) -> Result<Self, ManagerError> {
         let store = ExtensionStore::open(options.store_path.clone())?;
         let client = options.catalog_url.clone().map(|url| {
-            let policy = CatalogPolicy {
-                app_version: options.app_version.clone(),
-                public_keys: options.public_keys.clone(),
-                allow_unsigned: options.allow_unsigned,
-                dev_mode: options.dev_mode,
-                max_catalog_bytes: options.max_catalog_bytes,
-                max_package_bytes: options.max_package_bytes,
-            };
+            let policy = options.catalog_policy();
             CatalogClient::new(
                 catalog_fetcher,
                 policy,
@@ -169,6 +180,10 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 .health
                 .get(&record.id)
                 .and_then(|health| health.last_error.clone());
+            entry.degraded = self
+                .health
+                .get(&record.id)
+                .is_some_and(|health| health.degraded);
             entries.push(entry);
         }
         entries
@@ -188,6 +203,10 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                     .health
                     .get(&record.id)
                     .and_then(|health| health.last_error.clone()),
+                degraded: self
+                    .health
+                    .get(&record.id)
+                    .is_some_and(|health| health.degraded),
             })
             .collect()
     }
@@ -215,9 +234,23 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
 
     fn install_from_catalog(&mut self, id: &str) -> Result<(), ManagerError> {
         let entry = self.catalog_entry(id).ok_or(ManagerError::NoCatalog)?;
-        let bytes = self
-            .package_fetcher
-            .get(&entry.package_url, self.options.max_package_bytes)?;
+        let temp_dir = tempfile::tempdir().map_err(ManagerError::Io)?;
+        let package_path = crate::extensions::install::download_and_verify_package(
+            &mut self.package_fetcher,
+            &entry.package_url,
+            &entry.sha256,
+            entry.size_bytes,
+            self.options.max_package_bytes,
+            temp_dir.path(),
+        )
+        .map_err(|error| match error {
+            crate::extensions::install::DownloadError::Fetch(error) => ManagerError::Fetch(error),
+            crate::extensions::install::DownloadError::Package(error) => {
+                ManagerError::Store(StoreError::Package(error))
+            }
+            crate::extensions::install::DownloadError::Io(error) => ManagerError::Io(error),
+        })?;
+        let bytes = std::fs::read(&package_path).map_err(ManagerError::Io)?;
         let source = self
             .options
             .catalog_url
@@ -266,26 +299,30 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             return Err(ManagerError::NotInstalled(id.to_string()));
         }
         let directory = self.store.extension_dir(id, &record.version);
-        let catalog_manifest = super::package::load_manifest(&directory)
-            .map_err(|error| ManagerError::Manifest(error.to_string()))?;
-        let manifest = host_manifest(&catalog_manifest)?;
-        let script_path = directory.join(&manifest.entry);
-        let script = std::fs::read_to_string(&script_path)?;
-        let settings = self.settings_for(id);
-        let secrets = self.secrets_for(id)?;
-        let allowed_entities = manifest.permissions.ha_entities.clone();
-        let entities: BTreeMap<_, _> = entities
-            .into_iter()
-            .filter(|(entity, _)| allowed_entities.iter().any(|allowed| allowed == entity))
-            .collect();
+        let result = (|| -> Result<ExtensionOutput, ManagerError> {
+            let catalog_manifest = super::package::load_manifest(&directory)
+                .map_err(|error| ManagerError::Manifest(error.to_string()))?;
+            let manifest = host_manifest(&catalog_manifest)?;
+            let script_path = directory.join(&manifest.entry);
+            let script = std::fs::read_to_string(&script_path)?;
+            let settings = self.settings_for(id)?;
+            let secrets = self.secrets_for(id)?;
+            let allowed_entities = manifest.permissions.ha_entities.clone();
+            let entities: BTreeMap<_, _> = entities
+                .into_iter()
+                .filter(|(entity, _)| allowed_entities.iter().any(|allowed| allowed == entity))
+                .collect();
 
-        let mut config = HostConfig::new(manifest, script);
-        config.settings = settings;
-        config.secrets = secrets;
-        config.entities = entities;
-        config.dev_mode = self.options.dev_mode;
-        let mut runner = ExtensionRunner::new(ExtensionHost::new(config)?);
-        match runner.refresh() {
+            let mut config = HostConfig::new(manifest, script);
+            config.settings = settings;
+            config.secrets = secrets;
+            config.entities = entities;
+            config.dev_mode = self.options.dev_mode;
+            config.limits = self.options.limits.clone();
+            let mut runner = ExtensionRunner::new(ExtensionHost::new(config)?);
+            runner.refresh().map_err(ManagerError::from)
+        })();
+        match result {
             Ok(output) => {
                 self.health
                     .entry(id.to_string())
@@ -296,7 +333,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             Err(error) => {
                 let health = self.health.entry(id.to_string()).or_default();
                 health.mark_failure(error.to_string());
-                Err(ManagerError::Host(error))
+                Err(error)
             }
         }
     }
@@ -309,10 +346,13 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
         self.health
             .iter()
             .filter_map(|(id, health)| {
-                health
-                    .last_error
-                    .as_ref()
-                    .map(|error| format!("{id}: {error}"))
+                health.last_error.as_ref().map(|error| {
+                    if health.degraded {
+                        format!("{id} (degraded): {error}")
+                    } else {
+                        format!("{id}: {error}")
+                    }
+                })
             })
             .collect()
     }
@@ -355,6 +395,7 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             enabled: false,
             configured: false,
             error: None,
+            degraded: false,
             available: true,
         };
         if let Some(record) = installed {
@@ -365,6 +406,10 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
                 .health
                 .get(&entry.id)
                 .and_then(|health| health.last_error.clone());
+            shop.degraded = self
+                .health
+                .get(&entry.id)
+                .is_some_and(|health| health.degraded);
         }
         shop
     }
@@ -379,26 +424,34 @@ impl<C: CatalogFetcher, P: CatalogFetcher> ExtensionManager<C, P> {
             .unwrap_or(false)
     }
 
-    fn settings_for(&self, id: &str) -> BTreeMap<String, JsonValue> {
-        settings_table(self.options.settings.get(id))
-            .map(|table| {
-                table
-                    .into_iter()
-                    .filter_map(|(key, value)| {
-                        serde_json::to_value(value).ok().map(|value| (key, value))
-                    })
-                    .collect()
+    fn settings_for(&self, id: &str) -> Result<BTreeMap<String, JsonValue>, ManagerError> {
+        let Some(value) = self.options.settings.get(id) else {
+            return Ok(BTreeMap::new());
+        };
+        let table = value
+            .as_table()
+            .ok_or_else(|| ManagerError::Settings(id.to_string()))?;
+        Ok(table
+            .iter()
+            .filter_map(|(key, value)| {
+                serde_json::to_value(value)
+                    .ok()
+                    .map(|value| (key.clone(), value))
             })
-            .unwrap_or_default()
+            .collect())
     }
 
     fn secrets_for(&self, id: &str) -> Result<BTreeMap<String, String>, ManagerError> {
         let path = self.options.secret_dir.join(format!("{id}.secret.toml"));
-        if !path.exists() {
-            return Ok(BTreeMap::new());
-        }
-        let text = std::fs::read_to_string(path)?;
-        Ok(toml::from_str(&text)?)
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(BTreeMap::new());
+            }
+            Err(error) => return Err(error.into()),
+        };
+        // TOML parse errors include source snippets, which can contain secrets.
+        toml::from_str(&text).map_err(|_| ManagerError::SecretFile)
     }
 }
 
@@ -424,6 +477,7 @@ fn placeholder_shop_entry(id: &str) -> ShopEntry {
         enabled: false,
         configured: false,
         error: None,
+        degraded: false,
         available: false,
     }
 }

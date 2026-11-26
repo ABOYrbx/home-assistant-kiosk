@@ -72,7 +72,7 @@ fn default_true() -> bool {
     true
 }
 fn default_theme() -> String {
-    "dark".to_string()
+    "light".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -397,6 +397,14 @@ impl Default for ExtensionsConfig {
 }
 
 impl ExtensionsConfig {
+    /// Build the resource limits for one extension run.
+    pub fn script_limits(&self) -> crate::extensions::Limits {
+        crate::extensions::Limits {
+            max_operations: self.max_script_operations,
+            ..crate::extensions::Limits::default()
+        }
+    }
+
     /// Build the catalog trust policy for the running kiosk version.
     pub fn catalog_policy(&self, app_version: semver::Version) -> crate::extensions::CatalogPolicy {
         crate::extensions::CatalogPolicy {
@@ -460,7 +468,7 @@ impl Default for DisplayConfig {
             height: 480,
             rotation: 0,
             fullscreen: true,
-            theme: "dark".to_string(),
+            theme: "light".to_string(),
         }
     }
 }
@@ -514,6 +522,51 @@ impl Config {
         let mut parts: Vec<String> = self.subscribed_entity_ids();
         parts.push(format!("debounce:{}", self.cache.write_debounce_seconds));
         parts.push(format!("max:{}", self.cache.max_bytes));
+        parts.push(format!(
+            "clock:{}:{}",
+            self.widgets.clock.use_24_hour, self.widgets.clock.show_seconds
+        ));
+        parts.push(format!(
+            "weather:{}:{}:{}:{}",
+            self.widgets.weather.enabled,
+            self.widgets.weather.forecast_type,
+            self.widgets.weather.forecast_count,
+            self.widgets.weather.refresh_seconds
+        ));
+        parts.push(format!(
+            "media:{}:{}:{}",
+            self.widgets.media.enabled,
+            self.widgets.media.show_album_art,
+            self.widgets.media.volume_step
+        ));
+        parts.push(format!(
+            "departures:{}:{}:{}",
+            self.widgets.departures.enabled,
+            self.widgets.departures.max_items,
+            self.widgets.departures.refresh_seconds
+        ));
+        parts.push(format!(
+            "calendar:{}:{}:{}",
+            self.widgets.calendar.enabled,
+            self.widgets.calendar.days,
+            self.widgets.calendar.refresh_seconds
+        ));
+        parts.push(format!("tile-columns:{}", self.tiles.columns));
+        for tile in &self.tiles.items {
+            parts.push(format!("tile:{}:{}:{}", tile.entity, tile.label, tile.icon));
+        }
+        for (page, config) in [
+            ("overview", &self.pages.overview),
+            ("media", &self.pages.media),
+            ("agenda", &self.pages.agenda),
+            ("status", &self.pages.status),
+        ] {
+            parts.push(format!(
+                "page:{page}:{}:{}",
+                config.title,
+                config.widgets.join(",")
+            ));
+        }
         parts.sort();
         parts.join("|")
     }
@@ -624,6 +677,23 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
             "widgets.weather.refresh_seconds must be >= 60".into(),
         ));
     }
+    if !(1..=24).contains(&config.widgets.weather.forecast_count) {
+        return Err(ConfigError::Validation(
+            "widgets.weather.forecast_count must be between 1 and 24".into(),
+        ));
+    }
+    if !config.widgets.media.volume_step.is_finite()
+        || !(0.01..=1.0).contains(&config.widgets.media.volume_step)
+    {
+        return Err(ConfigError::Validation(
+            "widgets.media.volume_step must be between 0.01 and 1.0".into(),
+        ));
+    }
+    if !(1..=14).contains(&config.widgets.calendar.days) {
+        return Err(ConfigError::Validation(
+            "widgets.calendar.days must be between 1 and 14".into(),
+        ));
+    }
     if config.widgets.departures.refresh_seconds < 10 {
         return Err(ConfigError::Validation(
             "widgets.departures.refresh_seconds must be >= 10".into(),
@@ -642,10 +712,11 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
     // entity ids
     if config.widgets.weather.enabled
         && !config.widgets.weather.entity.is_empty()
-        && !validate_entity_id(&config.widgets.weather.entity)
+        && (!validate_entity_id(&config.widgets.weather.entity)
+            || !config.widgets.weather.entity.starts_with("weather."))
     {
         return Err(ConfigError::Validation(format!(
-            "invalid entity id: {}",
+            "widgets.weather.entity must be a valid weather.* entity id: {}",
             config.widgets.weather.entity
         )));
     }
@@ -674,10 +745,11 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
     }
     if config.widgets.media.enabled
         && !config.widgets.media.entity.is_empty()
-        && !validate_entity_id(&config.widgets.media.entity)
+        && (!validate_entity_id(&config.widgets.media.entity)
+            || !config.widgets.media.entity.starts_with("media_player."))
     {
         return Err(ConfigError::Validation(format!(
-            "invalid entity id: {}",
+            "widgets.media.entity must be a valid media_player.* entity id: {}",
             config.widgets.media.entity
         )));
     }
@@ -691,8 +763,11 @@ fn validate(config: &Config) -> Result<(), ConfigError> {
         )));
     }
     for e in &config.widgets.calendar.entities {
-        if !validate_entity_id(e) {
-            return Err(ConfigError::Validation(format!("invalid entity id: {}", e)));
+        if !validate_entity_id(e) || !e.starts_with("calendar.") {
+            return Err(ConfigError::Validation(format!(
+                "widgets.calendar.entities must contain valid calendar.* entity ids: {}",
+                e
+            )));
         }
     }
     for t in &config.tiles.items {
@@ -776,9 +851,10 @@ fn validate_extensions(ext: &ExtensionsConfig) -> Result<(), ConfigError> {
             "extensions.catalog_url is required when extensions are enabled".into(),
         ));
     };
-    if url.scheme() != "https" && !ext.dev_mode {
+    if url.scheme() != "https" && !(ext.allow_unsigned && ext.dev_mode) {
         return Err(ConfigError::Validation(
-            "extensions.catalog_url must use https unless extensions.dev_mode is true".into(),
+            "extensions.catalog_url must use https unless allow_unsigned and dev_mode are both enabled"
+                .into(),
         ));
     }
     if ext.allow_unsigned && !ext.dev_mode {

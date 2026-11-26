@@ -22,7 +22,7 @@ export component SwipeArea inherits TouchArea {
     in property <length> axis-lock-slop: Theme.space-2;
     // A horizontal swipe needs at least 60 logical pixels or 20 % of the page
     // width, whichever is larger.
-    in property <length> min-distance: 60px;
+    in property <length> min-distance: Theme.swipe-threshold;
     in property <float> distance-fraction: 0.2;
 
     callback swipe-next();

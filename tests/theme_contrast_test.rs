@@ -1,7 +1,3 @@
-//! The consolidated theme exposes one light `Theme` global instead of the
-//! former dark/light pair. These checks keep its contrast and token coverage
-//! honest against DESIGN.md.
-
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -79,7 +75,7 @@ fn assert_contrast(
 }
 
 #[test]
-fn text_and_focus_contrast_passes_in_the_theme() {
+fn adopted_light_palette_passes_text_and_ui_contrast() {
     let colors = palette();
     for foreground in ["fg", "fg-2", "muted"] {
         for background in ["bg", "surface", "surface-warm"] {
@@ -91,13 +87,13 @@ fn text_and_focus_contrast_passes_in_the_theme() {
         assert_contrast(&colors, semantic, "bg", 4.5);
         assert_contrast(&colors, semantic, "surface", 4.5);
     }
+    assert_contrast(&colors, "accent", "bg", 3.0);
 }
 
 #[test]
-fn theme_exposes_the_design_tokens_the_ui_uses() {
+fn theme_has_adopted_spacing_type_radius_and_layout_tokens() {
     let source = theme_source();
-    assert!(source.contains("export global Theme {"));
-
+    assert!(source.contains("export global Theme"));
     for token in [
         "space-1",
         "space-12",
@@ -106,16 +102,13 @@ fn theme_exposes_the_design_tokens_the_ui_uses() {
         "radius-sm",
         "radius-pill",
         "touch-target",
-        "bg",
-        "fg",
-        "accent",
-        "success",
-        "warn",
-        "danger",
+        "swipe-threshold",
+        "focus-ring-width",
+        "breakpoint-two-column",
+        "breakpoint-three-column",
     ] {
         assert!(
-            source.contains(&format!("property <length> {token}"))
-                || source.contains(&format!("property <color> {token}")),
+            source.contains(&format!("property <length> {token}")),
             "missing token {token}"
         );
     }

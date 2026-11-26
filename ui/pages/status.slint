@@ -1,24 +1,68 @@
 import { Theme } from "../theme.slint";
 
 export component StatusPage inherits Rectangle {
-    background: Theme.bg;
-
+    in property <string> connection-status: "Disconnected";
+    in property <bool> stale: true;
+    in property <string> ha-version: "";
+    in property <string> last-success: "";
+    in property <int> entity-count: 0;
+    in property <[string]> entity-ids: [];
     in property <[string]> extension-errors: [];
 
+    background: Theme.bg;
+    clip: true;
+
     VerticalLayout {
-        padding: Theme.space-3;
+        padding: Theme.space-4;
         spacing: Theme.space-3;
 
         Text {
             text: "Status";
             color: Theme.fg;
             font-size: Theme.text-xl;
+            font-weight: Theme.weight-semibold;
         }
 
-        if extension-errors.length > 0 : Rectangle {
+        Rectangle {
+            background: Theme.surface;
+            border-radius: Theme.radius-md;
+            border-width: Theme.border-width;
+            border-color: Theme.border;
+
+            VerticalLayout {
+                padding: Theme.space-3;
+                spacing: Theme.space-2;
+
+                Text {
+                    text: root.connection-status;
+                    color: root.stale ? Theme.warn : Theme.success;
+                    font-size: Theme.text-base;
+                    font-weight: Theme.weight-medium;
+                }
+                Text {
+                    text: root.ha_version == "" ? "Home Assistant version unknown" : "Home Assistant " + root.ha_version;
+                    color: Theme.fg-2;
+                    font-size: Theme.text-sm;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.last_success == "" ? "No successful update yet" : "Last update " + root.last_success;
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                    overflow: elide;
+                }
+                Text {
+                    text: "Subscribed entities: " + root.entity_count;
+                    color: Theme.fg-2;
+                    font-size: Theme.text-sm;
+                }
+            }
+        }
+
+        if root.extension_errors.length > 0 : Rectangle {
             background: Theme.surface-warm;
             border-radius: Theme.radius-md;
-            border-width: 1px;
+            border-width: Theme.border-width;
             border-color: Theme.border;
 
             VerticalLayout {
@@ -28,13 +72,36 @@ export component StatusPage inherits Rectangle {
                     text: "Extension errors";
                     color: Theme.fg;
                     font-size: Theme.text-base;
-                    font-weight: 600;
+                    font-weight: Theme.weight-semibold;
                 }
-                for message in extension-errors : Text {
+                for message in root.extension_errors : Text {
                     text: message;
                     color: Theme.danger;
                     font-size: Theme.text-sm;
                     wrap: word-wrap;
+                }
+            }
+        }
+
+        status-list := Flickable {
+            vertical-stretch: 1;
+            content-width: self.width;
+            content-height: content.preferred-height;
+
+            content := VerticalLayout {
+                spacing: Theme.space-1;
+
+                if root.entity_ids.length == 0 : Text {
+                    text: "Waiting for entity data…";
+                    color: Theme.muted;
+                    font-size: Theme.text-sm;
+                }
+
+                for id in root.entity_ids : Text {
+                    text: id;
+                    color: Theme.fg-2;
+                    font-size: Theme.text-sm;
+                    overflow: elide;
                 }
             }
         }

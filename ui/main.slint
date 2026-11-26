@@ -1,48 +1,122 @@
 import { Theme } from "theme.slint";
+import { TouchTarget } from "widgets/touch_target.slint";
+import { SwipeArea } from "widgets/swipe_area.slint";
 import { OverviewPage } from "pages/overview.slint";
 import { MediaPage } from "pages/media.slint";
 import { AgendaPage } from "pages/agenda.slint";
 import { StatusPage } from "pages/status.slint";
 import { ShopPage, ShopEntryView } from "pages/shop.slint";
+import { MediaPlayerData } from "widgets/media_player.slint";
+import { TileItem } from "widgets/tiles_grid.slint";
+import { AgendaEntry } from "widgets/calendar.slint";
+import { DepartureRow, DeparturesState } from "widgets/departures.slint";
+import { ForecastItem, WeatherState } from "widgets/weather.slint";
 
-export component TabButton inherits Rectangle {
+export { KioskModel } from "model.slint";
+
+component TabButton inherits TouchTarget {
     in property <string> label: "";
     in property <bool> active: false;
-    callback clicked();
+    out property <bool> has-focus: focus-scope.has-focus;
 
-    min-width: Theme.touch-target;
-    min-height: Theme.touch-target;
     border-radius: Theme.radius-md;
-    background: active ? Theme.accent : Theme.surface;
-    border-width: 1px;
-    border-color: Theme.border;
+    background: root.active ? Theme.accent : Theme.surface;
+    border-width: Theme.border-width;
+    border-color: root.active ? Theme.accent : Theme.border;
+    accessible-role: tab;
+    accessible-label: root.label;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.active;
+    accessible-action-default => { root.clicked(); }
+
+    pressed-fill := Rectangle {
+        visible: root.pressed;
+        background: root.active ? Theme.accent-active : Theme.border;
+        border-radius: root.border-radius;
+    }
 
     Text {
-        text: label;
-        color: active ? Theme.accent-on : Theme.fg;
+        text: root.label;
+        color: root.active ? Theme.accent-on : Theme.fg;
+        font-family: Theme.font-body;
         font-size: Theme.text-sm;
+        font-weight: root.active ? Theme.weight-semibold : Theme.weight-medium;
         horizontal-alignment: center;
         vertical-alignment: center;
+        overflow: elide;
     }
 
-    ta := TouchArea {
-        clicked => { root.clicked(); }
-    }
-
-    states [
-        pressed when ta.pressed: {
-            background: Theme.border;
+    focus-scope := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if event.text == Key.Space || event.text == Key.Return {
+                root.clicked();
+                return accept;
+            }
+            return reject;
         }
-    ]
+    }
+    forward-focus: focus-scope;
+
+    focus-outline := Rectangle {
+        visible: focus-scope.has-focus;
+        border-width: Theme.focus-ring-width;
+        border-color: root.active ? Theme.accent-on : Theme.focus-ring-color;
+        border-radius: root.border-radius;
+    }
 }
 
 export component MainWindow inherits Window {
     title: "Home Assistant Kiosk";
-    min-width: 320px;
-    min-height: 240px;
+    min-width: Theme.window-min-width;
+    min-height: Theme.window-min-height;
+    background: Theme.bg;
 
     in-out property <int> current-page: 0;
-    // The Shop is a fifth page that only exists when extensions are enabled.
+    in-out property <int> page-count: 4;
+    out property <int> overview-layout-mode:
+        root.width < Theme.breakpoint-two-column
+            ? 0
+            : root.width < Theme.breakpoint-three-column ? 1 : 2;
+
+    // Home Assistant and status data.
+    in-out property <string> connection-status: "Disconnected";
+    in-out property <bool> stale: true;
+    in-out property <string> ha-version: "";
+    in-out property <string> last-success: "";
+    in-out property <int> entity-count: 0;
+    in-out property <[string]> entity-ids: [];
+
+    // Overview widget models.
+    in-out property <[TileItem]> tiles: [];
+    in-out property <int> tile-columns: 3;
+    in-out property <[string]> scenes: [];
+    in-out property <bool> departures-visible: true;
+    in-out property <string> departures-title: "Departures";
+    in-out property <DeparturesState> departures-state: DeparturesState.loading;
+    in-out property <[DepartureRow]> departures-rows: [];
+    in-out property <bool> weather-visible: true;
+    in-out property <WeatherState> weather-state: WeatherState.loading;
+    in-out property <string> weather-condition: "";
+    in-out property <string> weather-temperature: "";
+    in-out property <string> weather-unit: "";
+    in-out property <string> weather-error: "";
+    in-out property <[ForecastItem]> weather-forecast: [];
+
+    // Media widget model and interaction hooks.
+    in-out property <MediaPlayerData> media;
+    in-out property <float> media-slider-value: 0.5;
+
+    // Agenda widget model and interaction hooks.
+    in-out property <[AgendaEntry]> agenda-today: [];
+    in-out property <[AgendaEntry]> agenda-tomorrow: [];
+    in-out property <bool> agenda-loading: true;
+    in-out property <bool> agenda-empty: false;
+    in-out property <string> agenda-error: "";
+    in-out property <string> agenda-status: "";
+    in-out property <float> agenda-scroll-y: 0.0;
+
+    // Optional Wave 6 shop.
     in property <bool> extensions-enabled: false;
     in property <[ShopEntryView]> shop-installed: [];
     in property <[ShopEntryView]> shop-available: [];
@@ -52,101 +126,197 @@ export component MainWindow inherits Window {
     in property <string> shop-secret-dir: "";
     in property <string> shop-pending-id: "";
     in property <[string]> extension-errors: [];
+
     callback page-changed(int);
     callback swipe-next();
     callback swipe-prev();
+    callback tile-tapped(string);
+    callback scene-activated(string);
+    callback media-play-pause();
+    callback media-previous-track();
+    callback media-next-track();
+    callback media-volume-changed(float);
+    callback media-volume-released(float);
     callback shop-refresh();
     callback shop-install(string);
     callback shop-update(string);
     callback shop-remove(string);
     callback shop-set-enabled(string, bool);
 
-    // Swipe tracking
-    property <length> swipe-start-x: 0px;
-    property <length> swipe-start-y: 0px;
-    property <bool> swipe-tracking: false;
+    out property <int> focused-tab:
+        tab-overview.has-focus ? 0
+        : tab-media.has-focus ? 1
+        : tab-agenda.has-focus ? 2
+        : tab-status.has-focus ? 3
+        : tab-shop.has-focus ? 4
+        : -1;
+    out property <bool> tab-pressed:
+        tab-overview.pressed
+        || tab-media.pressed
+        || tab-agenda.pressed
+        || tab-status.pressed
+        || (root.extensions-enabled && tab-shop.pressed);
 
-    VerticalLayout {
+    app-root := VerticalLayout {
         spacing: 0px;
 
-        // Tab bar
-        Rectangle {
+        tab-bar := Rectangle {
             height: Theme.touch-target + Theme.space-2;
             background: Theme.surface;
-            border-width: 0px;
+            border-width: Theme.border-width;
             border-color: Theme.border;
 
-            HorizontalLayout {
-                padding: Theme.space-2;
-                spacing: Theme.space-2;
-                alignment: start;
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                width: min(parent.width, Theme.content-max-width);
+                height: parent.height;
 
-                tab-overview := TabButton {
-                    label: "Overview";
-                    active: current-page == 0;
-                    clicked => { current-page = 0; page-changed(0); }
-                }
-                tab-media := TabButton {
-                    label: "Media";
-                    active: current-page == 1;
-                    clicked => { current-page = 1; page-changed(1); }
-                }
-                tab-agenda := TabButton {
-                    label: "Agenda";
-                    active: current-page == 2;
-                    clicked => { current-page = 2; page-changed(2); }
-                }
-                tab-status := TabButton {
-                    label: "Status";
-                    active: current-page == 3;
-                    clicked => { current-page = 3; page-changed(3); }
-                }
-                if extensions-enabled : tab-shop := TabButton {
-                    label: "Shop";
-                    active: current-page == 4;
-                    clicked => { current-page = 4; page-changed(4); }
+                HorizontalLayout {
+                    width: 100%;
+                    padding-left: Theme.space-2;
+                    padding-right: Theme.space-2;
+                    padding-top: Theme.space-1;
+                    padding-bottom: Theme.space-1;
+                    spacing: Theme.space-2;
+                    alignment: start;
+
+                        tab-overview-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-overview := TabButton {
+                            width: 100%;
+                            label: "Overview";
+                            active: root.current-page == 0;
+                            clicked => { root.current-page = 0; root.page-changed(0); }
+                        }
+                    }
+                    tab-media-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-media := TabButton {
+                            width: 100%;
+                            label: "Media";
+                            active: root.current-page == 1;
+                            clicked => { root.current-page = 1; root.page-changed(1); }
+                        }
+                    }
+                    tab-agenda-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-agenda := TabButton {
+                            width: 100%;
+                            label: "Agenda";
+                            active: root.current-page == 2;
+                            clicked => { root.current-page = 2; root.page-changed(2); }
+                        }
+                    }
+                    tab-status-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        tab-status := TabButton {
+                            width: 100%;
+                            label: "Status";
+                            active: root.current-page == 3;
+                            clicked => { root.current-page = 3; root.page-changed(3); }
+                        }
+                    }
+                    tab-shop-slot := Rectangle {
+                        width: root.extensions-enabled ? 18% : 23%;
+                        visible: root.extensions-enabled;
+                        tab-shop := TabButton {
+                            width: 100%;
+                            label: "Shop";
+                            active: root.current-page == 4;
+                            visible: root.extensions-enabled;
+                            clicked => { root.current-page = 4; root.page-changed(4); }
+                        }
+                    }
                 }
             }
         }
 
-        // Page host with swipe TouchArea behind content
-        Rectangle {
-            background: Theme.bg;
+        page-host := Rectangle {
             vertical-stretch: 1;
+            background: Theme.bg;
+            clip: true;
 
-            swipe-area := TouchArea {
+            swipe-area := SwipeArea {
+                x: 0px;
+                y: 0px;
                 width: 100%;
                 height: 100%;
-                pointer-event(event) => {
-                    if (event.kind == PointerEventKind.down) {
-                        swipe-start-x = self.mouse-x;
-                        swipe-start-y = self.mouse-y;
-                        swipe-tracking = true;
-                    }
-                    if (event.kind == PointerEventKind.up && swipe-tracking) {
-                        let dx = self.mouse-x - swipe-start-x;
-                        let dy = self.mouse-y - swipe-start-y;
-                        swipe-tracking = false;
-                        if ((abs(dx) >= 60px) || (abs(dx) >= self.width / 5)) && abs(dx) > abs(dy) {
-                            if (dx < 0px) { swipe-next(); }
-                            else { swipe-prev(); }
-                        }
-                    }
-                    if (event.kind == PointerEventKind.cancel) {
-                        swipe-tracking = false;
-                    }
-                }
+                page-width: root.width;
+                swipe-next => { root.swipe-next(); }
+                swipe-prev => { root.swipe-prev(); }
             }
 
-            if current-page == 0 : OverviewPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 1 : MediaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 2 : AgendaPage { x: 0px; y: 0px; width: 100%; height: 100%; }
-            if current-page == 3 : StatusPage {
-                x: 0px; y: 0px; width: 100%; height: 100%;
+            if root.current-page == 0 : overview-page := OverviewPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                layout-mode: root.overview-layout-mode;
+                scenes: root.scenes;
+                tiles: root.tiles;
+                tile-columns: root.tile-columns;
+                departures-visible: root.departures-visible;
+                departures-title: root.departures-title;
+                departures-state: root.departures-state;
+                departures-rows: root.departures-rows;
+                weather-visible: root.weather-visible;
+                weather-state: root.weather-state;
+                weather-condition: root.weather-condition;
+                weather-temperature: root.weather-temperature;
+                weather-unit: root.weather-unit;
+                weather-error: root.weather-error;
+                weather-forecast: root.weather-forecast;
+                scene-activated(id) => { root.scene-activated(id); }
+                tile-tapped(id) => { root.tile-tapped(id); }
+            }
+
+            if root.current-page == 1 : media-page := MediaPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                data: root.media;
+                slider-value <=> root.media-slider-value;
+                play-pause => { root.media-play-pause(); }
+                previous-track => { root.media-previous-track(); }
+                next-track => { root.media-next-track(); }
+                volume-changed(value) => { root.media-volume-changed(value); }
+                volume-released(value) => { root.media-volume-released(value); }
+            }
+
+            if root.current-page == 2 : agenda-page := AgendaPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                today: root.agenda-today;
+                tomorrow: root.agenda-tomorrow;
+                loading: root.agenda-loading;
+                empty: root.agenda-empty;
+                error: root.agenda-error;
+                status: root.agenda-status;
+                scrolled(value) => { root.agenda-scroll-y = value; }
+            }
+
+            if root.current-page == 3 : status-page := StatusPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
+                connection-status: root.connection-status;
+                stale: root.stale;
+                ha-version: root.ha-version;
+                last-success: root.last-success;
+                entity-count: root.entity-count;
+                entity-ids: root.entity-ids;
                 extension-errors: root.extension-errors;
             }
-            if current-page == 4 && extensions-enabled : ShopPage {
-                x: 0px; y: 0px; width: 100%; height: 100%;
+
+            if root.current-page == 4 && root.extensions-enabled : shop-page := ShopPage {
+                x: 0px;
+                y: 0px;
+                width: 100%;
+                height: 100%;
                 installed: root.shop-installed;
                 available: root.shop-available;
                 catalog-online: root.shop-catalog-online;
@@ -154,7 +324,7 @@ export component MainWindow inherits Window {
                 config-path: root.shop-config-path;
                 secret-dir: root.shop-secret-dir;
                 pending-id: root.shop-pending-id;
-                refresh() => { root.shop-refresh(); }
+                refresh => { root.shop-refresh(); }
                 confirm-install(id) => { root.shop-install(id); }
                 update(id) => { root.shop-update(id); }
                 remove(id) => { root.shop-remove(id); }

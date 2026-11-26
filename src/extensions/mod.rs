@@ -17,6 +17,7 @@ pub mod catalog;
 pub mod client;
 pub mod host;
 pub mod http;
+pub mod install;
 pub mod manager;
 pub mod manifest;
 pub mod output;
@@ -38,11 +39,21 @@ pub use host::{
     Clock, EntitySnapshot, ExtensionError, ExtensionHost, HostConfig, Limits, SystemClock,
 };
 pub use http::{HttpError, HttpFetcher, HttpPolicy, ReqwestFetcher};
+pub use install::{
+    DownloadError, download_and_verify, download_and_verify_package, download_package,
+    download_package_and_verify, download_package_to_temp, download_package_to_temp_dir,
+    download_package_verified, download_package_verified_checksum, download_to_temp,
+    download_to_temp_dir, download_verified, download_verified_package, extract_downloaded_package,
+    extract_downloaded_package_with_limit, extract_package_file, extract_package_file_with_limit,
+    extract_package_from_file, extract_package_from_path, fetch_package_to_temp,
+    fetch_package_to_temp_dir, sha256_file, verify_downloaded_package, verify_package_download,
+    verify_package_file,
+};
 pub use manager::{ExtensionHealth, ExtensionManager, ManagerError, ManagerOptions};
 pub use manifest::{Manifest, ManifestError, OutputKind};
 pub use output::{
     DepartureItem, DeparturesView, ExtensionOutput, KeyValueItem, KeyValueView, ListView,
-    OutputError,
+    MAX_OUTPUT_ITEMS, OutputError,
 };
 pub use package::{
     MAX_DECOMPRESSED_BYTES, PackageError, extract_package, extract_package_with_limit,

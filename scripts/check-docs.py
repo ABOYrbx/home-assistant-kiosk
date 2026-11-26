@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Validate the planning repository before a push or pull request.
+"""Validate documentation, configuration, and release metadata before a push.
 
-This check is intentionally dependency-free on GitHub-hosted Python. It does
-not validate Rust code; the Rust gate arrives in Wave 0.
+The check is intentionally dependency-free on GitHub-hosted Python. Rust code
+is validated by the separate Cargo gates in the release checklist.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import ipaddress
 import os
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -39,6 +41,8 @@ REQUIRED_FILES = [
     "docs/deployment.md",
     "docs/extension-catalog.md",
     "docs/extensions.md",
+    "schema/index.schema.json",
+    "schema/manifest.schema.json",
     "docs/kiosk-display.md",
     "docs/agent-prompts/implement-issue.md",
     "docs/github-rules.md",
@@ -87,36 +91,14 @@ REQUIRED_RELEASE_CHECKLIST_ITEMS = [
     "Rollback",
 ]
 
+RELEASE_PROFILE = {
+    "opt-level": "s",
+    "lto": True,
+    "strip": True,
+    "panic": "abort",
+}
+
 REQUIRED_WAVES = [f"docs/issues/wave-{i}.md" for i in range(7)]
-
-REQUIRED_README_SECTIONS = [
-    "## Installation",
-    "### Configuration reference",
-    "## Troubleshooting",
-    "## Security",
-    "## Releases and changelog",
-    "## License",
-]
-
-REQUIRED_TROUBLESHOOTING_TOPICS = [
-    "glibc",
-    "SLINT_BACKEND",
-    "rotation",
-    "0600",
-    "2023.9",
-    "cross",
-]
-
-REQUIRED_RELEASE_CHECKLIST_ITEMS = [
-    "cargo fmt --check",
-    "cargo clippy --all-targets -- -D warnings",
-    "cargo test",
-    "cargo audit",
-    "SHA256SUMS",
-    "CHANGELOG.md",
-    "Known limitations",
-    "Rollback",
-]
 
 FORBIDDEN = [
     "Dohlenweg",
@@ -126,7 +108,53 @@ FORBIDDEN = [
     "192.168.",
 ]
 
+REVIEW_AREAS = (
+    "License",
+    "Permissions",
+    "Secrets",
+    "Home Assistant access",
+    "UI",
+    "Tests",
+    "Removal",
+)
+
+REVIEW_EVIDENCE_ITEMS = (
+    "License",
+    "Permissions",
+    "Secrets",
+    "Home Assistant access",
+    "UI",
+    "Tests",
+    "Removal",
+)
+
+REVIEW_DECISION_FIELDS = (
+    "Reviewer",
+    "Commit or package",
+    "Decision",
+    "Evidence",
+    "Follow-up",
+)
+
+REVIEW_TEST_CASES = (
+    "Successful refresh",
+    "API failure",
+    "Empty or missing data",
+    "Forbidden host or entity",
+    "Malformed output",
+    "Resource limits",
+    "Removal",
+)
+
+REMOVAL_ACTIONS = (
+    "Disable",
+    "Remove",
+    "Catalog withdrawal",
+    "Security withdrawal",
+)
+
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+URL_RE = re.compile(r"^(https?|wss?)://", re.IGNORECASE)
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -134,6 +162,111 @@ warnings: list[str] = []
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def markdown_sections(text: str) -> dict[str, str]:
+    """Split Markdown by heading, retaining each section's own body."""
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        heading = re.fullmatch(r"(#{1,6})\s+(.+?)\s*#*\s*", line)
+        if heading:
+            current = heading.group(2).strip()
+            sections.setdefault(current, [])
+        elif current is not None:
+            sections[current].append(line)
+    return {heading: "\n".join(lines) for heading, lines in sections.items()}
+
+
+def markdown_table_rows(text: str) -> dict[str, list[str]]:
+    rows: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or not cells[1]:
+            continue
+        label = cells[0]
+        if not label or set(label) <= {"-", ":"} or label.lower() in {
+            "area",
+            "scenario",
+            "action",
+        }:
+            continue
+        rows.setdefault(label, []).append(cells[1])
+    return rows
+
+
+def validate_extension_review_doc(text: str) -> list[str]:
+    """Return missing structural requirements in the community-review guide."""
+    problems: list[str] = []
+    sections = markdown_sections(text)
+    review = sections.get("Community review")
+    if review is None:
+        problems.append("missing section: ## Community review")
+        review = ""
+
+    review_body = review.split("###", 1)[0]
+    review_rows = markdown_table_rows(review_body)
+    for area in REVIEW_AREAS:
+        if area not in review_rows:
+            problems.append(f"missing review area: {area}")
+
+    evidence = sections.get("Submission evidence", "")
+    evidence_labels = set(re.findall(r"^- \*\*([^*:]+):\*\*", evidence, re.MULTILINE))
+    for item in REVIEW_EVIDENCE_ITEMS:
+        if item not in evidence_labels:
+            problems.append(f"missing submission evidence: {item}")
+
+    decision = sections.get("Review decision and record", "")
+    decision_labels = set(re.findall(r"^- ([^:\n]+):", decision, re.MULTILINE))
+    for field in REVIEW_DECISION_FIELDS:
+        if field not in decision_labels:
+            problems.append(f"missing decision field: {field}")
+
+    test_evidence = sections.get("Test evidence", "")
+    test_rows = markdown_table_rows(test_evidence)
+    for case in REVIEW_TEST_CASES:
+        if case not in test_rows:
+            problems.append(f"missing test scenario: {case}")
+
+    isolation_text = test_evidence.lower()
+    if not all(
+        phrase in isolation_text
+        for phrase in (
+            "recorded fixtures",
+            "never require a live home assistant",
+            "credentials",
+        )
+    ):
+        problems.append("test evidence must use fixtures without live Home Assistant access")
+
+    removal_rows = markdown_table_rows(sections.get("Catalog removal and deprecation", ""))
+    for action in REMOVAL_ACTIONS:
+        if action not in removal_rows:
+            problems.append(f"missing removal action: {action}")
+
+    remove_effect = " ".join(removal_rows.get("Remove", [])).lower()
+    retention_words = ("retained", "keep", "keeps", "kept", "left")
+    if not (
+        "settings" in remove_effect
+        and "secret" in remove_effect
+        and any(word in remove_effect for word in retention_words)
+        and not re.search(r"\b(?:not|never)\s+(?:be\s+)?(?:retained|kept|left)\b", remove_effect)
+    ):
+        problems.append('removal action "Remove" must explain retained settings and secrets')
+
+    withdrawal_effect = " ".join(removal_rows.get("Catalog withdrawal", [])).lower()
+    if not (
+        "installed" in withdrawal_effect
+        and any(word in withdrawal_effect for word in ("remain", "kept", "keep"))
+        and not re.search(r"\b(?:do|does|did|is|are|was|were)?\s*not\s+remain\b", withdrawal_effect)
+    ):
+        problems.append(
+            'removal action "Catalog withdrawal" must explain installed-extension behavior'
+        )
+
+    return problems
 
 
 def load_toml(path: Path):
@@ -158,15 +291,7 @@ def load_example_config() -> dict | None:
     if not path.is_file():
         return None
     try:
-        try:
-            import tomllib  # Python 3.11+
-        except ImportError:  # Python 3.9/3.10 on a developer machine
-            import toml  # type: ignore
-
-            return toml.load(path)
-        else:
-            with path.open("rb") as handle:
-                return tomllib.load(handle)
+        return load_toml(path)
     except Exception as exc:  # noqa: BLE001 - report the parser error as-is
         errors.append(f"config.example.toml is not valid TOML: {exc}")
         return None
@@ -184,6 +309,78 @@ def check_toml() -> None:
             errors.append(f"config.example.toml is missing [{key}]")
     if data.get("extensions", {}).get("enabled") is not False:
         errors.append("config.example.toml must ship with extensions.enabled = false")
+    check_example_safety(data)
+
+
+def config_strings(value: object, prefix: str = ""):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            path = f"{prefix}.{key}" if prefix else key
+            yield from config_strings(child, path)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            path = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            yield from config_strings(child, path)
+    elif isinstance(value, str):
+        yield prefix, value
+
+
+def is_placeholder_host(hostname: str) -> bool:
+    host = hostname.rstrip(".").lower()
+    if host == "localhost":
+        return True
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return host.endswith((".example", ".test", ".local"))
+    return False
+
+
+CANONICAL_CATALOG_URL = (
+    "https://raw.githubusercontent.com/ABOYrbx/"
+    "home-assistant-kiosk-extensions/main/index.json"
+)
+
+
+def check_example_safety(data: dict) -> None:
+    ha = data.get("ha", {})
+    if isinstance(ha, dict) and "token" in ha:
+        errors.append(
+            "config.example.toml must not set ha.token; keep the literal token "
+            "example commented and use token_file or HA_TOKEN"
+        )
+
+    extensions = data.get("extensions", {})
+    if isinstance(extensions, dict) and extensions.get("settings"):
+        errors.append(
+            "config.example.toml extensions.settings must remain empty; keep "
+            "extension examples commented and secrets in the separate secret file"
+        )
+
+    email_pattern = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]+")
+    personal_path_prefixes = ("/home/", "/Users/", "/root/")
+    for path, value in config_strings(data):
+        if value.startswith(personal_path_prefixes):
+            errors.append(
+                f"config.example.toml {path} contains a personal path; use a "
+                "service path under /etc/ha-kiosk or /var/lib/ha-kiosk"
+            )
+        if email_pattern.search(value):
+            errors.append(
+                f"config.example.toml {path} contains a personal identifier"
+            )
+        if URL_RE.match(value):
+            if value == CANONICAL_CATALOG_URL:
+                continue
+            try:
+                hostname = urlsplit(value).hostname
+            except ValueError:
+                hostname = None
+            if not hostname or not is_placeholder_host(hostname):
+                errors.append(
+                    f"config.example.toml {path} must use a placeholder URL host "
+                    "(localhost or a .example, .test, or .local name)"
+                )
 
 
 def config_paths(value: object, prefix: str = "") -> list[str]:
@@ -195,7 +392,7 @@ def config_paths(value: object, prefix: str = "") -> list[str]:
         if isinstance(child, dict):
             paths.extend(config_paths(child, path))
         elif isinstance(child, list) and child and isinstance(child[0], dict):
-            paths.extend(config_paths(child[0], f"{path}[]"))
+            paths.extend(config_paths(child, f"{path}[]"))
         else:
             paths.append(path)
     return paths
@@ -207,92 +404,11 @@ def check_config_reference() -> None:
         return
     readme = read(ROOT / "README.md")
     for path in config_paths(data):
-        if path.startswith("pages.") and path.endswith(".widgets"):
-            path = "pages.<name>.widgets"
+        parts = path.split(".")
+        if len(parts) == 3 and parts[0] == "pages":
+            path = f"pages.<name>.{parts[2]}"
         if path not in readme:
             errors.append(f"README.md configuration reference is missing: {path}")
-
-
-def config_paths(value: object, prefix: str = "") -> list[str]:
-    paths: list[str] = []
-    if not isinstance(value, dict):
-        return [prefix] if prefix else paths
-    for key, child in value.items():
-        path = f"{prefix}.{key}" if prefix else key
-        if isinstance(child, dict):
-            paths.extend(config_paths(child, path))
-        elif isinstance(child, list) and child and isinstance(child[0], dict):
-            paths.extend(config_paths(child[0], f"{path}[]"))
-        else:
-            paths.append(path)
-    return paths
-
-
-def check_config_reference() -> None:
-    path = ROOT / "config.example.toml"
-    if not path.is_file():
-        return
-    try:
-        data = load_toml(path)
-    except Exception:  # noqa: BLE001 - check_toml already reports this
-        return
-    if not isinstance(data, dict):
-        return
-    readme = read(ROOT / "README.md")
-    for path in config_paths(data):
-        if path.startswith("pages.") and path.endswith(".widgets"):
-            path = "pages.<name>.widgets"
-        if path not in readme:
-            errors.append(f"README.md configuration reference is missing: {path}")
-
-
-def check_cargo_profile() -> None:
-    path = ROOT / "Cargo.toml"
-    if not path.is_file():
-        return
-    try:
-        data = load_toml(path)
-    except Exception as exc:  # noqa: BLE001 - report the parser error as-is
-        errors.append(f"Cargo.toml is not valid TOML: {exc}")
-        return
-    profile = data.get("profile", {}).get("release") if isinstance(data, dict) else None
-    if not isinstance(profile, dict):
-        errors.append("Cargo.toml is missing [profile.release]")
-        return
-    for key, expected in RELEASE_PROFILE.items():
-        if profile.get(key) != expected:
-            errors.append(
-                f"Cargo.toml [profile.release] {key} must be {expected!r} "
-                "(PLAN.md section 8, Wave 5)"
-            )
-
-
-def check_performance_doc() -> None:
-    doc = ROOT / "docs" / "performance.md"
-    script = ROOT / "scripts" / "perf-budget.py"
-    if not doc.is_file() or not script.is_file():
-        return
-    try:
-        spec = importlib.util.spec_from_file_location("perf_budget", script)
-        if spec is None or spec.loader is None:
-            raise ImportError("cannot load scripts/perf-budget.py")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 - report the loader error as-is
-        errors.append(f"scripts/perf-budget.py could not be loaded: {exc}")
-        return
-    text = read(doc)
-    budgets = [
-        f"{module.RSS_HARD_MB:.0f} MB",
-        f"{module.RSS_TARGET_MB:.0f} MB",
-        f"{module.FIRST_FRAME_HARD_MS:.0f} ms",
-        f"{module.IDLE_CPU_HARD_PERCENT:.0f} %",
-        f"{module.SOAK_MIN_HOURS:.0f} h",
-        f"{module.SOAK_GROWTH_HARD_MB:.0f} MB",
-    ]
-    for budget in budgets:
-        if budget not in text:
-            errors.append(f"docs/performance.md does not state the budget: {budget}")
 
 
 def check_cargo_profile() -> None:
@@ -383,14 +499,17 @@ def check_content() -> None:
     for section in REQUIRED_README_SECTIONS:
         if section not in readme:
             errors.append(f"README.md is missing the section: {section}")
-    troubleshooting = read(ROOT / "docs/troubleshooting.md")
+    troubleshooting = read(ROOT / "docs" / "troubleshooting.md")
     for topic in REQUIRED_TROUBLESHOOTING_TOPICS:
         if topic not in troubleshooting:
             errors.append(f"docs/troubleshooting.md is missing the topic: {topic}")
-    checklist = read(ROOT / "docs/release-checklist.md")
+    checklist = read(ROOT / "docs" / "release-checklist.md")
     for item in REQUIRED_RELEASE_CHECKLIST_ITEMS:
         if item not in checklist:
             errors.append(f"docs/release-checklist.md is missing the item: {item}")
+    review_doc = read(ROOT / "docs/extension-catalog.md")
+    for problem in validate_extension_review_doc(review_doc):
+        errors.append(f"docs/extension-catalog.md: {problem}")
     changelog = read(ROOT / "CHANGELOG.md")
     if "## [Unreleased]" not in changelog:
         errors.append("CHANGELOG.md is missing an Unreleased section")
@@ -401,7 +520,7 @@ def check_content() -> None:
     for needle in ("--touch-target", "--muted", "--success", "--warn"):
         if needle not in tokens:
             errors.append(f"tokens.css is missing: {needle}")
-    release = read(ROOT / "docs/release-builds.md")
+    release = read(ROOT / "docs" / "release-builds.md")
     for needle in ("glibc 2.35", "Bookworm", "native build", "SOURCE_DATE_EPOCH"):
         if needle not in release:
             errors.append(f"docs/release-builds.md is missing: {needle}")
@@ -412,7 +531,7 @@ def check_content() -> None:
 
 
 def check_deploy() -> None:
-    unit = read(ROOT / "deploy/ha-kiosk.service")
+    unit = read(ROOT / "deploy" / "ha-kiosk.service")
     for needle in (
         "User=ha-kiosk",
         "Restart=on-failure",
@@ -462,6 +581,8 @@ def main() -> int:
     check_required()
     check_toml()
     check_config_reference()
+    check_cargo_profile()
+    check_performance_doc()
     check_markdown()
     check_content()
     check_deploy()

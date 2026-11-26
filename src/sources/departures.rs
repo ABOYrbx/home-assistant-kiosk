@@ -22,9 +22,9 @@ pub const MIN_REFRESH_SECONDS: u64 = 10;
 
 /// Parse the configured sensor into a view, sorted by departure time.
 ///
-/// A missing entity, an `unavailable`/`unknown` state, or a missing or
-/// non-array `departures` attribute makes the view unavailable. Invalid
-/// entries are skipped and logged; they never hide valid entries.
+/// A missing entity or a missing/non-array `departures` attribute makes the
+/// view unavailable. Invalid entries are skipped and logged; they never hide
+/// valid entries. The sensor state itself is not part of the contract.
 pub fn parse_departures(
     entity: &HaEntity,
     title: &str,
@@ -38,11 +38,6 @@ pub fn parse_departures(
         items: Vec::new(),
         available: true,
     };
-
-    if matches!(entity.state.as_str(), "unavailable" | "unknown") {
-        view.available = false;
-        return view;
-    }
 
     let Some(entries) = entity
         .attributes
@@ -572,11 +567,17 @@ mod tests {
             assert!(!view.available);
             assert!(view.items.is_empty());
         }
+    }
 
-        let mut unavailable = entity(json!({"departures": []}));
-        unavailable.state = "unavailable".into();
+    #[test]
+    fn valid_attributes_are_used_even_when_the_sensor_state_is_unknown() {
+        let mut unavailable = entity(json!({"departures": [
+            {"line":"1","destination":"A","departure":"2026-11-22T21:10:00+01:00"}
+        ]}));
+        unavailable.state = "unknown".into();
         let view = parse_departures(&unavailable, "D", berlin(), 6, now());
-        assert!(!view.available);
+        assert!(view.available);
+        assert_eq!(view.items.len(), 1);
     }
 
     #[test]

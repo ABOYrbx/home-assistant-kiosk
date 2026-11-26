@@ -241,6 +241,22 @@ async fn serve_connection(
                 }
                 send_scenario_messages(&mut ws, behaviour).await?;
             }
+            Some("get_states") => {
+                send(
+                    &mut ws,
+                    json!({
+                        "id": request["id"],
+                        "type": "result",
+                        "success": true,
+                        "result": [
+                            {"entity_id":"light.example","state":"on","attributes":{}},
+                            {"entity_id":"weather.home","state":"sunny","attributes":{}},
+                            {"entity_id":"sensor.unconfigured","state":"42","attributes":{}}
+                        ]
+                    }),
+                )
+                .await?;
+            }
             Some("call_service") => {
                 let response = if behaviour == Behaviour::ServiceFailure {
                     json!({
@@ -380,10 +396,11 @@ async fn send_scenario_messages(
 
 /// Keep a connection busy with a simulated state-change stream.
 ///
-/// The first event is a snapshot so the client starts from a known state; later
-/// events only change entities that already exist, which exercises the update
-/// path, the cache writer, and the view-model builders for hours without
-/// growing the entity set.
+/// The first event is a snapshot so the client starts from a known state. Later
+/// events change the configured entities, add a uniquely named transient entity,
+/// and remove the previous transient entity, which exercises the add, update,
+/// remove, coalescing, cache-writer, and view-model paths without growing the
+/// entity set without bound.
 async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(), BoxError> {
     send(
         ws,
@@ -406,14 +423,25 @@ async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(),
     .await?;
 
     let mut tick: u64 = 0;
+    let mut previous_transient: Option<String> = None;
     loop {
         match tokio::time::timeout(Duration::from_millis(50), ws.next()).await {
             Ok(Some(Ok(Message::Text(text)))) => {
                 let Ok(request) = serde_json::from_str::<Value>(text.as_str()) else {
                     continue;
                 };
-                if request.get("type").and_then(Value::as_str) == Some("ping") {
-                    send(ws, json!({"id": request["id"], "type": "pong"})).await?;
+                match request.get("type").and_then(Value::as_str) {
+                    Some("ping") => {
+                        send(ws, json!({"id": request["id"], "type": "pong"})).await?;
+                    }
+                    Some("call_service") => {
+                        send(
+                            ws,
+                            json!({"id": request["id"], "type": "result", "success": true, "result": null}),
+                        )
+                        .await?;
+                    }
+                    _ => {}
                 }
             }
             Ok(Some(Ok(_))) => {}
@@ -421,24 +449,33 @@ async fn stream_soak_messages(ws: &mut WebSocketStream<TcpStream>) -> Result<(),
             Err(_) => {
                 tick += 1;
                 let brightness = (tick % 255) as u8;
-                send(
-                    ws,
-                    json!({"type": "event", "event": {
-                        "c": [
-                            {
-                                "entity_id": "light.example",
-                                "state": if tick.is_multiple_of(2) { "on" } else { "off" },
-                                "attributes": {"brightness": brightness},
-                            },
-                            {
-                                "entity_id": "weather.home",
-                                "state": "sunny",
-                                "attributes": {"temperature": 20.0 + (tick % 10) as f64},
-                            },
-                        ],
-                    }}),
-                )
-                .await?;
+                let changed = json!([
+                    {
+                        "entity_id": "light.example",
+                        "state": if tick.is_multiple_of(2) { "on" } else { "off" },
+                        "attributes": {"brightness": brightness},
+                    },
+                    {
+                        "entity_id": "weather.home",
+                        "state": "sunny",
+                        "attributes": {"temperature": 20.0 + (tick % 10) as f64},
+                    },
+                ]);
+
+                let transient = format!("sensor.soak_transient_{}", tick);
+                let added = vec![json!({"entity_id": transient, "state": "ok"})];
+                let mut removed = Vec::new();
+                if let Some(prev) = previous_transient.take() {
+                    removed.push(json!({"entity_id": prev}));
+                }
+                previous_transient = Some(transient);
+
+                let mut event = json!({"type": "event", "event": {"c": changed}});
+                event["event"]["a"] = json!(added);
+                if !removed.is_empty() {
+                    event["event"]["r"] = json!(removed);
+                }
+                send(ws, event).await?;
             }
         }
     }
@@ -614,6 +651,47 @@ entity = "light.example"
         .find(|r| r["type"] == "subscribe_entities")
         .expect("subscription sent");
     assert_eq!(subscribe["entity_ids"].as_array().unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn refresh_snapshot_is_limited_to_subscribed_entities() {
+    let server = MockHaServer::start(Behaviour::Normal).await;
+    let mut app = TestApp::start(&server, "test-token");
+    app.wait_until(|state| {
+        state.connection == ConnectionState::Connected
+            && state.entities.contains_key("light.example")
+    })
+    .await;
+
+    app.commands
+        .send(HaCommand::RefreshSnapshot)
+        .await
+        .expect("refresh command");
+    loop {
+        match app.next_event().await {
+            HaEvent::Snapshot(entities) => {
+                assert_eq!(entities.len(), 2);
+                assert!(
+                    entities
+                        .iter()
+                        .any(|entity| entity.entity_id == "light.example")
+                );
+                assert!(
+                    entities
+                        .iter()
+                        .any(|entity| entity.entity_id == "weather.home")
+                );
+                assert!(
+                    entities
+                        .iter()
+                        .all(|entity| entity.entity_id != "sensor.unconfigured")
+                );
+                break;
+            }
+            HaEvent::EntitiesAdded(_) | HaEvent::EntitiesChanged(_) => continue,
+            other => panic!("expected a filtered snapshot, got {other:?}"),
+        }
+    }
 }
 
 #[tokio::test]
@@ -957,10 +1035,10 @@ fn rss_mb() -> Option<f64> {
 #[tokio::test]
 #[ignore = "long-running soak; set HA_KIOSK_SOAK_SECONDS to choose the duration"]
 async fn soak_with_state_change_stream_stays_bounded() {
-    let seconds = std::env::var("HA_KIOSK_SOAK_SECONDS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(60u64);
+    let seconds = soak_seconds(std::env::var("HA_KIOSK_SOAK_SECONDS").ok().as_deref())
+        .expect("HA_KIOSK_SOAK_SECONDS must be a positive whole number of seconds");
+    let duration = Duration::from_secs(seconds);
+
     let server = MockHaServer::start(Behaviour::Soak).await;
     let mut app = TestApp::start(&server, "test-token");
 
@@ -974,65 +1052,413 @@ async fn soak_with_state_change_stream_stays_bounded() {
 
     let dir = tempfile::tempdir().expect("temp dir");
     let cache_path = dir.path().join("cache.json");
-    let max_bytes = 256 * 1024;
+    let max_bytes = 256 * 1024u64;
     let cache = FileCache::new(cache_path.clone(), 1, "soak".to_string(), max_bytes);
     let baseline_entities = app.state.entities.len();
 
+    let mut image_cache = ha_kiosk::ui::images::AlbumArtCache::new(1024);
+    let mut redraw = ha_kiosk::ui::redraw::RedrawScheduler::new();
+
+    let mut monitor = SoakMonitor::new(duration);
     let started = tokio::time::Instant::now();
     let mut events = 0u64;
     let mut cache_writes = 0u64;
+    let mut last_cache_save = started;
     let mut last_sample = started;
-    let mut baseline_rss: Option<f64> = None;
-    let mut last_rss = rss_mb();
 
-    while started.elapsed() < Duration::from_secs(seconds) {
+    while started.elapsed() < duration {
         app.next_event().await;
         events += 1;
 
+        // Exercise the service-call path periodically.
+        if events.is_multiple_of(100) {
+            let _ = app
+                .commands
+                .send(HaCommand::CallService(ServiceCall {
+                    request_id: events,
+                    domain: "light".to_string(),
+                    service: "toggle".to_string(),
+                    target: None,
+                    data: serde_json::json!({}),
+                    return_response: false,
+                }))
+                .await;
+        }
+
+        // Save the cache no more often than the production 10-second debounce.
         if events.is_multiple_of(20) {
-            cache.save(&app.state).expect("cache write");
-            cache_writes += 1;
-            let size = std::fs::metadata(&cache_path)
-                .expect("cache metadata")
-                .len();
-            assert!(
-                size <= max_bytes,
-                "cache grew to {size} bytes, above the {max_bytes} byte cap"
-            );
+            let now = tokio::time::Instant::now();
+            if now.duration_since(last_cache_save) >= Duration::from_secs(10) {
+                cache.save(&app.state).expect("cache write");
+                cache_writes += 1;
+                last_cache_save = now;
+                let size = std::fs::metadata(&cache_path)
+                    .expect("cache metadata")
+                    .len();
+                assert!(
+                    size <= max_bytes,
+                    "cache grew to {size} bytes, above the {max_bytes} byte cap"
+                );
+            }
+        }
+
+        // Churn the album-art LRU with a small fixed byte budget.
+        let url = format!("http://example.invalid/art/{}.png", events);
+        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(1, 1);
+        let _ = image_cache.insert(url, buffer);
+
+        // Keep the redraw scheduler and view-model parsers exercised.
+        let _ = redraw.request(started.elapsed());
+        if let Some(entity) = app.state.entities.get("weather.home") {
+            let _ = weather::parse_weather_entity(entity);
+        }
+        if let Some(entity) = app.state.entities.get("media_player.example") {
+            let _ = media::parse_media_entity(entity);
         }
 
         if last_sample.elapsed() >= Duration::from_secs(1) {
             last_sample = tokio::time::Instant::now();
-            last_rss = rss_mb();
-            // Ignore the first seconds of allocator warm-up when comparing.
-            if baseline_rss.is_none() && started.elapsed() >= Duration::from_secs(5) {
-                baseline_rss = last_rss;
-            }
+            let cache_size = std::fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
+            monitor.sample(SoakSample {
+                elapsed: started.elapsed(),
+                rss_mb: rss_mb(),
+                entities: app.state.entities.len(),
+                pending: app.state.pending.len(),
+                cache_bytes: cache_size,
+                image_entries: image_cache.len(),
+                image_bytes: image_cache.bytes(),
+            });
         }
     }
 
+    cache.save(&app.state).expect("final cache write");
     let cache_size = std::fs::metadata(&cache_path).map(|m| m.len()).unwrap_or(0);
+
+    let report = monitor.finish().expect("soak monitor failed");
     println!(
-        "soak: {seconds}s, {events} events, {cache_writes} cache writes, \
-         {cache_size} cache bytes, RSS baseline {baseline_rss:?} MiB, final {last_rss:?} MiB"
+        "soak: {}s, {} events, {} cache writes, {} cache bytes, \
+         RSS baseline {:?} MiB, final {:?} MiB, growth {:?} MiB, slope {:?} MiB/h, \
+         projected24h {:?} MiB, max_entities {}, max_pending {}, max_cache_bytes {}, \
+         max_image_entries {}, max_image_bytes {}, rss_samples {}",
+        seconds,
+        events,
+        cache_writes,
+        cache_size,
+        report.baseline_rss_mb,
+        report.final_rss_mb,
+        report.rss_growth_mb,
+        report.rss_slope_mb_per_hour,
+        report.projected_24h_rss_growth_mb,
+        report.max_entities,
+        report.max_pending,
+        report.max_cache_bytes,
+        report.max_image_entries,
+        report.max_image_bytes,
+        report.rss_samples
     );
 
-    assert_eq!(
-        app.state.entities.len(),
-        baseline_entities,
-        "state updates must not grow the entity map"
+    assert!(
+        app.state.entities.len() <= baseline_entities + 2,
+        "transient entity churn must not grow the entity map without bound (got {})",
+        app.state.entities.len()
     );
     assert_eq!(app.state.connection, ConnectionState::Connected);
     assert!(!app.state.stale, "a live stream must not stay stale");
     assert!(app.state.pending.is_empty());
     assert!(cache_size <= max_bytes, "the final cache exceeds its cap");
+    assert!(
+        report.max_entities <= baseline_entities + 2,
+        "the entity count must stay bounded during churn"
+    );
+    assert!(
+        report.max_image_bytes <= 1024,
+        "the album-art cache must stay within its byte budget"
+    );
+}
 
-    if let (Some(baseline), Some(final_rss)) = (baseline_rss, last_rss) {
-        assert!(
-            final_rss - baseline < 16.0,
-            "RSS grew by {:.1} MiB over the soak ({baseline:.1} -> {final_rss:.1}); \
-             investigate the allocation trend",
-            final_rss - baseline
+const DEFAULT_SOAK_SECONDS: u64 = 60;
+const SOAK_WARMUP: Duration = Duration::from_secs(5);
+const HOST_SOAK_RSS_GROWTH_LIMIT_MB: f64 = 16.0;
+const MIN_RSS_TREND_DURATION: Duration = Duration::from_secs(300);
+
+#[derive(Debug, Clone, Copy)]
+struct SoakSample {
+    elapsed: Duration,
+    rss_mb: Option<f64>,
+    entities: usize,
+    pending: usize,
+    cache_bytes: u64,
+    image_entries: usize,
+    image_bytes: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SoakReport {
+    baseline_rss_mb: Option<f64>,
+    final_rss_mb: Option<f64>,
+    rss_growth_mb: Option<f64>,
+    rss_slope_mb_per_hour: Option<f64>,
+    projected_24h_rss_growth_mb: Option<f64>,
+    max_entities: usize,
+    max_pending: usize,
+    max_cache_bytes: u64,
+    max_image_entries: usize,
+    max_image_bytes: usize,
+    rss_samples: usize,
+}
+
+/// Bounded soak state: counters and least-squares accumulators, never samples.
+struct SoakMonitor {
+    check_trend: bool,
+    baseline_rss_mb: Option<f64>,
+    final_rss_mb: Option<f64>,
+    trend_origin: Option<Duration>,
+    final_elapsed: Duration,
+    rss_samples: usize,
+    sum_x: f64,
+    sum_y: f64,
+    sum_xx: f64,
+    sum_xy: f64,
+    max_entities: usize,
+    max_pending: usize,
+    max_cache_bytes: u64,
+    max_image_entries: usize,
+    max_image_bytes: usize,
+}
+
+impl SoakMonitor {
+    fn new(duration: Duration) -> Self {
+        Self {
+            check_trend: duration >= MIN_RSS_TREND_DURATION,
+            baseline_rss_mb: None,
+            final_rss_mb: None,
+            trend_origin: None,
+            final_elapsed: Duration::ZERO,
+            rss_samples: 0,
+            sum_x: 0.0,
+            sum_y: 0.0,
+            sum_xx: 0.0,
+            sum_xy: 0.0,
+            max_entities: 0,
+            max_pending: 0,
+            max_cache_bytes: 0,
+            max_image_entries: 0,
+            max_image_bytes: 0,
+        }
+    }
+
+    fn sample(&mut self, sample: SoakSample) {
+        self.final_elapsed = self.final_elapsed.max(sample.elapsed);
+        self.max_entities = self.max_entities.max(sample.entities);
+        self.max_pending = self.max_pending.max(sample.pending);
+        self.max_cache_bytes = self.max_cache_bytes.max(sample.cache_bytes);
+        self.max_image_entries = self.max_image_entries.max(sample.image_entries);
+        self.max_image_bytes = self.max_image_bytes.max(sample.image_bytes);
+
+        if sample.elapsed < SOAK_WARMUP {
+            return;
+        }
+        let Some(rss_mb) = sample.rss_mb.filter(|value| value.is_finite()) else {
+            return;
+        };
+        self.baseline_rss_mb.get_or_insert(rss_mb);
+        self.final_rss_mb = Some(rss_mb);
+
+        let origin = *self.trend_origin.get_or_insert(sample.elapsed);
+        let x = sample.elapsed.saturating_sub(origin).as_secs_f64() / 3_600.0;
+        self.rss_samples += 1;
+        self.sum_x += x;
+        self.sum_y += rss_mb;
+        self.sum_xx += x * x;
+        self.sum_xy += x * rss_mb;
+    }
+
+    fn finish(&self) -> Result<SoakReport, String> {
+        let rss_growth_mb = self
+            .baseline_rss_mb
+            .zip(self.final_rss_mb)
+            .map(|(baseline, final_rss)| final_rss - baseline);
+        let rss_slope_mb_per_hour = if self.rss_samples >= 2 {
+            let n = self.rss_samples as f64;
+            let denominator = n * self.sum_xx - self.sum_x * self.sum_x;
+            (denominator.abs() > f64::EPSILON)
+                .then_some((n * self.sum_xy - self.sum_x * self.sum_y) / denominator)
+        } else {
+            None
+        };
+        let projected_24h_rss_growth_mb = rss_slope_mb_per_hour.map(|slope| slope * 24.0);
+        let report = SoakReport {
+            baseline_rss_mb: self.baseline_rss_mb,
+            final_rss_mb: self.final_rss_mb,
+            rss_growth_mb,
+            rss_slope_mb_per_hour,
+            projected_24h_rss_growth_mb,
+            max_entities: self.max_entities,
+            max_pending: self.max_pending,
+            max_cache_bytes: self.max_cache_bytes,
+            max_image_entries: self.max_image_entries,
+            max_image_bytes: self.max_image_bytes,
+            rss_samples: self.rss_samples,
+        };
+
+        let mut errors = Vec::new();
+        if let Some(growth) = rss_growth_mb
+            && growth > HOST_SOAK_RSS_GROWTH_LIMIT_MB
+        {
+            errors.push(format!(
+                "RSS grew by {growth:.1} MiB over the soak; the host limit is \
+                 {HOST_SOAK_RSS_GROWTH_LIMIT_MB:.0} MiB"
+            ));
+        }
+        let trend_span = self
+            .trend_origin
+            .map(|origin| self.final_elapsed.saturating_sub(origin))
+            .unwrap_or_default();
+        if self.check_trend
+            && trend_span >= MIN_RSS_TREND_DURATION
+            && let Some(projected) = projected_24h_rss_growth_mb
+            && projected > HOST_SOAK_RSS_GROWTH_LIMIT_MB
+        {
+            errors.push(format!(
+                "projected 24-hour RSS growth is {projected:.1} MiB from a {:.3} \
+                 MiB/hour trend; observed growth was {:.1} MiB",
+                rss_slope_mb_per_hour.unwrap_or_default(),
+                rss_growth_mb.unwrap_or_default()
+            ));
+        }
+
+        if errors.is_empty() {
+            Ok(report)
+        } else {
+            Err(errors.join("; "))
+        }
+    }
+}
+
+fn soak_seconds(value: Option<&str>) -> Result<u64, String> {
+    let Some(value) = value else {
+        return Ok(DEFAULT_SOAK_SECONDS);
+    };
+    let seconds = value.parse::<u64>().map_err(|_| {
+        "HA_KIOSK_SOAK_SECONDS must be a positive whole number of seconds".to_string()
+    })?;
+    if seconds == 0 {
+        return Err(
+            "HA_KIOSK_SOAK_SECONDS must be greater than zero; use 86400 for 24 hours".to_string(),
         );
+    }
+    Ok(seconds)
+}
+
+#[cfg(test)]
+mod soak_monitor {
+    use super::*;
+
+    fn sample(elapsed_seconds: u64, rss_mb: Option<f64>) -> SoakSample {
+        SoakSample {
+            elapsed: Duration::from_secs(elapsed_seconds),
+            rss_mb,
+            entities: 3,
+            pending: 0,
+            cache_bytes: 1_024,
+            image_entries: 4,
+            image_bytes: 256,
+        }
+    }
+
+    #[test]
+    fn duration_defaults_only_when_the_variable_is_missing() {
+        assert_eq!(soak_seconds(None), Ok(60));
+        assert_eq!(soak_seconds(Some("86400")), Ok(86_400));
+    }
+
+    #[test]
+    fn duration_rejects_malformed_and_zero_values() {
+        for value in ["", "soon", "-1", "1.5", "0"] {
+            let error = soak_seconds(Some(value)).expect_err("invalid duration must fail");
+            assert!(
+                error.contains("HA_KIOSK_SOAK_SECONDS"),
+                "error must name the invalid setting: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn warmup_rss_is_excluded_from_the_baseline() {
+        let mut monitor = SoakMonitor::new(Duration::from_secs(3_600));
+        monitor.sample(sample(0, Some(50.0)));
+        monitor.sample(sample(4, Some(80.0)));
+        monitor.sample(sample(5, Some(100.0)));
+        monitor.sample(sample(305, Some(100.0)));
+
+        let report = monitor.finish().expect("stable RSS passes");
+        assert_eq!(report.baseline_rss_mb, Some(100.0));
+        assert_eq!(report.final_rss_mb, Some(100.0));
+        assert_eq!(report.rss_samples, 2);
+    }
+
+    #[test]
+    fn stable_rss_passes_and_reports_bounded_counters() {
+        let mut monitor = SoakMonitor::new(Duration::from_secs(3_600));
+        monitor.sample(SoakSample {
+            elapsed: Duration::from_secs(5),
+            rss_mb: Some(100.0),
+            entities: 4,
+            pending: 1,
+            cache_bytes: 2_048,
+            image_entries: 16,
+            image_bytes: 4_096,
+        });
+        monitor.sample(sample(305, Some(100.0)));
+
+        let report = monitor.finish().expect("stable RSS passes");
+        assert_eq!(report.rss_growth_mb, Some(0.0));
+        assert_eq!(report.max_entities, 4);
+        assert_eq!(report.max_pending, 1);
+        assert_eq!(report.max_cache_bytes, 2_048);
+        assert_eq!(report.max_image_entries, 16);
+        assert_eq!(report.max_image_bytes, 4_096);
+    }
+
+    #[test]
+    fn endpoint_growth_above_the_host_limit_fails() {
+        let mut monitor = SoakMonitor::new(Duration::from_secs(3_600));
+        monitor.sample(sample(5, Some(100.0)));
+        monitor.sample(sample(305, Some(117.0)));
+
+        let error = monitor.finish().expect_err("17 MiB growth must fail");
+        assert!(error.contains("RSS grew"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn sustained_growth_fails_even_when_endpoint_growth_is_small() {
+        let mut monitor = SoakMonitor::new(Duration::from_secs(3_600));
+        monitor.sample(sample(5, Some(100.0)));
+        monitor.sample(sample(155, Some(101.0)));
+        monitor.sample(sample(305, Some(102.0)));
+
+        let error = monitor.finish().expect_err("the RSS trend must fail");
+        assert!(
+            error.contains("projected 24-hour RSS growth"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            error.contains("2.0 MiB"),
+            "the report must distinguish trend failure from endpoint growth: {error}"
+        );
+    }
+
+    #[test]
+    fn unavailable_rss_is_reported_without_claiming_a_memory_pass() {
+        let mut monitor = SoakMonitor::new(Duration::from_secs(3_600));
+        monitor.sample(sample(5, None));
+        monitor.sample(sample(305, None));
+
+        let report = monitor.finish().expect("cache checks remain usable");
+        assert_eq!(report.baseline_rss_mb, None);
+        assert_eq!(report.final_rss_mb, None);
+        assert_eq!(report.rss_growth_mb, None);
+        assert_eq!(report.rss_slope_mb_per_hour, None);
+        assert_eq!(report.rss_samples, 0);
     }
 }

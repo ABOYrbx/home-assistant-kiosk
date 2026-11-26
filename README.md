@@ -4,7 +4,7 @@ A small, native Home Assistant dashboard for wall-mounted touchscreens and singl
 
 [![Docs check](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml/badge.svg)](https://github.com/ABOYrbx/home-assistant-kiosk/actions/workflows/docs.yml)
 
-**Status:** planning. The repository currently contains the implementation plan, project rules, and the operator documentation, not a working application. The installation, configuration reference, troubleshooting, and release steps describe the intended v1 behaviour; the plan is in [`PLAN.md`](PLAN.md).
+**Status:** v1 is feature-complete on the host: the four-page Slint UI is wired to the Home Assistant client, cache, and widgets, and the Wave 6 shop is available behind `extensions.enabled`. Raspberry Pi performance and 24-hour soak evidence, the Slint license decision, and extension runtime placement remain open; see [`PLAN.md`](PLAN.md) and [`docs/release-checklist.md`](docs/release-checklist.md).
 
 ## Why this exists
 
@@ -16,7 +16,7 @@ The visual design is adopted, not a placeholder. [`DESIGN.md`](DESIGN.md) and [`
 
 The Overview follows the prototype: top bar, hero light with brightness/colour temperature, scenes/quick actions, and a configurable rooms/tile group. The layout must also work at 800 × 480 and 1024 × 600. Energy and Schedule are post-v1. The prototype's mock values are not production data.
 
-## Planned v1 features
+## v1 features
 
 - Clock and date.
 - Weather and a short forecast from a Home Assistant `weather` entity.
@@ -255,7 +255,7 @@ sudo apt install build-essential pkg-config libfontconfig1-dev \
   libseat-dev libinput-dev libudev-dev
 ```
 
-The application scaffold is created in Wave 0. Once it exists:
+Build and test the application:
 
 ```bash
 cargo fmt --check
@@ -321,6 +321,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `display.fullscreen` | bool | `true` | Fullscreen window on the desktop and X11 backends. |
 | `display.theme` | string | `"dark"` | `dark` or `light`; dark is the default target. |
 | `pages.<name>.widgets` | array of strings | per page | Widgets rendered on a page. The page set is fixed: overview, media, agenda, status. |
+| `pages.<name>.title` | string | per page | Page heading. The Overview uses this as its brand text. |
 | `pages.overview.title` | string | `"Home"` | Brand text in the Overview top bar. |
 | `widgets.clock.enabled` | bool | `true` | Enable the clock widget. |
 | `widgets.clock.show_seconds` | bool | `false` | Show seconds. |
@@ -359,7 +360,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.catalog_url` | string | unset | HTTPS URL of the signed catalog index. |
 | `extensions.public_keys` | array of strings | `[]` | Minisign public keys for the catalog. |
 | `extensions.allow_unsigned` | bool | `false` | Development only. Never enable in production. |
-| `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs. |
+| `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs and plain HTTP loopback fetches in extensions. |
 | `extensions.refresh_hours` | integer | `24` | Catalog refresh interval. |
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
@@ -389,7 +390,7 @@ The full operator guide is [`docs/troubleshooting.md`](docs/troubleshooting.md).
 
 [`CHANGELOG.md`](CHANGELOG.md) records released and unreleased changes. [`docs/release-checklist.md`](docs/release-checklist.md) is the release procedure: automated gates, cross artifacts, checksums, changelog, hardware evidence, known limitations, publication, and rollback. Releases and `v*` tags are created by `ABOYrbx` from `main`. No binary is distributed while the Slint license decision is open.
 
-## Installation and operation
+## Deployment and operation
 
 The full deployment guide, including seat models, hardening, upgrade, rollback,
 logs, and troubleshooting, is in [`docs/deployment.md`](docs/deployment.md).
@@ -459,7 +460,7 @@ Rotation, DRM output selection, console blanking, touch calibration, fonts, and 
 ## Assets
 
 - **Font:** the UI uses the system sans font and does not fetch a font at runtime. Install `fonts-dejavu-core` (DejaVu Fonts License, based on the Bitstream Vera license) or bundle a licensed font and record its license here.
-- **Icons:** weather and status icons are compiled into the binary from the source tree when they are added. No icon assets are bundled yet; their license and attribution must be recorded in this section before they ship.
+- **Icons:** the weather SVG icons in `ui/icons/` are project-owned assets compiled into the binary at build time. No third-party icon set or runtime icon download is used.
 - **Prototype:** the Vite reference prototype in `index.html` and `styles.css` uses no third-party assets.
 
 ## Security
@@ -489,7 +490,7 @@ Rotation, DRM output selection, console blanking, touch calibration, fonts, and 
 - **The `docs` check must pass.** The workflow validates TOML, Markdown links, required files, and obvious personal-data leaks.
 - **English only** in code, docs, issues, PRs, and commits.
 - **No secrets, tokens, personal entity IDs, stop IDs, addresses, or internal hostnames** in the repository.
-- **Extensions are separate.** Extension source and the catalog live in the companion `home-assistant-kiosk-extensions` repository, never in this one.
+- **Extensions are separate.** Extension source and the catalog live in the public [`ABOYrbx/home-assistant-kiosk-extensions`](https://github.com/ABOYrbx/home-assistant-kiosk-extensions) repository, never in this one.
 - **CODEOWNERS** routes review to `@ABOYrbx`; issue and PR templates describe the required evidence.
 
 The `main-protection` repository ruleset enforces the policy above, including for administrators: a pull request is required, the `docs` check must pass on an up-to-date branch, conversations must be resolved, history stays linear, and force-pushes and deletion of `main` are blocked. Details, exact verification commands, and the settings script are in [`docs/github-rules.md`](docs/github-rules.md).

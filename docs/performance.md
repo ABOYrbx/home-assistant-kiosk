@@ -147,18 +147,45 @@ entities every second is enough to exercise the coalescing path, the image
 cache, and the cache writer.
 
 The mock server and the state-change stream are part of
-[`tests/e2e_test.rs`](../tests/e2e_test.rs). A shorter host-side leak check runs
-the same client, state owner, and cache for a configurable duration and fails
-when the entity map or the cache grows without bound:
+[`tests/e2e_test.rs`](../tests/e2e_test.rs). The stream starts from a snapshot,
+then changes the configured entities, adds a uniquely named transient entity
+each cycle and removes the previous one, and answers `ping` and `call_service`
+requests. This exercises the add, update, remove, service-result, and
+view-model paths rather than updating three fixed entities.
+
+A shorter host-side leak check runs the same client, state owner, cache, and
+album-art LRU for a configurable duration and fails when the entity map, the
+pending-action map, the file cache, or the image cache grows without bound:
 
 ```bash
-HA_KIOSK_SOAK_SECONDS=3600 cargo test --test e2e_test \
+HA_KIOSK_SOAK_SECONDS=3600 cargo test --release --test e2e_test \
   soak_with_state_change_stream_stays_bounded -- --ignored --nocapture
 ```
 
-It prints the event count, cache writes, cache bytes, and the RSS baseline and
-final value. This check measures the test process on the development host, not
-the Pi; the 24-hour Pi run below is still required for the gate.
+The duration is parsed by `soak_seconds`: a missing value defaults to 60
+seconds, a zero or malformed value fails clearly, and `86400` selects the full
+24 hours. The check uses a `SoakMonitor` that keeps only numeric accumulators
+(no sample vector) and samples once per second:
+
+- RSS warm-up of 5 seconds is excluded from the baseline.
+- Endpoint RSS growth above 16 MiB fails.
+- A sustained positive RSS trend fails even when the final endpoint alone
+  would pass, by projecting the least-squares slope over 24 hours.
+- Unavailable RSS (for example on a non-Linux host) is reported as `None`
+  rather than being treated as a pass.
+- The host limit is 16 MiB; the Pi gate remains the stricter 10 MiB limit in
+  [`PLAN.md`](../PLAN.md) section 8.
+
+The monitor tracks the maximum entity count, pending-action count, cache bytes,
+album-art entry count, and album-art byte count. The album-art LRU runs with a
+1 KiB byte budget during the soak, so eviction is exercised continuously. The
+redraw scheduler and the weather/media view-model parsers are also exercised on
+every cycle. The cache is saved no more often than the production 10-second
+debounce.
+
+The check measures the test process on the development host, not the Pi; the
+24-hour Pi run below is still required for the gate. Host evidence is recorded
+in [`docs/performance/soak-host-evidence.md`](performance/soak-host-evidence.md).
 
 ```bash
 # Hourly samples; keep the output for the record.
@@ -222,10 +249,33 @@ drifts.
 | `opt-level` | `"s"` | Optimise for size; the Pi Zero 2 W is memory-bound before it is compute-bound. |
 | `lto` | `true` | Cross-crate inlining and dead-code removal; longer builds. |
 | `strip` | `true` | Remove symbols from the shipped binary; use the profiling build above for analysis. |
-| `panic` | `"abort"` | No unwinding tables; a panic terminates the process and systemd restarts it (`Restart=always`). |
+| `panic` | `"abort"` | No unwinding tables; a panic terminates the process with SIGABRT. Both systemd units use `Restart=on-failure`, which treats that exit as a failure and restarts the service. |
 
 Measure the same profile that ships. Changing a profile setting invalidates the
 record and requires a new one.
+
+### Confirmation without a device
+
+The settings are guarded by `tests/release_profile_test.rs` and by
+`scripts/check-docs.py`. `tests/test_build_all.py` verifies that the
+reproducible build script applies the same values with stricter codegen
+(`lto = fat`, `codegen-units = 1`). Production code has no `catch_unwind`, so an
+abort cannot leave a caught panic behind, and both systemd units use
+`Restart=on-failure` to restart the process after the abort.
+
+On 2026-11-25 the profile compiled on a macOS/arm64 development host with the
+`desktop` feature set:
+
+```bash
+cargo build --release --features desktop
+nm target/release/ha-kiosk | grep -cE '^[0-9a-f]+ [A-Za-z]'
+```
+
+The build finished successfully. The binary was 9,881,760 bytes and exposed one
+defined symbol (the rest are dynamic imports), consistent with `strip = true`.
+This confirms that the profile builds and strips the binary; it is not a Pi
+measurement. The `kiosk` cross-build and the device record below are still
+required for the gate.
 
 ## Record
 
@@ -249,7 +299,8 @@ record and requires a new one.
 | Item | Evidence | Status |
 | --- | --- | --- |
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
-| Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
+| Release profile matches PLAN.md | `scripts/check-docs.py` and `tests/release_profile_test.rs` | verified in CI |
+| Profile compiles and strips the binary | host release build with the `desktop` feature set on 2026-11-25 | verified on the development host; `kiosk` build pending |
 | Soak leak check runs against the real client, state, and cache | `tests/e2e_test.rs` ignored soak test | verified on the development host |
 | Raw evidence becomes a validated record | `scripts/perf-record.py` and `tests/test_perf_record.py` | verified by unit tests |
 | Memory evidence capture is method-separated | `scripts/perf-memory.py` and `tests/test_perf_memory.py` | verified by unit tests |

@@ -17,7 +17,9 @@ concurrency:
 jobs:
   rust:
     name: Rust (fmt, clippy, tests)
-    runs-on: ubuntu-latest
+    # Fork pull requests are untrusted: keep them on GitHub-hosted runners.
+    # Pushes to main, same-repo PRs and manual runs use the self-hosted Debian machine.
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && '["ubuntu-latest"]' || '["self-hosted","debian"]') }}
     timeout-minutes: 30
     steps:
       - name: Check out
@@ -30,6 +32,8 @@ jobs:
           rustup component add rustfmt clippy
 
       - name: Install system dependencies
+        # The self-hosted runner has these preinstalled and its account has no sudo.
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install --assume-yes --no-install-recommends \

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -79,6 +80,59 @@ class GithubSettingsTest(unittest.TestCase):
         self.assertFalse(data["allow_deletions"])
         self.assertTrue(data["required_conversation_resolution"])
         self.assertIsNone(data["restrictions"])
+
+    def test_script_verifies_every_ruleset_policy_field(self) -> None:
+        body = self.function_body("verify_ruleset")
+        for field in (
+            ".enforcement",
+            ".target",
+            ".rules | map(.type) | sort | join(\",\")",
+            ".bypass_actors | length",
+            ".current_user_can_bypass",
+            ".conditions.ref_name.include | sort | join(\",\")",
+            ".conditions.ref_name.exclude | length",
+            ".parameters.required_approving_review_count",
+            ".parameters.dismiss_stale_reviews_on_push",
+            ".parameters.require_code_owner_review",
+            ".parameters.require_last_push_approval",
+            ".parameters.required_review_thread_resolution",
+            ".parameters.allowed_merge_methods | sort | join(\",\")",
+            ".parameters.require_extra_approval_for_unattributed_changes",
+            ".parameters.strict_required_status_checks_policy",
+            ".parameters.do_not_enforce_on_create",
+            ".parameters.required_status_checks | map(.context) | sort | join(\",\")",
+        ):
+            with self.subTest(field=field):
+                self.assertIn(field, body)
+
+    def test_script_verifies_every_classic_policy_field(self) -> None:
+        body = self.function_body("verify_classic")
+        for field in (
+            ".enforce_admins.enabled",
+            ".required_status_checks.strict",
+            ".required_status_checks.contexts | sort | join(\",\")",
+            ".required_pull_request_reviews.required_approving_review_count",
+            ".required_pull_request_reviews.dismiss_stale_reviews",
+            ".required_pull_request_reviews.require_code_owner_reviews",
+            ".required_pull_request_reviews.require_last_push_approval",
+            ".required_linear_history.enabled",
+            ".allow_force_pushes.enabled",
+            ".allow_deletions.enabled",
+            ".required_conversation_resolution.enabled",
+            ".restrictions == null",
+            ".lock_branch",
+            ".allow_fork_syncing",
+        ):
+            with self.subTest(field=field):
+                self.assertIn(field, body)
+
+    @staticmethod
+    def function_body(name: str) -> str:
+        text = SCRIPT.read_text(encoding="utf-8")
+        match = re.search(rf"^{name}\(\) \{{.*?\n\}}", text, re.MULTILINE | re.DOTALL)
+        if match is None:
+            raise AssertionError(f"{name} is missing from the settings script")
+        return match.group(0)
 
 
 if __name__ == "__main__":

@@ -2,104 +2,108 @@ import { Theme } from "../theme.slint";
 import { KioskModel } from "../model.slint";
 
 export component TopBar inherits Rectangle {
-    height: Theme.touch-target + Theme.space-5;
+    in property <bool> compact: false;
+
+    height: root.compact ? Theme.topbar-height-compact : Theme.topbar-height;
     background: Theme.bg;
 
-    HorizontalLayout {
-        padding-left: Theme.space-6;
-        padding-right: Theme.space-6;
-        spacing: Theme.space-4;
-        alignment: space-between;
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        width: min(parent.width, Theme.content-max-width);
+        height: parent.height;
 
         HorizontalLayout {
+            padding-left: root.compact ? Theme.space-3 : Theme.space-6;
+            padding-right: root.compact ? Theme.space-3 : Theme.space-6;
             spacing: Theme.space-3;
-            alignment: start;
+            alignment: space-between;
 
-            VerticalLayout {
-                width: 9px;
-                alignment: center;
-                Rectangle {
-                    width: 9px;
-                    height: 9px;
-                    border-radius: Theme.radius-pill;
-                    background: Theme.accent;
+            HorizontalLayout {
+                spacing: Theme.space-2;
+                alignment: start;
+
+                brand := Text {
+                    text: KioskModel.brand-title;
+                    color: Theme.fg;
+                    font-family: Theme.font-body;
+                    font-size: root.compact ? Theme.text-base : Theme.text-lg;
+                    font-weight: Theme.weight-semibold;
+                    vertical-alignment: center;
+                    overflow: elide;
                 }
             }
 
-            brand := Text {
-                text: KioskModel.brand-title;
-                color: Theme.fg;
-                font-size: Theme.text-lg;
-                font-weight: 600;
-                vertical-alignment: center;
-                overflow: elide;
-            }
-        }
+            HorizontalLayout {
+                spacing: root.compact ? Theme.space-3 : Theme.space-5;
+                alignment: end;
 
-        HorizontalLayout {
-            spacing: Theme.space-5;
-            alignment: end;
+                Rectangle {
+                    height: Theme.connection-pill-height;
+                    border-radius: Theme.radius-pill;
+                    border-width: Theme.border-width;
+                    border-color: Theme.border;
+                    background: Theme.surface;
 
-            Rectangle {
-                height: Theme.space-8;
-                border-radius: Theme.radius-pill;
-                border-width: 1px;
-                border-color: Theme.border;
-                background: Theme.surface;
-
-                HorizontalLayout {
-                    padding-left: Theme.space-3;
-                    padding-right: Theme.space-3;
-                    spacing: Theme.space-2;
-
-                    VerticalLayout {
-                        width: 7px;
+                    HorizontalLayout {
+                        padding-left: Theme.space-3;
+                        padding-right: Theme.space-3;
+                        spacing: Theme.space-2;
                         alignment: center;
+
                         Rectangle {
-                            width: 7px;
-                            height: 7px;
+                            width: Theme.status-dot-size;
+                            height: Theme.status-dot-size;
                             border-radius: Theme.radius-pill;
-                            background: KioskModel.connection-connected ? Theme.success : KioskModel.connection-error ? Theme.danger : Theme.warn;
+                            background: KioskModel.connection-connected
+                                ? Theme.success
+                                : KioskModel.connection-error
+                                    ? Theme.danger
+                                    : Theme.warn;
+                        }
+
+                        connection-label := Text {
+                            text: KioskModel.connection-label;
+                            color: Theme.fg-2;
+                            font-family: Theme.font-body;
+                            font-size: Theme.text-sm;
+                            vertical-alignment: center;
+                            overflow: elide;
                         }
                     }
+                }
 
-                    connection-label := Text {
-                        text: KioskModel.connection-label;
-                        color: Theme.fg-2;
-                        font-size: Theme.text-sm;
-                        vertical-alignment: center;
+                VerticalLayout {
+                    width: Theme.clock-width;
+                    spacing: 0px;
+                    alignment: center;
+
+                    clock-text := Text {
+                        text: KioskModel.clock-text;
+                        color: Theme.fg;
+                        font-family: Theme.font-mono;
+                        font-size: root.compact ? Theme.text-lg : Theme.text-xl;
+                        font-weight: Theme.weight-semibold;
+                        horizontal-alignment: right;
+                        overflow: elide;
                     }
-                }
-            }
 
-            VerticalLayout {
-                min-width: 96px;
-                spacing: 0px;
-                alignment: center;
-
-                clock-text := Text {
-                    text: KioskModel.clock-text;
-                    color: Theme.fg;
-                    font-size: Theme.text-xl;
-                    font-weight: 600;
-                    horizontal-alignment: right;
-                }
-
-                date-text := Text {
-                    text: KioskModel.date-text;
-                    color: Theme.muted;
-                    font-size: Theme.text-xs;
-                    horizontal-alignment: right;
+                    date-text := Text {
+                        text: KioskModel.date-text;
+                        color: Theme.muted;
+                        font-family: Theme.font-body;
+                        font-size: Theme.text-xs;
+                        horizontal-alignment: right;
+                        overflow: elide;
+                    }
                 }
             }
         }
     }
 
     Rectangle {
-        x: 0px;
-        y: parent.height - 1px;
-        width: 100%;
-        height: 1px;
+        y: parent.height - Theme.border-width;
+        width: parent.width;
+        height: Theme.border-width;
         background: Theme.border;
     }
 }

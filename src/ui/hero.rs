@@ -288,12 +288,14 @@ impl HeroLight {
         commands
     }
 
-    pub fn service_finished(&mut self, request_id: u64) {
-        if let Some(kind) = self.pending.remove(&request_id)
-            && kind == HeroPendingKind::Toggle
-        {
+    pub fn service_finished(&mut self, request_id: u64) -> bool {
+        let Some(kind) = self.pending.remove(&request_id) else {
+            return false;
+        };
+        if kind == HeroPendingKind::Toggle {
             self.toggle_pending = false;
         }
+        true
     }
 
     pub fn set_error(&mut self, error: Option<String>) {

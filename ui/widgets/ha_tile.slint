@@ -12,40 +12,54 @@ export component HaTile inherits Rectangle {
     callback tapped();
 
     min-width: Theme.touch-target;
-    min-height: Theme.touch-target;
+    min-height: Theme.tile-min-height;
     background: Theme.surface;
     border-radius: Theme.radius-md;
-    border-width: 1px;
-    border-color: Theme.border;
+    border-width: Theme.border-width;
+    border-color: root.read-only ? Theme.border-soft : Theme.border;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: !root.read-only && !root.pending;
+    accessible-action-default => {
+        if !root.read-only && !root.pending {
+            root.tapped();
+        }
+    }
 
     VerticalLayout {
         padding: Theme.space-3;
         spacing: Theme.space-1;
 
+        if root.icon != "" : Text {
+            text: root.icon;
+            color: Theme.muted;
+            font-size: Theme.text-xs;
+        }
+
         Text {
-            text: label;
+            text: root.label;
             color: Theme.fg;
             font-size: Theme.text-sm;
-            font-weight: 500;
+            font-weight: Theme.weight-medium;
             overflow: elide;
         }
 
         Text {
-            text: pending ? "…" : state;
-            color: Theme.muted;
+            text: root.pending ? "…" : root.state;
+            color: root.read-only ? Theme.muted : Theme.fg-2;
             font-size: Theme.text-sm;
             overflow: elide;
         }
 
-        if detail != "" && !pending && error == "" : Text {
-            text: detail;
+        if root.detail != "" && !root.pending && root.error == "" : Text {
+            text: root.detail;
             color: Theme.muted;
             font-size: Theme.text-xs;
             overflow: elide;
         }
 
-        if error != "" : tile-error := Text {
-            text: error;
+        if root.error != "" : tile-error := Text {
+            text: root.error;
             accessible-label: root.error;
             color: Theme.danger;
             font-size: Theme.text-xs;

@@ -9,7 +9,7 @@ export component PlaceholderTile inherits Rectangle {
     callback clicked();
 
     min-width: Theme.touch-target;
-    height: 96px;
+    height: Theme.tile-min-height;
     border-radius: Theme.radius-lg;
     background: ta.pressed ? Theme.surface-warm : Theme.surface;
     border-width: root.selected || focus-scope.has-focus ? Theme.focus-ring-width : Theme.border-width;

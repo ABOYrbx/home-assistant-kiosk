@@ -12,9 +12,12 @@ export component LevelSlider inherits Rectangle {
 
     height: Theme.touch-target;
     opacity: enabled ? 1.0 : 0.45;
+    accessible-role: slider;
+    accessible-enabled: root.enabled;
+    accessible-value: root.value;
 
-    property <length> knob-size: 20px;
-    property <length> track-thickness: 6px;
+    property <length> knob-size: Theme.slider-knob-size;
+    property <length> track-thickness: Theme.slider-track-height;
     property <length> travel: Math.max(0px, self.width - knob-size);
     property <int> span: max - min;
     property <length> filled: span <= 0 ? 0px : travel * (value - min) / span;
@@ -44,7 +47,7 @@ export component LevelSlider inherits Rectangle {
         height: knob-size;
         border-radius: Theme.radius-pill;
         background: Theme.accent;
-        border-width: 2px;
+        border-width: Theme.border-width;
         border-color: Theme.bg;
     }
 
@@ -61,6 +64,85 @@ export component LevelSlider inherits Rectangle {
                     let raw = root.min + ratio * root.span;
                     let stepped = Math.round(raw / root.step);
                     let clamped = Math.max(root.min, Math.min(root.max, stepped * root.step));
+                    if clamped != root.value {
+                        root.value = clamped;
+                        root.changed(clamped);
+                    }
+                }
+            }
+            if event.kind == PointerEventKind.up {
+                root.released(root.value);
+            }
+        }
+    }
+}
+
+// A continuous slider for normalised values such as media volume. It mirrors
+// the LevelSlider visuals so both controls use the design-system accent.
+export component FloatSlider inherits Rectangle {
+    in-out property <float> value: 0.5;
+    in property <float> min: 0.0;
+    in property <float> max: 1.0;
+    in property <float> step: 0.01;
+    in property <bool> enabled: true;
+
+    callback changed(float);
+    callback released(float);
+
+    height: Theme.touch-target;
+    opacity: enabled ? 1.0 : 0.45;
+    accessible-role: slider;
+    accessible-enabled: root.enabled;
+    accessible-value: root.value;
+
+    property <length> knob-size: Theme.slider-knob-size;
+    property <length> track-thickness: Theme.slider-track-height;
+    property <length> travel: Math.max(0px, self.width - knob-size);
+    property <float> span: max - min;
+    property <length> filled: span <= 0.0 ? 0px : travel * (value - min) / span;
+
+    track := Rectangle {
+        x: knob-size / 2;
+        y: (root.height - track-thickness) / 2;
+        width: root.travel;
+        height: track-thickness;
+        border-radius: Theme.radius-pill;
+        background: Theme.border;
+    }
+
+    fill := Rectangle {
+        x: track.x;
+        y: track.y;
+        width: root.filled;
+        height: track-thickness;
+        border-radius: Theme.radius-pill;
+        background: Theme.accent;
+    }
+
+    knob := Rectangle {
+        x: track.x + root.filled - knob-size / 2;
+        y: (root.height - knob-size) / 2;
+        width: knob-size;
+        height: knob-size;
+        border-radius: Theme.radius-pill;
+        background: Theme.accent;
+        border-width: Theme.border-width;
+        border-color: Theme.bg;
+    }
+
+    ta := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: root.enabled;
+
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down || event.kind == PointerEventKind.move)
+                && (self.pressed || event.kind == PointerEventKind.down) {
+                if root.travel > 0px {
+                    let ratio = (self.mouse-x - root.knob-size / 2) / root.travel;
+                    let raw = root.min + ratio * root.span;
+                    let stepped = Math.round(raw / root.step) * root.step;
+                    let clamped = Math.max(root.min, Math.min(root.max, stepped));
                     if clamped != root.value {
                         root.value = clamped;
                         root.changed(clamped);

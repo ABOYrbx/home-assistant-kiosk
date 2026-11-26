@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::host::{ExtensionError, ExtensionHost};
 use super::output::ExtensionOutput;
 
-const DEFAULT_DEGRADED_AFTER: u32 = 3;
+pub(crate) const DEGRADED_AFTER_CONSECUTIVE_FAILURES: u32 = 3;
 
 /// The visible health of one extension.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,7 +35,7 @@ impl ExtensionRunner {
             host,
             last_good: None,
             status: ExtensionStatus::default(),
-            degraded_after: DEFAULT_DEGRADED_AFTER,
+            degraded_after: DEGRADED_AFTER_CONSECUTIVE_FAILURES,
         }
     }
 

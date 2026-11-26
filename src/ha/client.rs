@@ -110,7 +110,15 @@ pub async fn run(
 ) {
     let mut backoff = ReconnectBackoff::new();
     loop {
-        match connect_once(&config, &entity_ids, &event_tx, &mut command_rx).await {
+        match connect_once(
+            &config,
+            &entity_ids,
+            &event_tx,
+            &mut command_rx,
+            &mut backoff,
+        )
+        .await
+        {
             Ok(()) => break,
             Err(HaError::AuthFailed(msg)) => {
                 let _ = event_tx.send(HaEvent::AuthFailed { message: msg }).await;
@@ -131,6 +139,7 @@ async fn connect_once(
     entity_ids: &[EntityId],
     event_tx: &mpsc::Sender<HaEvent>,
     command_rx: &mut mpsc::Receiver<crate::events::HaCommand>,
+    backoff: &mut ReconnectBackoff,
 ) -> Result<(), HaError> {
     let ws_url = websocket_url(&config.url)?;
 
@@ -197,6 +206,7 @@ async fn connect_once(
         .map_err(|e| HaError::Connection(e.to_string()))?;
 
     let sub_id = next_request_id();
+    let allowed_entities: std::collections::HashSet<String> = entity_ids.iter().cloned().collect();
     let sub_msg = json!({
         "id": sub_id,
         "type": "subscribe_entities",
@@ -224,6 +234,7 @@ async fn connect_once(
                         time_zone,
                     })
                     .await;
+                backoff.reset();
                 break;
             }
             // other results (sub ack) ignored
@@ -238,6 +249,7 @@ async fn connect_once(
     // main loop
     let mut ping_timer = tokio::time::interval(Duration::from_secs(30));
     ping_timer.reset();
+    let mut snapshot_requests = std::collections::HashSet::new();
 
     loop {
         tokio::select! {
@@ -253,16 +265,15 @@ async fn connect_once(
                         }
                         if v.get("type").and_then(|x| x.as_str()) == Some("result") {
                             let id = v.get("id").and_then(|x| x.as_u64()).unwrap_or(0);
-                            // get_states response -> snapshot
-                            // We don't track type; if result is array of entities, emit snapshot.
-                            if let Some(arr) = v.get("result").and_then(|r| r.as_array())
-                                && !arr.is_empty()
-                                && arr[0].get("entity_id").is_some()
-                            {
+                            if snapshot_requests.remove(&id) {
                                 let mut entities = Vec::new();
-                                for e in arr {
-                                    if let Some(ent) = parse_entity(e) {
-                                        entities.push(ent);
+                                if let Some(arr) = v.get("result").and_then(|r| r.as_array()) {
+                                    for entity in arr {
+                                        if let Some(ent) = parse_entity(entity)
+                                            && allowed_entities.contains(&ent.entity_id)
+                                        {
+                                            entities.push(ent);
+                                        }
                                     }
                                 }
                                 let _ = event_tx.send(HaEvent::Snapshot(entities)).await;
@@ -312,6 +323,7 @@ async fn connect_once(
                     }
                     Some(crate::events::HaCommand::RefreshSnapshot) => {
                         let id = next_request_id();
+                        snapshot_requests.insert(id);
                         let msg = json!({"id": id, "type": "get_states"});
                         if let Err(e) = ws.send(Message::Text(msg.to_string().into())).await {
                             return Err(HaError::Connection(e.to_string()));

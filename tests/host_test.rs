@@ -2,8 +2,9 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -95,7 +96,7 @@ fn fixed_clock() -> Arc<FixedClock> {
 struct PanicFetcher;
 
 impl HttpFetcher for PanicFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         panic!("the policy must reject before the fetcher is called");
     }
 }
@@ -119,7 +120,7 @@ impl RecordingFetcher {
 }
 
 impl HttpFetcher for RecordingFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         match &*self.response.lock().unwrap() {
             Ok(value) => Ok(value.clone()),
@@ -148,7 +149,7 @@ impl FlakyFetcher {
 }
 
 impl HttpFetcher for FlakyFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         if self.failing.load(Ordering::SeqCst) {
             Err(HttpError::RequestFailed {
                 url: "https://api.example.com/fixture".into(),
@@ -157,6 +158,18 @@ impl HttpFetcher for FlakyFetcher {
         } else {
             Ok(json!({"value": "ok"}))
         }
+    }
+}
+
+#[derive(Default)]
+struct TimeoutRecordingFetcher {
+    timeout: Mutex<Option<Duration>>,
+}
+
+impl HttpFetcher for TimeoutRecordingFetcher {
+    fn get_json(&self, _url: &Url, timeout: Duration) -> Result<Value, HttpError> {
+        *self.timeout.lock().unwrap() = Some(timeout);
+        Ok(json!({"value": "ok"}))
     }
 }
 
@@ -193,6 +206,15 @@ fn key_value_config(script: &str) -> HostConfig {
 
 fn key_value_host(script: &str) -> ExtensionHost {
     ExtensionHost::new(key_value_config(script)).unwrap()
+}
+
+fn list_host(script: &str) -> ExtensionHost {
+    let text = MANIFEST.replace("provides = \"departures\"", "provides = \"list\"");
+    let manifest = Manifest::parse(&text).unwrap();
+    let mut config = HostConfig::new(manifest, script);
+    config.fetcher = Some(Arc::new(PanicFetcher));
+    config.clock = Some(fixed_clock());
+    ExtensionHost::new(config).unwrap()
 }
 
 fn fetch_script(url: &str) -> String {
@@ -235,22 +257,58 @@ fn loopback_host(port: u16, script: &str, limits: Limits) -> ExtensionHost {
 
 struct TestServer {
     port: u16,
+    requests: Arc<Mutex<Vec<String>>>,
 }
 
 impl TestServer {
     fn start(response: Vec<u8>, delay: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let recorder = Arc::clone(&requests);
         thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(1)));
+                let mut request = Vec::new();
                 let mut buffer = [0u8; 4096];
-                let _ = stream.read(&mut buffer);
+                while request.len() < 16 * 1024 {
+                    match stream.read(&mut buffer) {
+                        Ok(0) => break,
+                        Ok(count) => {
+                            request.extend_from_slice(&buffer[..count]);
+                            if request.ends_with(b"\r\n\r\n") {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                recorder
+                    .lock()
+                    .unwrap()
+                    .push(String::from_utf8_lossy(&request).to_string());
                 thread::sleep(delay);
                 let _ = stream.write_all(&response);
                 let _ = stream.flush();
             }
         });
-        Self { port }
+        Self { port, requests }
+    }
+
+    /// Raw request bytes received by this server, oldest first.
+    fn requests(&self) -> Vec<String> {
+        self.requests
+            .lock()
+            .map(|requests| requests.clone())
+            .unwrap_or_default()
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        // Wake a destination server that is intentionally never contacted.
+        let address = SocketAddr::from(([127, 0, 0, 1], self.port));
+        let _ = TcpStream::connect_timeout(&address, Duration::from_millis(100));
     }
 }
 
@@ -414,6 +472,9 @@ fn sandbox_registers_only_the_four_host_functions() {
     for call in [
         r#"read_file("/etc/passwd")"#,
         r#"ha_call_service("light.turn_on", #{})"#,
+        r#"call_service("light", "turn_on", #{})"#,
+        r#"ha_token()"#,
+        r#"access_token()"#,
         r#"http_get("https://api.example.com/x")"#,
         r#"system("id")"#,
     ] {
@@ -507,7 +568,10 @@ fn allowed_host_uses_the_fetcher() {
 fn ha_state_is_read_only_and_allowlisted() {
     let script = r#"fn refresh(config) {
         let snapshot = ha_state("sensor.departures");
-        #{ kind: "key_value", items: [ #{ label: "state", value: snapshot.state } ] }
+        #{ kind: "key_value", items: [
+            #{ label: "state", value: snapshot.state },
+            #{ label: "next", value: snapshot.attributes.next }
+        ] }
     }"#;
     let mut config = key_value_config(script);
     config.entities.insert(
@@ -519,7 +583,13 @@ fn ha_state_is_read_only_and_allowlisted() {
     );
     let host = ExtensionHost::new(config).unwrap();
     match host.refresh().unwrap() {
-        ExtensionOutput::KeyValue(view) => assert_eq!(view.items[0].value, "3"),
+        ExtensionOutput::KeyValue(view) => {
+            assert_eq!(view.items.len(), 2);
+            assert_eq!(view.items[0].label, "state");
+            assert_eq!(view.items[0].value, "3");
+            assert_eq!(view.items[1].label, "next");
+            assert_eq!(view.items[1].value, "12:05");
+        }
         other => panic!("unexpected output: {other:?}"),
     }
 
@@ -527,8 +597,151 @@ fn ha_state_is_read_only_and_allowlisted() {
         ha_state("sensor.private");
         #{ kind: "key_value", items: [] }
     }"#;
-    let error = key_value_host(forbidden).refresh().unwrap_err();
-    assert!(error.to_string().contains("not declared"));
+    let mut forbidden_config = key_value_config(forbidden);
+    forbidden_config.entities.insert(
+        "sensor.private".into(),
+        EntitySnapshot {
+            state: "private-state".into(),
+            attributes: json!({"marker": "private-attribute"}),
+        },
+    );
+    let error = ExtensionHost::new(forbidden_config)
+        .unwrap()
+        .refresh()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not declared"));
+    assert!(!error.contains("private-state"));
+    assert!(!error.contains("private-attribute"));
+}
+
+#[test]
+fn ha_state_returns_a_fresh_snapshot_on_each_call() {
+    let script = r#"fn refresh(config) {
+        let first = ha_state("sensor.departures");
+        first.state = "tampered";
+        first.attributes.next = "tampered";
+        let second = ha_state("sensor.departures");
+        #{ kind: "key_value", items: [
+            #{ label: "state", value: second.state },
+            #{ label: "next", value: second.attributes.next }
+        ] }
+    }"#;
+    let mut config = key_value_config(script);
+    config.entities.insert(
+        "sensor.departures".into(),
+        EntitySnapshot {
+            state: "3".into(),
+            attributes: json!({"next": "12:05"}),
+        },
+    );
+
+    match ExtensionHost::new(config).unwrap().refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => {
+            assert_eq!(view.items.len(), 2);
+            assert_eq!(view.items[0].value, "3");
+            assert_eq!(view.items[1].value, "12:05");
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn ha_state_exposes_only_state_and_attributes() {
+    let script = r#"fn refresh(config) {
+        let keys = ha_state("sensor.departures").keys();
+        #{ kind: "key_value", items: [
+            #{ label: "count", value: keys.len().to_string() },
+            #{ label: "state", value: keys.contains("state").to_string() },
+            #{ label: "attributes", value: keys.contains("attributes").to_string() },
+            #{ label: "entity_id", value: keys.contains("entity_id").to_string() },
+            #{ label: "context", value: keys.contains("context").to_string() },
+            #{ label: "token", value: keys.contains("token").to_string() }
+        ] }
+    }"#;
+    let mut config = key_value_config(script);
+    config.entities.insert(
+        "sensor.departures".into(),
+        EntitySnapshot {
+            state: "3".into(),
+            attributes: json!({"next": "12:05"}),
+        },
+    );
+
+    match ExtensionHost::new(config).unwrap().refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => {
+            let values: BTreeMap<_, _> = view
+                .items
+                .iter()
+                .map(|item| (item.label.as_str(), item.value.as_str()))
+                .collect();
+            assert_eq!(values["count"], "2");
+            assert_eq!(values["state"], "true");
+            assert_eq!(values["attributes"], "true");
+            assert_eq!(values["entity_id"], "false");
+            assert_eq!(values["context"], "false");
+            assert_eq!(values["token"], "false");
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn ha_state_allowlist_rejects_near_miss_entity_ids() {
+    for id in [
+        "sensor.departures.extra",
+        "sensor.departure",
+        "SENSOR.DEPARTURES",
+        "sensor.departures ",
+    ] {
+        let script = format!(
+            r#"fn refresh(config) {{
+                ha_state("{id}");
+                #{{ kind: "key_value", items: [] }}
+            }}"#
+        );
+        let mut config = key_value_config(&script);
+        config.entities.insert(
+            id.into(),
+            EntitySnapshot {
+                state: "leaked".into(),
+                attributes: json!({"secret": "leaked-attribute"}),
+            },
+        );
+        let error = ExtensionHost::new(config)
+            .unwrap()
+            .refresh()
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("not declared"), "{id}: {error}");
+        assert!(!error.contains("leaked"), "{id}: {error}");
+    }
+}
+
+#[test]
+fn ha_state_error_never_echoes_secret_values() {
+    let script = r#"fn refresh(config) {
+        ha_state(config.api_key);
+        #{ kind: "key_value", items: [] }
+    }"#;
+    let mut config = HostConfig::new(Manifest::parse(SECRET_MANIFEST).unwrap(), script);
+    config.fetcher = Some(Arc::new(PanicFetcher));
+    config.clock = Some(fixed_clock());
+    config
+        .settings
+        .insert("stop_id".into(), json!("REPLACE_ME"));
+    config
+        .secrets
+        .insert("api_key".into(), "s3cret-value".into());
+
+    let error = ExtensionHost::new(config)
+        .unwrap()
+        .refresh()
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("not declared"), "{error}");
+    assert!(!error.contains("s3cret-value"), "{error}");
+    assert!(error.contains("[redacted]"), "{error}");
 }
 
 #[test]
@@ -633,6 +846,7 @@ fn malformed_output_is_rejected() {
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: "1", departure: "x" } ] } }"#,
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: 1, destination: "x", departure: "y" } ] } }"#,
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: "1", destination: "x", departure: "y", extra: true } ] } }"#,
+        r#"fn refresh(config) { #{ kind: "departures", items: [], extra: true } }"#,
         r#"fn refresh(config) { #{ kind: "departures", items: [ #{ line: "", destination: "x", departure: "y" } ] } }"#,
         r#"fn refresh(config) { 42 }"#,
     ];
@@ -657,8 +871,42 @@ fn malformed_output_is_rejected() {
     let unknown_kind = r#"fn refresh(config) { #{ kind: "table", items: [] } }"#;
     assert!(matches!(
         refresh(unknown_kind).unwrap_err(),
-        ExtensionError::Output(OutputError::UnknownKind(_))
+        ExtensionError::Output(OutputError::UnknownKind)
     ));
+}
+
+#[test]
+fn required_output_arrays_must_be_present() {
+    let list_manifest =
+        Manifest::parse(&MANIFEST.replace("provides = \"departures\"", "provides = \"list\""))
+            .unwrap();
+    let cases = [
+        (
+            manifest(),
+            r#"fn refresh(config) { #{ kind: "departures" } }"#,
+        ),
+        (
+            list_manifest,
+            r#"fn refresh(config) { #{ kind: "list", columns: ["Value"] } }"#,
+        ),
+        (
+            key_value_manifest(),
+            r#"fn refresh(config) { #{ kind: "key_value" } }"#,
+        ),
+    ];
+    let mut accepted = Vec::new();
+    for (manifest, script) in cases {
+        let mut config = HostConfig::new(manifest, script);
+        config.fetcher = Some(Arc::new(PanicFetcher));
+        match ExtensionHost::new(config).unwrap().refresh() {
+            Ok(_) => accepted.push(script),
+            Err(error) => assert!(
+                matches!(error, ExtensionError::Output(OutputError::Malformed { .. })),
+                "{script} should fail as malformed, got {error:?}"
+            ),
+        }
+    }
+    assert!(accepted.is_empty(), "missing arrays accepted: {accepted:?}");
 }
 
 #[test]
@@ -680,6 +928,8 @@ fn list_output_is_validated() {
     for script in [
         r#"fn refresh(config) { #{ kind: "list", columns: [], rows: [] } }"#,
         r#"fn refresh(config) { #{ kind: "list", columns: ["a"], rows: [["1", "2"]] } }"#,
+        r#"fn refresh(config) { #{ kind: "list", columns: [1], rows: [] } }"#,
+        r#"fn refresh(config) { #{ kind: "list", columns: ["a"], rows: [], extra: true } }"#,
     ] {
         let mut config = HostConfig::new(manifest.clone(), script);
         config.fetcher = Some(Arc::new(PanicFetcher));
@@ -688,6 +938,88 @@ fn list_output_is_validated() {
             host.refresh().unwrap_err(),
             ExtensionError::Output(OutputError::Malformed { .. })
         ));
+    }
+}
+
+#[test]
+fn list_cells_accept_documented_primitive_text_values() {
+    let script = r#"fn refresh(config) {
+        #{ kind: "list", columns: ["Count", "Ready"], rows: [[12, true], ["", false]] }
+    }"#;
+    match list_host(script).refresh().unwrap() {
+        ExtensionOutput::List(view) => {
+            assert_eq!(view.rows, vec![vec!["12", "true"], vec!["", "false"]]);
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn key_value_values_accept_documented_primitive_text_values() {
+    let script = r#"fn refresh(config) {
+        #{ kind: "key_value", items: [
+            #{ label: "Count", value: 12 },
+            #{ label: "Ready", value: true },
+            #{ label: "Name", value: "Central" }
+        ] }
+    }"#;
+    match key_value_host(script).refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => {
+            assert_eq!(view.items[0].value, "12");
+            assert_eq!(view.items[1].value, "true");
+            assert_eq!(view.items[2].value, "Central");
+        }
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn key_value_output_rejects_unknown_fields_and_empty_labels() {
+    for script in [
+        r#"fn refresh(config) { #{ kind: "key_value", items: [], extra: true } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Value", value: "x", extra: true }] } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: " ", value: "x" }] } }"#,
+        r#"fn refresh(config) { #{ kind: "key_value", items: [#{ label: "Value" }] } }"#,
+    ] {
+        assert!(
+            matches!(
+                key_value_host(script).refresh().unwrap_err(),
+                ExtensionError::Output(OutputError::Malformed { .. })
+            ),
+            "{script} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn non_primitive_list_cells_are_rejected() {
+    for cell in ["()", "[]", "#{ value: 1 }"] {
+        let script = format!(
+            r#"fn refresh(config) {{ #{{ kind: "list", columns: ["Value"], rows: [[{cell}]] }} }}"#
+        );
+        assert!(
+            matches!(
+                list_host(&script).refresh().unwrap_err(),
+                ExtensionError::Output(OutputError::Malformed { .. })
+            ),
+            "cell {cell} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn non_primitive_key_values_are_rejected() {
+    for value in ["()", "[]", "#{ value: 1 }"] {
+        let script = format!(
+            r#"fn refresh(config) {{ #{{ kind: "key_value", items: [#{{ label: "Value", value: {value} }}] }} }}"#
+        );
+        assert!(
+            matches!(
+                key_value_host(&script).refresh().unwrap_err(),
+                ExtensionError::Output(OutputError::Malformed { .. })
+            ),
+            "value {value} should be rejected"
+        );
     }
 }
 
@@ -704,6 +1036,69 @@ fn output_is_capped_at_one_hundred_items() {
         ExtensionOutput::Departures(view) => assert_eq!(view.items.len(), 100),
         other => panic!("unexpected output: {other:?}"),
     }
+}
+
+#[test]
+fn output_limit_cannot_be_raised_above_one_hundred() {
+    let script = r#"fn refresh(config) {
+        let items = [];
+        for i in 0..150 {
+            items.push(#{ line: "1", destination: "Central", departure: "2026-11-23T12:05:00Z" });
+        }
+        #{ kind: "departures", items: items }
+    }"#;
+    let mut config = config(script);
+    config.limits.max_items = 150;
+    match ExtensionHost::new(config).unwrap().refresh().unwrap() {
+        ExtensionOutput::Departures(view) => assert_eq!(view.items.len(), 100),
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn list_output_is_capped_at_one_hundred_rows() {
+    let script = r#"fn refresh(config) {
+        let rows = [];
+        for i in 0..150 {
+            rows.push(["value"]);
+        }
+        #{ kind: "list", columns: ["Value"], rows: rows }
+    }"#;
+    match list_host(script).refresh().unwrap() {
+        ExtensionOutput::List(view) => assert_eq!(view.rows.len(), 100),
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn key_value_output_is_capped_at_one_hundred_items() {
+    let script = r#"fn refresh(config) {
+        let items = [];
+        for i in 0..150 {
+            items.push(#{ label: "Value", value: "value" });
+        }
+        #{ kind: "key_value", items: items }
+    }"#;
+    match key_value_host(script).refresh().unwrap() {
+        ExtensionOutput::KeyValue(view) => assert_eq!(view.items.len(), 100),
+        other => panic!("unexpected output: {other:?}"),
+    }
+}
+
+#[test]
+fn malformed_departure_after_the_cap_rejects_the_output() {
+    let script = r#"fn refresh(config) {
+        let items = [];
+        for i in 0..100 {
+            items.push(#{ line: "1", destination: "Central", departure: "2026-11-23T12:05:00Z" });
+        }
+        items.push(#{ line: "", destination: "Central", departure: "2026-11-23T12:05:00Z" });
+        #{ kind: "departures", items: items }
+    }"#;
+    assert!(matches!(
+        refresh(script).unwrap_err(),
+        ExtensionError::Output(OutputError::Malformed { .. })
+    ));
 }
 
 #[test]
@@ -731,6 +1126,111 @@ fn wall_clock_limit_stops_a_slow_script() {
     config.limits.max_operations = 100_000_000;
     config.limits.wall_clock = Duration::from_millis(100);
     let host = ExtensionHost::new(config).unwrap();
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::Timeout
+    ));
+}
+
+#[test]
+fn call_depth_limit_stops_deep_recursion() {
+    let script = r#"
+        fn recurse(n) {
+            if n <= 0 { return 0; }
+            recurse(n - 1)
+        }
+        fn refresh(config) {
+            recurse(64);
+            #{ kind: "departures", items: [] }
+        }
+    "#;
+    let mut limited = config(script);
+    limited.limits.max_call_levels = 8;
+    let host = ExtensionHost::new(limited).unwrap();
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::ResourceLimit { what } if what == "call depth"
+    ));
+
+    // The same recursion depth is fine when the configured limit allows it.
+    let mut allowed = config(script);
+    allowed.limits.max_call_levels = 128;
+    assert!(ExtensionHost::new(allowed).unwrap().refresh().is_ok());
+}
+
+#[test]
+fn extension_host_runs_on_a_background_thread() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<ExtensionHost>();
+
+    let script = r#"fn refresh(config) {
+        let i = 0;
+        while true { i += 1; }
+    }"#;
+    let mut config = config(script);
+    config.limits.max_operations = 100_000_000;
+    config.limits.wall_clock = Duration::from_millis(50);
+    let host = ExtensionHost::new(config).unwrap();
+
+    let (tx, rx) = std_mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(host.refresh());
+    });
+
+    // The caller stays responsive while the wall-clock limit stops the
+    // hostile script on the worker thread.
+    let result = rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the extension worker must finish");
+    assert!(matches!(result, Err(ExtensionError::Timeout)));
+}
+
+#[test]
+fn now_host_function_checks_the_wall_clock() {
+    struct SlowClock(Duration);
+
+    impl Clock for SlowClock {
+        fn now(&self) -> DateTime<Utc> {
+            thread::sleep(self.0);
+            Utc::now()
+        }
+    }
+
+    // The clock is the only operation after the call, so the progress callback
+    // cannot be relied on to notice the overrun.
+    let script = r#"fn refresh(config) { now() }"#;
+    let mut config = key_value_config(script);
+    config.clock = Some(Arc::new(SlowClock(Duration::from_millis(200))));
+    config.limits.wall_clock = Duration::from_millis(50);
+    let host = ExtensionHost::new(config).unwrap();
+    assert!(matches!(
+        host.refresh().unwrap_err(),
+        ExtensionError::Timeout
+    ));
+}
+
+#[test]
+fn http_host_function_checks_the_wall_clock_after_the_fetch() {
+    let server = TestServer::start(
+        http_response(
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"ok"}"#,
+        ),
+        Duration::from_millis(200),
+    );
+    // The fetch is the final operation, so the progress callback cannot notice
+    // that it ran past the wall-clock deadline.
+    let script = format!(
+        r#"fn refresh(config) {{ http_get_json("http://127.0.0.1:{}/data") }}"#,
+        server.port
+    );
+    let limits = Limits {
+        wall_clock: Duration::from_millis(50),
+        http_timeout: Duration::from_secs(2),
+        ..Limits::default()
+    };
+    let host = loopback_host(server.port, &script, limits);
     assert!(matches!(
         host.refresh().unwrap_err(),
         ExtensionError::Timeout
@@ -878,19 +1378,67 @@ fn loopback_http_fetch_returns_json() {
 }
 
 #[test]
-fn redirects_are_rejected() {
+fn http_fetch_is_get_only_and_sends_no_credentials() {
     let server = TestServer::start(
         http_response(
-            "302 Found",
-            &[("Location", "https://evil.example/steal")],
-            "",
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"ok"}"#,
         ),
+        Duration::ZERO,
+    );
+    let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
+    let host = loopback_host(server.port, &script, Limits::default());
+    host.refresh().unwrap();
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "expected exactly one request");
+    let request_line = requests[0].lines().next().unwrap_or_default();
+    assert!(
+        request_line.starts_with("GET /data HTTP/1."),
+        "expected a GET request, got {request_line:?}"
+    );
+    let headers = requests[0].to_ascii_lowercase();
+    for forbidden in ["authorization:", "proxy-authorization:", "cookie:"] {
+        assert!(
+            !headers.contains(forbidden),
+            "the fetcher must not send {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn http_defaults_match_the_documented_limits() {
+    let limits = Limits::default();
+    assert_eq!(limits.http_timeout, Duration::from_secs(10));
+    assert_eq!(limits.max_http_bytes, 1024 * 1024);
+}
+
+#[test]
+fn redirects_are_rejected_without_contacting_the_target() {
+    let target = TestServer::start(
+        http_response(
+            "200 OK",
+            &[("Content-Type", "application/json")],
+            r#"{"value":"stolen"}"#,
+        ),
+        Duration::ZERO,
+    );
+    // A different hostname on loopback: following this redirect would be a
+    // cross-host request that bypasses the manifest allowlist.
+    let location = format!("http://localhost:{}/steal", target.port);
+    let server = TestServer::start(
+        http_response("302 Found", &[("Location", &location)], ""),
         Duration::ZERO,
     );
     let script = fetch_script(&format!("http://127.0.0.1:{}/data", server.port));
     let host = loopback_host(server.port, &script, Limits::default());
     let error = host.refresh().unwrap_err().to_string();
     assert!(error.contains("redirects are not allowed"), "{error}");
+    assert!(
+        target.requests().is_empty(),
+        "the redirect target must not be contacted"
+    );
 }
 
 #[test]
@@ -932,4 +1480,39 @@ fn output_serializes_back_to_json() {
     let value = serde_json::to_value(&output).unwrap();
     assert_eq!(value["kind"], "departures");
     assert_eq!(value["items"][0]["line"], "1");
+}
+
+#[test]
+fn fetch_timeout_is_bounded_by_the_remaining_wall_clock() {
+    let fetcher = Arc::new(TimeoutRecordingFetcher::default());
+    let mut config = key_value_config(&fetch_script("https://api.example.com/departures"));
+    config.fetcher = Some(fetcher.clone());
+    config.limits.http_timeout = Duration::from_secs(10);
+    config.limits.wall_clock = Duration::from_secs(2);
+    let host = ExtensionHost::new(config).unwrap();
+    host.refresh().unwrap();
+
+    let timeout = fetcher.timeout.lock().unwrap().expect("fetch ran");
+    assert!(
+        timeout <= Duration::from_secs(2),
+        "fetch timeout {timeout:?} exceeded the remaining wall clock"
+    );
+}
+
+#[test]
+fn lookalike_and_non_https_hosts_never_reach_the_fetcher() {
+    for url in [
+        "https://api.example.com.evil.example/departures",
+        "https://evil-api.example.com/departures",
+        "https://api.example.com@evil.example/departures",
+        "ftp://api.example.com/departures",
+    ] {
+        let mut config = config(&fetch_script(url));
+        config.fetcher = Some(Arc::new(PanicFetcher));
+        let error = ExtensionHost::new(config).unwrap().refresh().unwrap_err();
+        assert!(
+            matches!(error, ExtensionError::Runtime(_)),
+            "{url} should be rejected before the fetcher runs, got {error:?}"
+        );
+    }
 }

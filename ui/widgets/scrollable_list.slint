@@ -47,9 +47,9 @@ export component ScrollableList inherits Rectangle {
 
                 Rectangle {
                     x: Theme.space-3;
-                    y: parent.height - 1px;
+                    y: parent.height - Theme.border-width;
                     width: parent.width - 2 * Theme.space-3;
-                    height: 1px;
+                    height: Theme.border-width;
                     background: Theme.border-soft;
                 }
             }

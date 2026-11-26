@@ -215,15 +215,14 @@ impl TileBoard {
         if tile.read_only || tile.pending || self.inflight.contains_key(entity_id) {
             return None;
         }
+        let entity = state.entities.get(entity_id)?;
+        if matches!(entity.state.as_str(), "unavailable" | "unknown") {
+            return None;
+        }
         let action = tile_action(entity_id);
         let call = match action {
             TileAction::CoverToggle => {
-                let current = state
-                    .entities
-                    .get(entity_id)
-                    .map(|e| e.state.as_str())
-                    .unwrap_or("");
-                let (domain, service) = cover_service_for_state(current);
+                let (domain, service) = cover_service_for_state(&entity.state);
                 Some(ServiceCall {
                     request_id,
                     domain: domain.to_string(),
@@ -398,6 +397,19 @@ mod tests {
         assert!(board.tile("vendor.custom").unwrap().read_only);
         assert!(board.tap("sensor.example", &state, 1).is_none());
         assert!(board.tap("vendor.custom", &state, 2).is_none());
+    }
+
+    #[test]
+    fn missing_or_unavailable_entities_ignore_taps() {
+        let mut board = TileBoard::new(&config(&["switch.example", "cover.example"]));
+        let mut state = AppState::default();
+        assert!(board.tap("switch.example", &state, 1).is_none());
+        state.entities.insert(
+            "cover.example".into(),
+            entity("cover.example", "unavailable", json!({})),
+        );
+        board.refresh(&state);
+        assert!(board.tap("cover.example", &state, 2).is_none());
     }
 
     #[test]

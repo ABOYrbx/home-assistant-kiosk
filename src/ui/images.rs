@@ -70,7 +70,9 @@ pub fn build_client(allow_invalid_certs: bool) -> reqwest::Client {
     if allow_invalid_certs {
         builder = builder.danger_accept_invalid_certs(true);
     }
-    builder.build().unwrap_or_else(|_| reqwest::Client::new())
+    builder
+        .build()
+        .expect("HTTP client builder with fixed redirect policy")
 }
 
 pub async fn fetch_album_art(
@@ -297,6 +299,7 @@ pub async fn album_art_loop(
         let event = match fetcher.load(&request.url).await {
             Ok(image) => AppEvent::AlbumArt {
                 entity_id: request.entity_id,
+                url: request.url.to_string(),
                 image,
             },
             Err(error) => {
@@ -306,6 +309,7 @@ pub async fn album_art_loop(
                 );
                 AppEvent::ImageFailed {
                     entity_id: request.entity_id,
+                    url: request.url.to_string(),
                     reason: error.to_string(),
                 }
             }

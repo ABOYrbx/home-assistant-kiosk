@@ -129,9 +129,11 @@ impl HttpPolicy {
 /// A JSON fetcher used after the policy accepted the URL.
 ///
 /// The trait exists so tests can exercise the policy without network access;
-/// the production implementation is [`ReqwestFetcher`].
+/// the production implementation is [`ReqwestFetcher`]. Implementations must
+/// honor the supplied timeout, which is bounded by the run's remaining
+/// wall-clock budget.
 pub trait HttpFetcher: Send + Sync {
-    fn get_json(&self, url: &Url) -> Result<Value, HttpError>;
+    fn get_json(&self, url: &Url, timeout: Duration) -> Result<Value, HttpError>;
 }
 
 /// Blocking GET-only JSON fetcher backed by reqwest.
@@ -160,20 +162,25 @@ impl ReqwestFetcher {
 }
 
 impl HttpFetcher for ReqwestFetcher {
-    fn get_json(&self, url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, url: &Url, timeout: Duration) -> Result<Value, HttpError> {
         let safe_url = redacted(url);
-        let response = self.client.get(url.clone()).send().map_err(|error| {
-            if error.is_timeout() {
-                HttpError::Timeout {
-                    url: safe_url.clone(),
+        let response = self
+            .client
+            .get(url.clone())
+            .timeout(timeout)
+            .send()
+            .map_err(|error| {
+                if error.is_timeout() {
+                    HttpError::Timeout {
+                        url: safe_url.clone(),
+                    }
+                } else {
+                    HttpError::RequestFailed {
+                        url: safe_url.clone(),
+                        reason: error.without_url().to_string(),
+                    }
                 }
-            } else {
-                HttpError::RequestFailed {
-                    url: safe_url.clone(),
-                    reason: error.without_url().to_string(),
-                }
-            }
-        })?;
+            })?;
 
         let status = response.status();
         if status.is_redirection() {
