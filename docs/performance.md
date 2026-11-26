@@ -222,10 +222,33 @@ drifts.
 | `opt-level` | `"s"` | Optimise for size; the Pi Zero 2 W is memory-bound before it is compute-bound. |
 | `lto` | `true` | Cross-crate inlining and dead-code removal; longer builds. |
 | `strip` | `true` | Remove symbols from the shipped binary; use the profiling build above for analysis. |
-| `panic` | `"abort"` | No unwinding tables; a panic terminates the process and systemd restarts it (`Restart=always`). |
+| `panic` | `"abort"` | No unwinding tables; a panic terminates the process with SIGABRT. Both systemd units use `Restart=on-failure`, which treats that exit as a failure and restarts the service. |
 
 Measure the same profile that ships. Changing a profile setting invalidates the
 record and requires a new one.
+
+### Confirmation without a device
+
+The settings are guarded by `tests/release_profile_test.rs` and by
+`scripts/check-docs.py`. `tests/test_build_all.py` verifies that the
+reproducible build script applies the same values with stricter codegen
+(`lto = fat`, `codegen-units = 1`). Production code has no `catch_unwind`, so an
+abort cannot leave a caught panic behind, and both systemd units use
+`Restart=on-failure` to restart the process after the abort.
+
+On 2026-11-25 the profile compiled on a macOS/arm64 development host with the
+`desktop` feature set:
+
+```bash
+cargo build --release --features desktop
+nm target/release/ha-kiosk | grep -cE '^[0-9a-f]+ [A-Za-z]'
+```
+
+The build finished successfully. The binary was 9,881,760 bytes and exposed one
+defined symbol (the rest are dynamic imports), consistent with `strip = true`.
+This confirms that the profile builds and strips the binary; it is not a Pi
+measurement. The `kiosk` cross-build and the device record below are still
+required for the gate.
 
 ## Record
 
@@ -249,7 +272,8 @@ record and requires a new one.
 | Item | Evidence | Status |
 | --- | --- | --- |
 | Budget thresholds are defined and enforced | `scripts/perf-budget.py` and its unit tests | verified in CI |
-| Release profile matches PLAN.md | `scripts/check-docs.py` | verified in CI |
+| Release profile matches PLAN.md | `scripts/check-docs.py` and `tests/release_profile_test.rs` | verified in CI |
+| Profile compiles and strips the binary | host release build with the `desktop` feature set on 2026-11-25 | verified on the development host; `kiosk` build pending |
 | Soak leak check runs against the real client, state, and cache | `tests/e2e_test.rs` ignored soak test | verified on the development host |
 | Raw evidence becomes a validated record | `scripts/perf-record.py` and `tests/test_perf_record.py` | verified by unit tests |
 | Memory evidence capture is method-separated | `scripts/perf-memory.py` and `tests/test_perf_memory.py` | verified by unit tests |
