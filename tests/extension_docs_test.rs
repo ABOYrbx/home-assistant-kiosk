@@ -1,6 +1,7 @@
 //! Executable examples for the Wave 6 extension author guide.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use ha_kiosk::extensions::output::validate_output;
 use ha_kiosk::extensions::{
@@ -30,7 +31,7 @@ fn fenced_block<'a>(document: &'a str, language: &str, marker: &str) -> &'a str 
 struct DeparturesFetcher;
 
 impl HttpFetcher for DeparturesFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         Ok(json!({
             "departures": [
                 {
@@ -472,7 +473,7 @@ impl FlakyFetcher {
 }
 
 impl HttpFetcher for FlakyFetcher {
-    fn get_json(&self, _url: &Url) -> Result<Value, HttpError> {
+    fn get_json(&self, _url: &Url, _timeout: Duration) -> Result<Value, HttpError> {
         match &*self.response.lock().unwrap() {
             Ok(value) => Ok(value.clone()),
             Err(_reason) => Err(HttpError::InvalidJson {

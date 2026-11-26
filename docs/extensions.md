@@ -399,13 +399,14 @@ Do not use a live Home Assistant or real provider credentials in automated tests
 
 ## Publishing and review
 
-1. Open a pull request in the companion catalog repository.
-2. Include `manifest.toml`, the entry script, `README.md`, `LICENSE`, and tests or a recorded test plan.
-3. Keep permissions minimal and explain every requested host and entity in the README.
-4. Use placeholders in source, fixtures, screenshots, and documentation. Never include secrets, personal stop IDs, home addresses, or real provider URLs.
-5. Wait for CI validation and maintainer review.
-6. A maintainer packages the release asset, regenerates and signs the index offline, and publishes the signed index.
-7. Never sign a package whose source, permissions, checksum, and size you have not reviewed.
+1. Open a pull request in the catalog repository with `manifest.toml`, `main.rhai`, `README.md`, `LICENSE`, and tests or a test plan.
+2. Keep permissions minimal. A bus widget should not request Home Assistant entities it does not display. Do not include secrets, personal stop IDs, home addresses, or real API keys.
+3. A maintainer reviews the source, license, and declared permissions.
+4. Build and inspect the `.hkext`, then publish the exact package as an immutable GitHub release asset. Never replace a published asset.
+5. Regenerate the candidate `index.json` with the asset URL, SHA-256, and byte size. Review the downloaded package bytes, manifest, permissions, and checksum against the index.
+6. Wait for candidate CI validation and maintainer approval.
+7. Follow the [catalog release and signing flow](extension-catalog.md#release-and-signing-flow): a maintainer signs the exact validated index offline, returns only the signature, and signed-release CI verifies the pair before merge.
+8. Never sign a package whose contents you have not reviewed. The private key stays offline and never enters CI or either repository.
 
 The catalog review covers license, permissions, secrets, read-only Home Assistant access, no service calls, data-only output, tests, documentation, and removal/deprecation. A signed index establishes provenance, not safety.
 
