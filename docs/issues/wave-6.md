@@ -18,7 +18,7 @@ Build a community extension shop backed by a separate, public GitHub catalog. Ex
 - [ ] Enforce HTTPS, size caps, SHA-256 checksums, `api_version`, and `min_app_version`. Unsigned catalogs and HTTP URLs require both `allow_unsigned` and `dev_mode`.
 - [ ] Download `.hkext` packages to a temp directory; verify size and checksum before extraction.
 - [ ] Reject absolute paths, `..`, symlinks, hardlinks, device files, and decompression bombs.
-- [ ] Install atomically under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; keep one previous version for rollback.
+- [x] Install atomically under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; keep one previous version for rollback.
 - [ ] Maintain `installed.json`; enforce `0600`/`0700` permissions.
 - [ ] Tests: valid/invalid/tampered signature, key rotation, checksum mismatch, oversized package, path traversal, install/update/rollback/remove, offline cache.
 

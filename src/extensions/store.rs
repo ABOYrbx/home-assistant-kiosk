@@ -168,23 +168,25 @@ impl ExtensionStore {
             fs::remove_dir_all(&target)?;
         }
         let staged_path = staging.keep();
-        fs::rename(&staged_path, &target)?;
+        if let Err(error) = fs::rename(&staged_path, &target) {
+            let _ = fs::remove_dir_all(&staged_path);
+            return Err(error.into());
+        }
         set_dir_mode(&target, 0o700)?;
         tighten_tree(&target)?;
         tighten_tree(&id_dir)?;
 
         let previous = self.get(&entry.id).map(|record| record.version.clone());
-        self.prune_versions(&entry.id, &entry.version, previous.as_ref())?;
-
         let now = Utc::now();
-        match self.index.extensions.iter_mut().find(|e| e.id == entry.id) {
+        let mut next_index = self.index.clone();
+        match next_index.extensions.iter_mut().find(|e| e.id == entry.id) {
             Some(record) => {
                 record.version = entry.version.clone();
                 record.manifest_sha256 = manifest_sha256;
                 record.source_catalog = source_catalog.to_string();
                 record.installed_at = now;
             }
-            None => self.index.extensions.push(InstalledExtension {
+            None => next_index.extensions.push(InstalledExtension {
                 id: entry.id.clone(),
                 version: entry.version.clone(),
                 enabled: true,
@@ -193,8 +195,22 @@ impl ExtensionStore {
                 installed_at: now,
             }),
         }
-        self.index.extensions.sort_by(|a, b| a.id.cmp(&b.id));
-        self.save()?;
+        next_index.extensions.sort_by(|a, b| a.id.cmp(&b.id));
+
+        // Commit the index only after the version directory is in place. If
+        // the index write fails, remove the new directory so the on-disk
+        // versions and `installed.json` never disagree about the active one.
+        if let Err(error) = self.save(&next_index) {
+            let _ = fs::remove_dir_all(&target);
+            return Err(error);
+        }
+        self.index = next_index;
+
+        // Pruning is best-effort: the active and one previous version are
+        // already committed, so stale directories must never fail an install.
+        if let Err(error) = self.prune_versions(&entry.id, &entry.version, previous.as_ref()) {
+            tracing::warn!("failed to prune old versions of {}: {error}", entry.id);
+        }
 
         Ok(InstallOutcome {
             id: entry.id.clone(),
@@ -214,33 +230,38 @@ impl ExtensionStore {
         let previous = self
             .previous_version(id)
             .ok_or_else(|| StoreError::NoPreviousVersion(id.to_string()))?;
-        let previous_dir = self.extension_dir(id, &previous);
-        let manifest_hash = fs::read(previous_dir.join("manifest.toml"))
-            .ok()
-            .map(|bytes| package::sha256_hex(&bytes));
+        // The retained version has its own manifest, so refresh the recorded
+        // hash instead of leaving the newer version's hash behind.
+        let manifest_hash = package::sha256_hex(&package::manifest_bytes(
+            &self.extension_dir(id, &previous),
+        )?);
 
-        // Recompute the manifest hash from the retained version so the record
-        // stays consistent with the files on disk after a rollback.
-        let manifest_hash = package::manifest_bytes(&self.extension_dir(id, &previous))
-            .map(|bytes| package::sha256_hex(&bytes))
-            .ok();
-
-        let record = self
-            .index
+        let previous_index = self.index.clone();
+        let mut next_index = self.index.clone();
+        let record = next_index
             .extensions
             .iter_mut()
             .find(|e| e.id == id)
             .ok_or_else(|| StoreError::NotInstalled(id.to_string()))?;
         record.version = previous.clone();
+        record.manifest_sha256 = manifest_hash;
         record.installed_at = Utc::now();
-        if let Some(hash) = manifest_hash {
-            record.manifest_sha256 = hash;
-        }
-        self.save()?;
+        self.save(&next_index)?;
+        self.index = next_index;
 
         let current_dir = self.extension_dir(id, &current);
-        if current_dir.exists() {
-            fs::remove_dir_all(&current_dir)?;
+        if current_dir.exists()
+            && let Err(error) = fs::remove_dir_all(&current_dir)
+        {
+            // Cleanup failed; keep the index consistent with the files that
+            // are still present rather than claiming the rollback succeeded.
+            match self.save(&previous_index) {
+                Ok(()) => self.index = previous_index,
+                Err(restore_error) => tracing::warn!(
+                    "failed to restore the index after rollback cleanup for {id}: {restore_error}"
+                ),
+            }
+            return Err(error.into());
         }
 
         Ok(InstallOutcome {
@@ -260,11 +281,13 @@ impl ExtensionStore {
             return Err(StoreError::NotInstalled(id.to_string()));
         }
         let id_dir = self.root.join(id);
+        let mut next_index = self.index.clone();
+        next_index.extensions.retain(|e| e.id != id);
+        self.save(&next_index)?;
+        self.index = next_index;
         if id_dir.exists() {
             fs::remove_dir_all(&id_dir)?;
         }
-        self.index.extensions.retain(|e| e.id != id);
-        self.save()?;
         if purge_settings {
             tracing::info!("removed settings for extension {id}");
         }
@@ -273,14 +296,16 @@ impl ExtensionStore {
 
     pub fn set_enabled(&mut self, id: &str, enabled: bool) -> Result<(), StoreError> {
         check_id(id)?;
-        let record = self
-            .index
+        let mut next_index = self.index.clone();
+        let record = next_index
             .extensions
             .iter_mut()
             .find(|e| e.id == id)
             .ok_or_else(|| StoreError::NotInstalled(id.to_string()))?;
         record.enabled = enabled;
-        self.save()
+        self.save(&next_index)?;
+        self.index = next_index;
+        Ok(())
     }
 
     /// Highest installed version other than the active one.
@@ -323,8 +348,9 @@ impl ExtensionStore {
         Ok(())
     }
 
-    fn save(&self) -> Result<(), StoreError> {
-        let data = serde_json::to_vec_pretty(&self.index)
+    /// Atomically persist an index snapshot without mutating `self.index`.
+    fn save(&self, index: &InstalledIndex) -> Result<(), StoreError> {
+        let data = serde_json::to_vec_pretty(index)
             .map_err(|e| StoreError::CorruptIndex(e.to_string()))?;
         let tmp = self.root.join(".installed.json.tmp");
         {
@@ -340,7 +366,9 @@ impl ExtensionStore {
             file.sync_all()?;
         }
         set_file_mode(&tmp, 0o600)?;
-        fs::rename(&tmp, &self.index_path)?;
+        fs::rename(&tmp, &self.index_path).inspect_err(|_| {
+            let _ = fs::remove_file(&tmp);
+        })?;
         set_file_mode(&self.index_path, 0o600)?;
         tighten_tree(&self.root)?;
         sync_dir(&self.root);

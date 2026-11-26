@@ -173,8 +173,8 @@ The kiosk keeps installed extensions under `store_path`:
 }
 ```
 
-- Installation extracts into a staging directory inside the store and renames it into place, so a failed install never leaves a partial version.
-- Only the active version and one previous version are kept. Rollback switches the record back and removes the newer files.
+- Installation extracts into a staging directory inside the store and renames it into place, so a failed install never leaves a partial version. If writing `installed.json` fails after the rename, the new version directory is removed so the files and the index stay in sync.
+- Only the active version and one previous version are kept. Rollback switches the record back, refreshes its manifest hash from the retained version, and removes the newer files.
 - The package manifest must match the signed catalog entry for id, version, provides, permissions, and config schema; a mismatch is rejected before anything is installed.
 
 ## Package format

@@ -896,7 +896,7 @@ The design system is adopted. This task ports the reference prototype to Slint a
 - [ ] Enforce HTTPS, size caps, SHA-256 checksums, and `min_app_version`/`api_version` compatibility. Unsigned catalogs and HTTP URLs are accepted only when `allow_unsigned` and `dev_mode` are both explicitly enabled.
 - [ ] Download `.hkext` packages (gzipped tar) to a temp directory; verify size and checksum before extraction.
 - [ ] Reject absolute paths, `..`, symlinks, hardlinks, device files, and decompressed-size bombs during extraction.
-- [ ] Install atomically under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; keep one previous version for rollback.
+- [x] Install atomically under `/var/lib/ha-kiosk/extensions/<id>/<version>/`; keep one previous version for rollback.
 - [ ] Maintain `installed.json` (id, version, enabled, manifest hash, source catalog) and enforce `0600`/`0700` permissions.
 - [ ] Tests: valid/invalid/tampered signature, key rotation, checksum mismatch, oversized package, path traversal, install/update/rollback/remove, offline cache.
 - [ ] Commit: `feat: signed extension catalog and store`.
