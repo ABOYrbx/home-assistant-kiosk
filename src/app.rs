@@ -1134,7 +1134,10 @@ fn publish_core(core: Weak<RefCell<ControllerCore>>, window: slint::Weak<MainWin
         return;
     };
     let elapsed = core.borrow().started.elapsed();
-    match core.borrow_mut().scheduler.request(elapsed) {
+    // The borrow must end before the match arms borrow the core again;
+    // a temporary in the match scrutinee would live for the whole match.
+    let slot = core.borrow_mut().scheduler.request(elapsed);
+    match slot {
         RedrawSlot::Ready => {
             core.borrow_mut().pending_redraw = false;
             core.borrow_mut().redraw_count += 1;
@@ -1360,5 +1363,43 @@ fn refresh_after_action<
     let _ = events.send(ShopEvent::InstalledLoaded(manager.installed_entries()));
     if catalog_online {
         let _ = events.send(ShopEvent::CatalogLoaded(manager.shop_entries()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use slint::ComponentHandle;
+
+    fn test_config() -> Config {
+        toml::from_str(
+            r#"
+[ha]
+url = "http://homeassistant.local:8123"
+
+[cache]
+path = "/tmp/ha-kiosk-startup-redraw-test-cache.json"
+"#,
+        )
+        .expect("test configuration must parse")
+    }
+
+    /// Regression: the event-pump timer published the first frame with an
+    /// outstanding mutable borrow and panicked with `RefCell already borrowed`
+    /// before the window ever appeared.
+    #[test]
+    fn publishing_a_frame_from_the_event_pump_does_not_panic() {
+        i_slint_backend_testing::init_integration_test_with_system_time();
+        let window = MainWindow::new().expect("window");
+        let (commands, _rx) = mpsc::channel(4);
+        let core = Rc::new(RefCell::new(ControllerCore::new(
+            test_config(),
+            commands,
+            AppState::default(),
+        )));
+
+        publish_core(Rc::downgrade(&core), window.as_weak());
+
+        assert_eq!(core.borrow().redraw_count, 1);
     }
 }
