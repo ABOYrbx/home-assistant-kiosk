@@ -2,9 +2,9 @@
 
 use ha_kiosk::extensions::{
     CatalogCache, CatalogClient, CatalogEntry, CatalogError, CatalogFetcher, CatalogIndex,
-    CatalogPolicy, ExtensionKind, ExtensionManifest, ExtensionStore, FetchError, PackageError,
-    SignatureError, SignatureStatus, StoreError, extract_package, extract_package_with_limit,
-    sha256_hex, verify_package, verify_signature, verify_unsigned,
+    CatalogPolicy, ExtensionKind, ExtensionManifest, ExtensionStore, FetchError, HttpsFetcher,
+    PackageError, SignatureError, SignatureStatus, StoreError, extract_package,
+    extract_package_with_limit, sha256_hex, verify_package, verify_signature, verify_unsigned,
 };
 use semver::Version;
 use std::collections::HashMap;
@@ -181,9 +181,31 @@ fn sign(keypair: &minisign::KeyPair, data: &[u8]) -> String {
     .to_string()
 }
 
+#[derive(Clone, Copy)]
+enum FakeFailure {
+    Status(u16),
+    TooLarge,
+}
+
+impl FakeFailure {
+    fn into_error(self, url: &str, max_bytes: u64) -> FetchError {
+        match self {
+            Self::Status(status) => FetchError::Status {
+                status,
+                url: url.to_string(),
+            },
+            Self::TooLarge => FetchError::TooLarge {
+                url: url.to_string(),
+                limit: max_bytes,
+            },
+        }
+    }
+}
+
 #[derive(Default)]
 struct FakeFetcher {
     responses: HashMap<String, Vec<u8>>,
+    failures: HashMap<String, FakeFailure>,
 }
 
 impl FakeFetcher {
@@ -196,10 +218,17 @@ impl FakeFetcher {
     fn insert(&mut self, url: &str, body: impl Into<Vec<u8>>) {
         self.responses.insert(url.to_string(), body.into());
     }
+
+    fn fail(&mut self, url: &str, failure: FakeFailure) {
+        self.failures.insert(url.to_string(), failure);
+    }
 }
 
 impl CatalogFetcher for FakeFetcher {
     fn get(&mut self, url: &Url, max_bytes: u64) -> Result<Vec<u8>, FetchError> {
+        if let Some(failure) = self.failures.get(url.as_str()) {
+            return Err((*failure).into_error(url.as_str(), max_bytes));
+        }
         let body = self
             .responses
             .get(url.as_str())
@@ -657,6 +686,60 @@ fn refresh_rejects_a_tampered_index() {
 }
 
 #[test]
+fn production_fetcher_never_sends_a_plain_http_request() {
+    use std::io::Read;
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+    use std::time::Duration as StdDuration;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 64];
+        let bytes = stream.read(&mut buf).unwrap_or(0);
+        let _ = tx.send(bytes);
+    });
+
+    let url = Url::parse(&format!("http://127.0.0.1:{port}/index.json")).unwrap();
+    let mut fetcher = HttpsFetcher::new().unwrap();
+    let error = fetcher.get(&url, 1024).unwrap_err();
+    assert!(matches!(error, FetchError::Transport(_)));
+    assert!(
+        rx.recv_timeout(StdDuration::from_millis(500)).is_err(),
+        "a production fetcher must not send a plain HTTP request"
+    );
+}
+
+#[test]
+fn dev_mode_fetcher_allows_a_plain_http_request() {
+    use std::io::Read;
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+    use std::time::Duration as StdDuration;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 64];
+        let bytes = stream.read(&mut buf).unwrap_or(0);
+        let _ = stream.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+        let _ = tx.send(bytes);
+    });
+
+    let mut policy = policy();
+    policy.allow_unsigned = true;
+    policy.dev_mode = true;
+    let url = Url::parse(&format!("http://127.0.0.1:{port}/index.json")).unwrap();
+    let mut fetcher = HttpsFetcher::for_policy(&policy).unwrap();
+    let _ = fetcher.get(&url, 1024);
+    assert!(rx.recv_timeout(StdDuration::from_millis(2000)).unwrap() > 0);
+}
+
+#[test]
 fn refresh_requires_https() {
     let catalog_url = Url::parse("http://catalog.example.com/index.json").unwrap();
     let dir = tempfile::tempdir().unwrap();
@@ -710,6 +793,120 @@ fn unsigned_refresh_works_only_in_development_mode() {
     );
     let outcome = client.refresh().unwrap();
     assert_eq!(outcome.signature, SignatureStatus::Unsigned);
+}
+
+#[test]
+fn refresh_rejects_a_signature_fetch_error_even_when_unsigned_is_allowed() {
+    let package = build_package(ID, "1.0.0");
+    let index = index_json(vec![catalog_entry(ID, "1.0.0", &package)]);
+    let catalog_url = Url::parse(CATALOG_URL).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut policy = policy();
+    policy.allow_unsigned = true;
+    policy.dev_mode = true;
+    let mut fetcher = FakeFetcher::with(CATALOG_URL, index);
+    fetcher.fail(
+        "https://catalog.example.com/index.json.minisig",
+        FakeFailure::Status(500),
+    );
+    let mut client = CatalogClient::new(
+        fetcher,
+        policy,
+        catalog_url,
+        CatalogCache::new(dir.path().join("catalog-cache.json")),
+    );
+    let error = client.refresh().unwrap_err();
+    assert!(matches!(
+        error,
+        CatalogError::Fetch(FetchError::Status { status: 500, .. })
+    ));
+}
+
+#[test]
+fn refresh_rejects_an_oversized_signature_even_when_unsigned_is_allowed() {
+    let package = build_package(ID, "1.0.0");
+    let index = index_json(vec![catalog_entry(ID, "1.0.0", &package)]);
+    let catalog_url = Url::parse(CATALOG_URL).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut policy = policy();
+    policy.allow_unsigned = true;
+    policy.dev_mode = true;
+    let mut fetcher = FakeFetcher::with(CATALOG_URL, index);
+    fetcher.fail(
+        "https://catalog.example.com/index.json.minisig",
+        FakeFailure::TooLarge,
+    );
+    let mut client = CatalogClient::new(
+        fetcher,
+        policy,
+        catalog_url,
+        CatalogCache::new(dir.path().join("catalog-cache.json")),
+    );
+    let error = client.refresh().unwrap_err();
+    assert!(matches!(
+        error,
+        CatalogError::Fetch(FetchError::TooLarge { .. })
+    ));
+}
+
+#[test]
+fn refresh_does_not_serve_the_cache_when_the_configured_url_is_not_allowed() {
+    let package = build_package(ID, "1.0.0");
+    let index = index_json(vec![catalog_entry(ID, "1.0.0", &package)]);
+    let (public_key, keypair) = keypair();
+    let signature = sign(&keypair, &index);
+    let catalog_url = Url::parse(CATALOG_URL).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let cache_path = dir.path().join("catalog-cache.json");
+    let mut policy = policy();
+    policy.public_keys = vec![public_key];
+    let mut fetcher = FakeFetcher::with(CATALOG_URL, index);
+    fetcher.insert("https://catalog.example.com/index.json.minisig", signature);
+    let mut client = CatalogClient::new(
+        fetcher,
+        policy.clone(),
+        catalog_url,
+        CatalogCache::new(&cache_path),
+    );
+    client.refresh().unwrap();
+
+    let insecure_url = Url::parse("http://catalog.example.com/index.json").unwrap();
+    let mut client = CatalogClient::new(
+        FakeFetcher::default(),
+        policy,
+        insecure_url,
+        CatalogCache::new(&cache_path),
+    );
+    let error = client.refresh().unwrap_err();
+    assert!(matches!(error, CatalogError::HttpNotAllowed));
+}
+
+#[cfg(unix)]
+#[test]
+fn refresh_writes_the_cached_index_with_private_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let package = build_package(ID, "1.0.0");
+    let index = index_json(vec![catalog_entry(ID, "1.0.0", &package)]);
+    let (public_key, keypair) = keypair();
+    let signature = sign(&keypair, &index);
+    let catalog_url = Url::parse(CATALOG_URL).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let cache_path = dir.path().join("catalog-cache.json");
+
+    fs::write(&cache_path, b"{}").unwrap();
+    fs::set_permissions(&cache_path, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let mut fetcher = FakeFetcher::with(CATALOG_URL, index);
+    fetcher.insert("https://catalog.example.com/index.json.minisig", signature);
+    let mut policy = policy();
+    policy.public_keys = vec![public_key];
+    let mut client =
+        CatalogClient::new(fetcher, policy, catalog_url, CatalogCache::new(&cache_path));
+    client.refresh().unwrap();
+
+    let mode = fs::metadata(&cache_path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o600);
 }
 
 // ---------------------------------------------------------------------------

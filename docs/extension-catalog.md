@@ -104,11 +104,11 @@ allow_unsigned = false
 
 Verification rules:
 
-1. Fetch `index.json` and `index.json.minisig` over HTTPS.
+1. Fetch `index.json` and `index.json.minisig` over HTTPS. The fetcher rejects plain HTTP on the initial request and after a redirect; HTTP is only possible with `allow_unsigned` and `dev_mode` both enabled.
 2. Verify the signature over the exact index bytes against a configured public key.
-3. Reject if no configured key matches.
-4. Parse and validate the index.
-5. Cache the last verified index for offline use.
+3. Reject if no configured key matches. A missing signature file (HTTP 404) is the only case treated as an unsigned catalog, and only when `allow_unsigned` and `dev_mode` are both enabled. Transport errors, oversized responses, and other HTTP statuses are never downgraded to an unsigned catalog.
+4. Parse and validate the index, including the configured `max_catalog_bytes` size cap.
+5. Cache the last verified index for offline use. The cache is used only when its source URL still matches the configured URL, and its signature and size cap are re-checked against the current keys and policy.
 
 Key rotation: publish a new public key in the catalog repository and in a kiosk release/update first; sign the index with the new key; keep the old key in the config for a transition period; then remove it. A compromised key needs a revocation notice and a new release.
 

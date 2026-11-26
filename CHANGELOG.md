@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - End-to-end failure scenarios against a mock WebSocket server: invalid token, failed service call, malformed frames, unknown domains, offline cache, and resync in [`tests/e2e_test.rs`](tests/e2e_test.rs).
 - Performance evidence tooling: [`scripts/perf-record.py`](scripts/perf-record.py) builds a validated record from raw evidence, [`scripts/perf-memory.py`](scripts/perf-memory.py) captures GNU time or systemd cgroup values, and [`scripts/perf-heaptrack.sh`](scripts/perf-heaptrack.sh) runs a guarded x86_64 allocation profile.
 - A dependency audit workflow contract test that also enforces the repository's GitHub-owned-actions policy.
+- Signed catalog client: fetch `index.json` and its Minisign signature over HTTPS, verify against configured public keys (with key rotation), cache the last verified index for offline use, and enforce the configured catalog size cap (#119).
 
 ### Fixed
 
@@ -41,5 +42,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Documented token handling, file permissions, TLS validation, and the offline-cache exposure model.
 - Album-art requests are size-bounded, use a capped LRU cache, never forward the Home Assistant token across origins, and omit query strings from logs.
+- A catalog signature fetch failure is no longer treated as an unsigned catalog: only a genuine 404 in development mode is accepted as unsigned, and the production fetcher rejects plain HTTP even after a redirect.
 
 [Unreleased]: https://github.com/ABOYrbx/home-assistant-kiosk/commits/main

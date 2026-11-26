@@ -1186,8 +1186,9 @@ fn run_shop_worker(
     tasks: std_mpsc::Receiver<ShopTask>,
     events: std_mpsc::Sender<ShopEvent>,
 ) {
-    let manager = HttpsFetcher::new()
-        .and_then(|catalog| HttpsFetcher::new().map(|package| (catalog, package)));
+    let trust = options.catalog_policy();
+    let manager = HttpsFetcher::for_policy(&trust)
+        .and_then(|catalog| HttpsFetcher::for_policy(&trust).map(|package| (catalog, package)));
     let mut manager = match manager {
         Ok((catalog, package)) => match ExtensionManager::new(options, catalog, package) {
             Ok(manager) => Some(manager),
