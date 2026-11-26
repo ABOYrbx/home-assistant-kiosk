@@ -275,6 +275,11 @@ impl ExtensionHost {
         let limits = self.limits.clone();
         let wall_clock = limits.wall_clock;
         let mut engine = Engine::new();
+        // No filesystem, process, environment, or module access: drop the
+        // default file-based module resolver and use the dummy resolver so
+        // `import`/module loading can never touch the filesystem even if a
+        // symbol slips past the disabled-keyword list.
+        engine.set_module_resolver(rhai::module_resolvers::DummyModuleResolver::new());
         engine.set_max_operations(limits.max_operations);
         engine.set_max_string_size(limits.max_string_bytes);
         engine.set_max_array_size(limits.max_array_entries);
@@ -288,6 +293,11 @@ impl ExtensionHost {
         for symbol in ["eval", "print", "debug", "import", "export"] {
             engine.disable_symbol(symbol);
         }
+        // Neutralise `sleep`, which would otherwise block the host thread and
+        // bypass the wall-clock limit (it calls std::thread::sleep without
+        // yielding to Rhai's progress callback).
+        engine.register_fn("sleep", |_seconds: i64| {});
+        engine.register_fn("sleep", |_seconds: f64| {});
 
         let policy = self.policy.clone();
         let fetcher = Arc::clone(&self.fetcher);
