@@ -85,6 +85,10 @@ pub fn extract_package_with_limit(
     destination: &Path,
     max_decompressed_bytes: u64,
 ) -> Result<(), PackageError> {
+    // Validate the whole archive before touching the destination so that a
+    // rejected entry never leaves partial files behind.
+    validate_archive(bytes, max_decompressed_bytes)?;
+
     let decoder = GzDecoder::new(bytes);
     let mut archive = tar::Archive::new(decoder);
     let mut seen: HashSet<PathBuf> = HashSet::new();
@@ -143,6 +147,60 @@ pub fn extract_package_with_limit(
         return Err(PackageError::Invalid(
             "package is missing manifest.toml".into(),
         ));
+    }
+    Ok(())
+}
+
+/// Validate an archive without writing anything.
+fn validate_archive(bytes: &[u8], max_decompressed_bytes: u64) -> Result<(), PackageError> {
+    let decoder = GzDecoder::new(bytes);
+    let mut archive = tar::Archive::new(decoder);
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    let mut total: u64 = 0;
+    let mut count: usize = 0;
+
+    for entry in archive.entries()? {
+        let entry = entry?;
+        count += 1;
+        if count > MAX_ARCHIVE_ENTRIES {
+            return Err(PackageError::Invalid("too many archive entries".into()));
+        }
+        let path = entry.path()?.into_owned();
+        if !is_safe_archive_path(&path) {
+            return Err(PackageError::UnsafePath(path.display().to_string()));
+        }
+        if !seen.insert(path.clone()) {
+            return Err(PackageError::Invalid(format!(
+                "duplicate archive entry: {}",
+                path.display()
+            )));
+        }
+        let entry_type = entry.header().entry_type();
+        match entry_type {
+            EntryType::Regular => {
+                let size = entry.size();
+                let remaining = max_decompressed_bytes.saturating_sub(total);
+                if size > remaining {
+                    return Err(PackageError::DecompressedTooLarge {
+                        limit: max_decompressed_bytes,
+                    });
+                }
+                total = total.saturating_add(size);
+                if total > max_decompressed_bytes {
+                    return Err(PackageError::DecompressedTooLarge {
+                        limit: max_decompressed_bytes,
+                    });
+                }
+            }
+            EntryType::Directory => {}
+            other => {
+                return Err(PackageError::UnsupportedEntry(format!(
+                    "{} ({:?})",
+                    path.display(),
+                    other
+                )));
+            }
+        }
     }
     Ok(())
 }
