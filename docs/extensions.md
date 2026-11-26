@@ -115,12 +115,14 @@ The host registers only these functions:
 
 | Function | Behaviour |
 | --- | --- |
-| `http_get_json(url)` | GET only, HTTPS, host allowlist, no credentials, 10 s timeout, 1 MB cap, no cross-host redirects. Returns a Rhai value. |
+| `http_get_json(url)` | GET only, HTTPS, host allowlist, no credentials, 10 s timeout, 1 MB cap, no redirects followed (so a cross-host redirect cannot escape the allowlist). Returns a Rhai value. |
 | `ha_state(entity_id)` | Read-only map with `state` and `attributes`, allowlisted entity IDs only. Returns `()` if unavailable. |
 | `now()` | RFC 3339 timestamp in the Home Assistant timezone. |
 | `log(message)` | Debug log. Do not log secrets or full API responses. |
 
 No other host functions are registered. Rhai's own language has no filesystem, process, environment, or network access.
+
+Production fetches always use HTTPS. `extensions.dev_mode = true` additionally allows plain HTTP for an allowlisted loopback host so a local test server can be used while developing an extension; leave `dev_mode = false` on an installed kiosk.
 
 Limits: 1,000,000 operations, 64 KB strings, 1,000 array/map entries, max call depth, no modules/imports, 10 s wall clock. Scripts run off the UI thread.
 

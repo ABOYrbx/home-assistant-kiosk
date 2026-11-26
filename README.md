@@ -359,7 +359,7 @@ Unknown keys are rejected at startup, so a typo fails loudly instead of being ig
 | `extensions.catalog_url` | string | unset | HTTPS URL of the signed catalog index. |
 | `extensions.public_keys` | array of strings | `[]` | Minisign public keys for the catalog. |
 | `extensions.allow_unsigned` | bool | `false` | Development only. Never enable in production. |
-| `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs. |
+| `extensions.dev_mode` | bool | `false` | Development only: permit HTTP catalog URLs and plain HTTP loopback fetches in extensions. |
 | `extensions.refresh_hours` | integer | `24` | Catalog refresh interval. |
 | `extensions.max_catalog_bytes` | integer | `2097152` | Catalog download cap. |
 | `extensions.max_package_bytes` | integer | `5242880` | Package download cap. |
