@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host --strictPort --port 5914",
     "build": "vite build",
-    "preview": "vite preview --host --strictPort --port 5914"
+    "preview": "vite preview --host --strictPort --port 5914",
+    "test": "node --test src/lyrics/*.test.js"
   },
   "devDependencies": {
     "vite": "^8.3.8"

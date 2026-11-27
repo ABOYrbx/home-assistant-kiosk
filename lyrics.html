@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Lyrics stage — demo</title>
+    <link rel="stylesheet" href="./tokens.css" />
+    <link rel="stylesheet" href="./lyrics.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#lyrics-view">Skip to lyrics</a>
+
+    <div class="stage" id="stage">
+      <div class="stage__backdrop" id="backdrop" aria-hidden="true">
+        <img class="stage__cover" id="cover" src="./cover-placeholder.svg" alt="" />
+        <div class="stage__scrim"></div>
+        <div class="stage__vignette"></div>
+      </div>
+
+      <header class="stage__top">
+        <span class="stage__mark">Lyrics stage</span>
+        <span class="demo-badge" id="demo-badge">Demo · no real playback</span>
+        <button
+          class="icon-button"
+          id="settings-open"
+          type="button"
+          aria-label="Open settings"
+          aria-haspopup="dialog"
+          aria-controls="settings-sheet"
+          aria-expanded="false"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.03-1.55V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09A1.7 1.7 0 0 0 20.95 10H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z" />
+          </svg>
+        </button>
+      </header>
+
+      <main class="stage__main" id="stage-main">
+        <section class="idle" id="idle" aria-labelledby="idle-title">
+          <time class="idle__clock" id="idle-clock">--:--</time>
+          <p class="idle__date" id="idle-date"></p>
+          <h1 class="idle__title" id="idle-title">Search for a track</h1>
+          <p class="idle__hint" id="idle-hint">
+            Add a publishable key in Settings to load real lyrics, or review a demo below.
+          </p>
+          <div class="idle__picker" role="group" aria-label="Review demo fixtures">
+            <button class="pill-button" type="button" data-fixture="syllable">Syllable demo</button>
+            <button class="pill-button" type="button" data-fixture="line">Line demo</button>
+            <button class="pill-button" type="button" data-fixture="static">Static demo</button>
+            <button class="pill-button" type="button" data-fixture="long">Long demo</button>
+            <button class="pill-button" type="button" data-fixture="empty">No lyrics</button>
+            <button class="pill-button" type="button" data-fixture="error">Error demo</button>
+          </div>
+        </section>
+
+        <section class="lyrics-view" id="lyrics-view" aria-labelledby="view-title" hidden>
+          <h1 class="sr-only" id="view-title">Synced lyrics</h1>
+          <p class="sync-note" id="sync-note" hidden>Not synced — this source has no timing data</p>
+          <div class="lyrics__lines" id="line-list"></div>
+          <p class="attribution" id="attribution"></p>
+        </section>
+
+        <section class="state-panel" id="state-panel" aria-labelledby="state-title" hidden>
+          <div class="skeleton" id="skeleton" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div class="state-panel__content" id="state-content" hidden>
+            <h2 class="state-panel__title" id="state-title"></h2>
+            <p class="state-panel__message" id="state-message"></p>
+            <button class="pill-button" id="state-retry" type="button">Retry</button>
+          </div>
+          <p class="state-panel__late" id="state-late" hidden>
+            Still loading.
+            <button class="text-button" id="late-retry" type="button">Retry</button>
+          </p>
+        </section>
+      </main>
+
+      <div class="stage__meta" id="track-meta" hidden>
+        <img class="track-meta__cover" id="meta-cover" src="./cover-placeholder.svg" alt="" />
+        <div class="track-meta__text">
+          <p class="track-meta__title" id="meta-title"></p>
+          <p class="track-meta__artist" id="meta-artist"></p>
+          <p class="track-meta__album" id="meta-album"></p>
+        </div>
+      </div>
+
+      <footer class="controls" id="controls" aria-label="Demo playback controls" hidden>
+        <div class="progress">
+          <span class="progress__time" id="time-current">0:00</span>
+          <input
+            class="progress__range"
+            id="scrub"
+            type="range"
+            min="0"
+            max="1000"
+            value="0"
+            aria-label="Seek position"
+          />
+          <span class="progress__time" id="time-total">0:00</span>
+        </div>
+        <div class="controls__buttons">
+          <button
+            class="icon-button icon-button--primary"
+            id="play-toggle"
+            type="button"
+            aria-label="Play"
+          >
+            <svg class="icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+              <path d="M8 5.5v13l11-6.5z" />
+            </svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" hidden>
+              <rect x="6.5" y="5" width="4" height="14" rx="1" />
+              <rect x="13.5" y="5" width="4" height="14" rx="1" />
+            </svg>
+          </button>
+          <button class="icon-button" id="restart" type="button" aria-label="Restart from the beginning">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 3-6.7" />
+              <polyline points="3 4 3 9 8 9" />
+            </svg>
+          </button>
+          <span class="controls__hint">Demo clock · no audio</span>
+        </div>
+      </footer>
+
+      <p class="sr-only" id="live-status" role="status" aria-live="polite"></p>
+
+      <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+      <aside class="sheet" id="settings-sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+        <header class="sheet__head">
+          <h2 id="sheet-title">Settings</h2>
+          <button class="icon-button" id="settings-close" type="button" aria-label="Close settings">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="sheet__body">
+          <section class="sheet__section" aria-labelledby="key-title">
+            <h3 id="key-title">Publishable key</h3>
+            <p class="sheet__help">
+              A publishable <code>sl_pk_…</code> key is stored in this browser only. Add
+              <code>http://localhost:5914</code> and your preview origin to the key's allowlist
+              in the developer dashboard.
+            </p>
+            <label class="field">
+              <span>Key</span>
+              <input id="key-input" class="field__input" type="password" autocomplete="off" spellcheck="false" placeholder="sl_pk_…" />
+            </label>
+            <div class="sheet__row">
+              <button class="pill-button" id="key-save" type="button">Save key</button>
+              <button class="text-button" id="key-clear" type="button">Clear key</button>
+            </div>
+            <p class="sheet__status" id="key-status" role="status"></p>
+          </section>
+
+          <section class="sheet__section" aria-labelledby="search-title">
+            <h3 id="search-title">Find a track</h3>
+            <label class="field">
+              <span>Title</span>
+              <input id="search-title-input" class="field__input" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Artist</span>
+              <input id="search-artist" class="field__input" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Album <span class="field__optional">(optional)</span></span>
+              <input id="search-album" class="field__input" type="text" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Duration in seconds <span class="field__optional">(optional)</span></span>
+              <input id="search-duration" class="field__input" type="number" min="0" inputmode="numeric" />
+            </label>
+            <button class="pill-button" id="search-submit" type="button">Search</button>
+            <p class="sheet__status" id="search-status" role="status"></p>
+            <ul class="results" id="results"></ul>
+          </section>
+
+          <section class="sheet__section" aria-labelledby="offset-title">
+            <h3 id="offset-title">Sync offset</h3>
+            <p class="sheet__help">Shift the lyrics against the demo clock. Stored in this browser.</p>
+            <label class="field">
+              <span>Offset: <output id="offset-value">0 ms</output></span>
+              <input id="offset" type="range" min="-2000" max="2000" step="50" value="0" />
+            </label>
+            <button class="text-button" id="offset-reset" type="button">Reset offset</button>
+          </section>
+
+          <section class="sheet__section" aria-labelledby="fixtures-title">
+            <h3 id="fixtures-title">Review fixtures</h3>
+            <div class="fixture-grid">
+              <button class="pill-button" type="button" data-fixture="syllable">Syllable</button>
+              <button class="pill-button" type="button" data-fixture="line">Line</button>
+              <button class="pill-button" type="button" data-fixture="static">Static</button>
+              <button class="pill-button" type="button" data-fixture="long">Long</button>
+              <button class="pill-button" type="button" data-fixture="empty">No lyrics</button>
+              <button class="pill-button" type="button" data-fixture="error">Error</button>
+            </div>
+          </section>
+
+          <section class="sheet__section" aria-labelledby="cache-title">
+            <h3 id="cache-title">Cache</h3>
+            <p class="sheet__help">
+              Lyrics are cached for 24 hours, at most 30 entries and 1 MB. No prefetch.
+            </p>
+            <button class="text-button" id="cache-clear" type="button">Clear cached lyrics</button>
+            <p class="sheet__status" id="cache-status" role="status"></p>
+          </section>
+
+          <section class="sheet__section" aria-labelledby="about-title">
+            <h3 id="about-title">Attribution and terms</h3>
+            <p class="sheet__help">
+              Lyrics data comes from the Spicy Lyrics API. The free tier is rate-limited with no
+              uptime guarantee; each viewer supplies their own key. Source and attribution are
+              shown beside every real lyric. This prototype uses no audio and plays no video.
+            </p>
+            <a href="https://developers.spicylyrics.org/docs" target="_blank" rel="noopener noreferrer">API documentation</a>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <script type="module">
+      import { start } from './src/lyrics/stage.js';
+      start();
+    </script>
+  </body>
+</html>
